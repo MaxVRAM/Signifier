@@ -43,6 +43,11 @@ Python scripts designed for Raspberry Pi 4B to manage sensor inputs, output modu
 
 - It's unfortunate the amp doesn't have a 3.5mm jack input, as this would provide more options should there be issues with USB communication.
 
+Currently trying these:
+- `python3 -m pip install sounddevice`
+- `python3 -m pip install alsa-utils`
+- `sudo apt install libportaudio2`
+
 
 ### Temperature sensor
 [Digital Temp Sensor](https://www.altronics.com.au/p/z6386-stainless-steel-housing-waterproof-ds18b20-temperature-probe/)
