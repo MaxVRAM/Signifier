@@ -65,6 +65,7 @@ Currently trying these:
 
 
 ## Signifier software
+- OS: Raspberry Pi OS Bulleye 64-bit (arm64) - superior performance and far better compatibility with software packages.
 - Python 3.8 - primary language for Signifier functionality.
 - Docker/Portainer - local and remote management of additional packages.
 - Prometheus - time-series database for local database recording of sensor data.
