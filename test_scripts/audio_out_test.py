@@ -1,6 +1,8 @@
 # This script will test the ability for the Pi to output a reliable multi-clip audio stream playback
 
 # https://python-sounddevice.readthedocs.io/en/0.4.3/installation.html
+# https://pysoundfile.readthedocs.io/en/latest/
+
 # python3 -m pip install sounddevice
 # python3 -m pip install SoundFile
 # python3 -m pip install numpy
