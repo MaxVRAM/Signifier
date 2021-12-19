@@ -72,5 +72,5 @@ Currently trying these:
 
 ## Python modules
 - [PySerial](https://pypi.org/project/pyserial/)
+- [sounddevices](https://python-sounddevice.readthedocs.io/en/0.4.3/)
 - [Prometheus Python Client](https://pypi.org/project/prometheus-client/0.0.9/)
-
