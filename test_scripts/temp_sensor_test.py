@@ -1,0 +1,1 @@
+# This script will test reading the 1-wire temperature sensor connected to the Pi via GPIO
