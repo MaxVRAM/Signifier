@@ -2,6 +2,7 @@
 
 # https://python-sounddevice.readthedocs.io/en/0.4.3/installation.html
 # python3 -m pip install sounddevice
+# python3 -m pip install SoundFile
 # python3 -m pip install numpy
 # sudo apt-get install libportaudio2
 
@@ -9,9 +10,10 @@
 #   - CLI: python3 -m sounddevice
 #   - Python: sd.query_devices()
 
+import sys
 import numpy as np
 import sounddevice as sd
-
+import soundfile as sf
 
 # Default globals for all audio output sounddevice functions
 SAMPLERATE = 44100
@@ -24,8 +26,22 @@ sd.default.channels = 1
 AMPLITUDE = 0.2
 FREQUENCY = 500
 
-# TODO make move to multiprocessor thread
-def sine_wave(outdata, frames, time, status):
+sound_pool = []
+
+class sound_object():
+    def __init__(self, **kwargs) -> None:
+        index = 0
+        volume = 0
+        pitch = 500
+
+        if 'volume' in kwargs:
+            volume = kwargs.volume
+        if 'pitch' in kwargs:
+            pitch = kwargs.pitch        
+
+
+# TODO make this spawn multiple threads of audio file inputs
+def fill_buffer(outdata, frames, time, status):
     """Basic sinewave buffer callback."""
     if status:
         print(status, file=sys.stderr)
@@ -34,23 +50,21 @@ def sine_wave(outdata, frames, time, status):
     t = t.reshape(-1, 1)
     outdata[:] = AMPLITUDE * np.sin(2 * np.pi * FREQUENCY * t)
     start_idx += frames
+    print(f'buffer sample size: {len(t)}    frames: {frames}    start_idx: {start_idx}')
 
-
-# A start index variable will possibly need to be defined for each audio source thread
-start_idx = 0
 
 # Main audio test code
-try:
-    # Currently this is only populating the OutputStream with a static sinewave callback.
-    # Instead, this will be populated with a number dynamic buffers across several threads/processors,
-    # each with their own content from an associated audio file and independant playback position.
-    # These will sum into a primary RawOutputStream function.
-    with sd.OutputStream(callback=sine_wave):
-        print('#' * 80)
-        print('press Return to quit')
-        print('#' * 80)
-        input()
-except KeyboardInterrupt:
-    parser.exit('')
-except Exception as e:
-    parser.exit(type(e).__name__ + ': ' + str(e))
+if __name__ == '__main__':
+    # A start index variable will possibly need to be defined for each audio source thread
+    start_idx = 0
+    try:
+        with sd.OutputStream(callback=fill_buffer):
+            print('#' * 80)
+            print('press Return to quit')
+            print('#' * 80)
+            input()
+    except KeyboardInterrupt:
+        sys.exit()
+    except Exception as e:
+        print(f'Exiting program with exception: {e}')
+        sys.exit()
