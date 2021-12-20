@@ -3,6 +3,9 @@
 # https://python-sounddevice.readthedocs.io/en/0.4.3/installation.html
 # https://pysoundfile.readthedocs.io/en/latest/
 
+
+# sudo apt install libsndfile1
+
 # python3 -m pip install sounddevice
 # python3 -m pip install SoundFile
 # python3 -m pip install numpy
@@ -16,6 +19,8 @@ import sys
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+import threading
+
 
 # Default globals for all audio output sounddevice functions
 SAMPLERATE = 44100
@@ -42,7 +47,7 @@ class sound_object():
             pitch = kwargs.pitch        
 
 
-# TODO make this spawn multiple threads of audio file inputs
+# TODO fill this buffer with existing array, then queue multiprocessor tasks to populate the next buffer
 def fill_buffer(outdata, frames, time, status):
     """Basic sinewave buffer callback."""
     if status:
