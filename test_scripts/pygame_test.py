@@ -19,6 +19,7 @@
 # So I'm not sure why pygame isn't picking up this device
 
 import logging, os, random, requests
+from time import sleep
 import pygame as pg
 import pygame._sdl2 as sdl2
 #import pygame_sdl2
@@ -45,6 +46,8 @@ BUSY_LEVEL = 4
 MIN_LOOP_LENGTH = 10
 LOOP_RANGE = [0, 6]
 
+# Need to unpack this - I suspect this is a hack to maintain the playback beyond the events 
+TRACK_END = pg.USEREVENT+1
 
 
 def init_library(path: str) -> list:
@@ -95,6 +98,8 @@ def import_clips(clip_paths: set) -> set:
         new_clip = pg.mixer.Sound(file=path)
         audio_objects.add(new_clip)
 
+    logging.debug(f'Imported {len(audio_objects)} audio objects.')
+
     return audio_objects
 
 
@@ -106,7 +111,7 @@ def play_clip(audio_clip: pg.mixer.Sound) -> pg.mixer.Channel:
         return None
 
     # Define loop properties of new audio clip playback and return the channel
-    num_loop = -1 if audio_clip.get_length() < MIN_LOOP_LENGTH else  range.randint(LOOP_RANGE[0], LOOP_RANGE[1])
+    num_loop = -1 if audio_clip.get_length() < MIN_LOOP_LENGTH else random.randint(LOOP_RANGE[0], LOOP_RANGE[1])
     channel = audio_clip.play(loops=num_loop, fade_ms=DEFAULT_FADEIN)
     logging.debug(f'Started sound {channel.get_sound().__str__}')
     return channel
@@ -136,15 +141,20 @@ if __name__ == '__main__':
 
 
     # On testing equipment, 'bcm2835 Headphones, bcm2835 Headphones' is the correct devicename
-
+    # Will need to test this on production before prototype submission to make sure there is a neat solution
     pg.mixer.pre_init(frequency=SAMPLE_RATE, channels=CHANNELS, buffer=BUFFER, devicename='bcm2835 Headphones, bcm2835 Headphones')
     pg.mixer.init()
     print(f'{pg.mixer.get_init()}')
 
     CLIP_LIBRARY = init_library(BASE_PATH)
-    inactive_pool = import_clips(get_collection(CLIP_LIBRARY))
+
+    current_collection = get_collection(CLIP_LIBRARY)
+    inactive_pool = import_clips(current_collection)
     print(f'Inactive pool now contains {len(inactive_pool)} audio clips.')
 
+    play_clip(random.choice(tuple(inactive_pool)))
 
+    while pg.mixer.get_busy():
+        sleep(0.001)
 
 
