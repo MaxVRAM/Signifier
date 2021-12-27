@@ -28,6 +28,7 @@ import pygame._sdl2 as sdl2
 logging.basicConfig(level=logging.DEBUG)
 
 SAMPLE_RATE = 44100
+SIZE = -16
 CHANNELS = 20
 BUFFER = 2048
 #DEVICE = 'default'
@@ -112,8 +113,10 @@ def play_clip(audio_clip: pg.mixer.Sound) -> pg.mixer.Channel:
 
     # Define loop properties of new audio clip playback and return the channel
     num_loop = -1 if audio_clip.get_length() < MIN_LOOP_LENGTH else random.randint(LOOP_RANGE[0], LOOP_RANGE[1])
+    print(f'Playing sound with length {audio_clip.get_length()} x {num_loop} times.')
+    audio_clip.set_volume(0.1)
     channel = audio_clip.play(loops=num_loop, fade_ms=DEFAULT_FADEIN)
-    logging.debug(f'Started sound {channel.get_sound().__str__}')
+    logging.debug(f'Started sound {channel.get_sound()}')
     return channel
 
 
@@ -142,7 +145,7 @@ if __name__ == '__main__':
 
     # On testing equipment, 'bcm2835 Headphones, bcm2835 Headphones' is the correct devicename
     # Will need to test this on production before prototype submission to make sure there is a neat solution
-    pg.mixer.pre_init(frequency=SAMPLE_RATE, channels=CHANNELS, buffer=BUFFER, devicename='bcm2835 Headphones, bcm2835 Headphones')
+    pg.mixer.pre_init(frequency=SAMPLE_RATE, size=SIZE, channels=1, buffer=BUFFER, devicename='bcm2835 Headphones, bcm2835 Headphones')
     pg.mixer.init()
     print(f'{pg.mixer.get_init()}')
 
@@ -153,6 +156,37 @@ if __name__ == '__main__':
     print(f'Inactive pool now contains {len(inactive_pool)} audio clips.')
 
     play_clip(random.choice(tuple(inactive_pool)))
+    play_clip(random.choice(tuple(inactive_pool)))
+    play_clip(random.choice(tuple(inactive_pool)))
+    play_clip(random.choice(tuple(inactive_pool)))
+    play_clip(random.choice(tuple(inactive_pool)))
+    play_clip(random.choice(tuple(inactive_pool)))
+
+
+    # Playback is working excellently!!
+    # Crunkiness was from defining tons of channels instead of 1 for mixer output
+
+    # Next steps for project:
+
+    # TEST:
+    #   A) Move Sound.play() over to pg.mixer.Channel(ch).play(sound)
+    #       This might solve the problem with volume maxing out and Channel number crunkiness
+
+    # Basic playback:
+    #   1) Create proper exit function and audio clip playback length limiting
+    #   2) add function to move newly played clip from inactive_pool to active_pool
+    #   3) differentiate various clip types (short, med, long, loop, etc)
+    #   4) replate original Signifier audio playback
+    #   5) use noise to modulate channel volumes
+    # Modulated playback:
+    #   6) Create server of some kind. Accepting JSON would be ideal, for key/value control.
+    #   7) Affix server responses to functions
+    #   8) Create documentation for server commands
+    # LED reactivity:
+    #   9) Add function to analyise channel output amplitudes
+    #   10) Test pyserial to Arduino functionality
+    #   11) Create simple LED brightness reactivity based on audio output
+
 
     while pg.mixer.get_busy():
         sleep(0.001)
