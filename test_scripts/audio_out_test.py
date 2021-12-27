@@ -3,6 +3,14 @@
 # https://python-sounddevice.readthedocs.io/en/0.4.3/installation.html
 # https://pysoundfile.readthedocs.io/en/latest/
 
+# Using CLI tool "SoX" to batch-convert audio files to mono-sum the audio files. 
+
+# The following commands create a mono mix-down of a stereo file:
+# sox infile.wav outfile.wav remix 1,2
+# sox infile.wav outfile.wav remix 1-2
+
+# This was run in each Signifier audio directory:
+# find * -name "*.wav" -print0 | while read -d $'\0' file; do sox "$file" m_"$file" remix 1,2; done
 
 # sudo apt install libsndfile1
 
@@ -33,18 +41,24 @@ sd.default.channels = 1
 AMPLITUDE = 0.2
 FREQUENCY = 500
 
-sound_pool = []
+# Audio clip pooling
+POOL_LIMIT = 10
+inactive_clip_pool = []
+active_clip_pool = []
+
 
 class sound_object():
-    def __init__(self, **kwargs) -> None:
-        index = 0
-        volume = 0
-        pitch = 500
+    def __init__(self, clip:sf.SoundFile, **kwargs) -> None:
+        self.clip = clip
+        self.currentSample = 0
+        self.startSample = kwargs.get('startIndex', 0)
+        self.volume = kwargs.get('volume', 0.2)
+        self.pitch = kwargs.get('pitch', 1)
 
-        if 'volume' in kwargs:
-            volume = kwargs.volume
-        if 'pitch' in kwargs:
-            pitch = kwargs.pitch        
+    def __str__(self) -> str:
+        return f'{self.clip.name} | start index: {self.startSample}, playback index: {self.currentSample}, total samples: {self.clip.frames} volume: {self.volume}, pitch: {self.pitch}'
+
+    
 
 
 # TODO fill this buffer with existing array, then queue multiprocessor tasks to populate the next buffer
@@ -67,11 +81,11 @@ if __name__ == '__main__':
     try:
         with sd.OutputStream(callback=fill_buffer):
             print('#' * 80)
-            print('press Return to quit')
+            print('Press Return to quit')
             print('#' * 80)
             input()
     except KeyboardInterrupt:
         sys.exit()
-    except Exception as e:
-        print(f'Exiting program with exception: {e}')
+    except Exception as execption:
+        print(f'Exiting program with exception: {execption}')
         sys.exit()
