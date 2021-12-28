@@ -9,6 +9,10 @@
 
 
 
+# Current approach is to have all base clip/Sound object functionality within the clip_library.py
+# script. All high-level management, mixer.Channel objects, and event callbacks should exist
+# within this main script. 
+
 
 import logging, os, random, signal, sys, time
 
@@ -44,25 +48,47 @@ MIN_LOOP_LENGTH = 10
 LOOP_RANGE = [0, 6]
 CLIP_END_EVENT = pg.USEREVENT+1
 
+ACTIVE_POOL = Collection(logger, title='active')
+INACTIVE_POOL = Collection(logger, title='inactive')
 
 
-def play_clip(collection: Collection) -> pg.mixer.Sound:
+def play_clip(**kwargs) -> pg.mixer.Sound:
     """Start playback of a Sound object from a given set of Sound objects.\n
     Returns Sound object if successfully triggered, otherwise returns None."""
+
+    global ACTIVE_POOL, INACTIVE_POOL
+
     if (channel := pg.mixer.find_channel()) is None:
         logger.warning(f'Cannot play audio clip. No available mixer channels.')
         return None
 
-    # TODO Add ability to select specific Sound object from set
+    clip = kwargs.get('clip', None)
+    category = kwargs.get('category', None)
 
-    sound_object = random.choice(tuple(collection))
-    # Define loop properties of new audio clip playback and return the channel
-    num_loops = -1 if sound_object.get_length() < MIN_LOOP_LENGTH else random.randint(LOOP_RANGE[0],LOOP_RANGE[1])
-    channel.play(sound_object, loops=num_loops, maxtime=MAX_PLAYTIME, fade_ms=DEFAULT_FADEIN)
+    # Load clip from Collection
+    try:
+        if clip is not None:
+            logger.info(f'Trying specific clip {clip}.')
+            new_clip = INACTIVE_POOL.specific_clip(clip)
+        elif category is not None:
+            logger.info(f'Trying random clip from category {category}.')
+            new_clip = INACTIVE_POOL.clip_from_category(category)
+        else:
+            logger.info(f'Trying random clip from inactive pool.')
+            new_clip = INACTIVE_POOL.clip_at_random()
+    except Exception as exception:
+        logger.error(f'Could not load clip with kwargs {kwargs}. Got exception: {exception}.')
+        return None
+
+    ACTIVE_POOL.add_clip(new_clip)
+
+    # Define loop properties of new audio clip playback, set the end event, and return the clip
+    num_loops = -1 if new_clip.looping else random.randint(LOOP_RANGE[0],LOOP_RANGE[1])
+    channel.play(new_clip.sound, loops=num_loops, maxtime=MAX_PLAYTIME, fade_ms=DEFAULT_FADEIN)
     channel.set_endevent(CLIP_END_EVENT)
-    #pg.event.post(clip_done_event)
-    logger.info(f'Playing sound with length {sound_object.get_length():.2f}, looping {num_loops} times on channel {channel}.')
-    return sound_object
+    logger.info(f'Playing sound {new_clip.name} with category {new_clip.category} at length {new_clip.length:.2f}, looping {num_loops} times on channel {channel}.')
+
+    return new_clip
 
 
 def stop_all_clips(fade_time = DEFAULT_FADEOUT):
@@ -96,8 +122,6 @@ if __name__ == '__main__':
     logger.info('Prepare to be Signiphied!')
     exit_handler = ExitHandler()
 
-    active_pool = {}
-    inactive_pool = {}
     pg.mixer.pre_init(frequency=SAMPLE_RATE, size=SIZE, channels=1, buffer=BUFFER, devicename=DEFAULT_DEVICE)
     pg.mixer.init()
     pg.init()
@@ -111,11 +135,10 @@ if __name__ == '__main__':
         exit_handler.shutdown()
     clip_library.init_library()
 
-    # Load clips
-    collection = clip_library.get_collection()
-    print(collection)
-    inactive_pool = collection.clips
+    # Load random Collection
+    INACTIVE_POOL = clip_library.get_collection()
 
+    play_clip()
 
     #active_pool.add(inactive_pool.pop(play_clip()))
 

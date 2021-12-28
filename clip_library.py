@@ -15,53 +15,100 @@ from pygame.mixer import Sound
 
 
 CATEGORIES = [('oneshot', 0), ('short', 5), ('medium', 10), ('loop', 30)]
-CAT_LOOP = 2
+CATEGORY_LOOP = 2
+
+class Clip:
+    @staticmethod
+    def get_category(length):
+        """Return lowest matching length of category based on input length."""
+        index = bisect.bisect_right(list(cat[1] for cat in CATEGORIES), length) - 1
+        return CATEGORIES[index][0]
+
+    def __init__(self, root:str, name:str) -> None:
+        self.root = root
+        self.name = name
+        self.path = os.path.join(root, name)
+        self.sound = Sound(self.path)
+        self.length = self.sound.get_length()
+        self.category = self.get_category(self.length)
+        self.looping = self.category >= CATEGORIES[CATEGORY_LOOP][0]
+        pass
+
 
 class Collection:
     """Houses a set of clips as a collection within a library.\n
     Requires root path and set of clip file names as arguments on creation."""
 
-    @staticmethod
-    def get_category(length):
-        index = bisect.bisect_right(list(cat[1] for cat in CATEGORIES), length) - 1
-        return CATEGORIES[index][0]
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
 
-    def get_contents(self) -> dict:
+    path = ''
+    names = []
+    clips = set()
+    title = 'default'
+
+    def category_contents(self) -> dict:
         """Return dictionary to describe the category contents of the Collection"""
         contents = {}
-        for clip in self.clips.keys():
-            cat = self.clips[clip]['category']
+        for clip in self.clips:
+            cat = clip.category
             if contents.get(cat) is None:
                 contents[cat] = 1
             else:
                 contents[cat] = contents[cat] + 1
         return contents
 
-    def get_clips(self) -> dict:
-        """Return dictionary containing clip dictionaries with Sound objects and all necessary clip data."""
-        clips = {}
-        for name in self.names:
-            sound = Sound(os.path.join(self.path, name))
-            length = sound.get_length()
-            category = Collection.get_category(length)            
-            clips[name] = {'sound':sound, 'category':category, 'length':length, 'looping': length > CATEGORIES[CAT_LOOP][1]}
-        return clips
+    def specific_clip(self, name:str) -> Clip:
+        """Return specific audio clip based on string argument as name."""
+        for c in self.clips:
+            if c.name == name:
+                return self.remove_clip(c)
+        return None
 
-    def get_random_clip(self) -> Sound:
-        return random.choice(self.clips)
+    def clip_at_random(self) -> Clip:
+        """Return random clip from entire Collection."""
+        return self.remove_clip(random.choice(tuple(self.clips)))
 
-    def get_random_from_cats(self) -> dict:
-        
+    def clip_from_category(self, category:str) -> dict:
+        """Return random clip from specific category."""
+        clips = [clip for clip in self.clips if category is clip.category]
+        return self.remove_clip(random.choice(tuple(clips)))
 
-    def __init__(self, path: str, names: list) -> None:
+    def add_clip(self, clip:Clip) -> Clip:
+        """Add clip if it's name is registered but the Clip object itself isn't found in the Collection."""
+        if clip not in self.clips[clip] and clip.name in [name for name in self.clips[clip.name]]:
+            self.clips.add(clip)
+            self.logger.info(f'Added clip {clip.name} to {self.title} Collection.')
+            return clip
+        else:
+            self.logger.debug(f'Cannot add clip {clip.name} to {self.title}, as it not an original member.')
+            return None
+    
+    def remove_clip(self, clip:Clip) -> Clip:
+        """Remove clip from Collection.\nThis does not remove its name from the registry, allowing it to be re-added."""
+        if clip in self.clips:
+            self.clips.remove(clip)
+            self.logger.info(f'Removed clip {clip.name} from {self.title} Collection.')
+            return clip
+        else:
+            self.logger.debug(f'Clip {clip.name} does not exist in {self.title}. Cannot remove.')
+            return None
+
+    def load(self, path: str, names: list):
         self.path = path
         self.names = names
-        self.clips = self.get_clips()
-        self.contents = self.get_contents()
+        self.clips = set()
+        for name in self.names:
+            self.clips.add(Clip(self.path, name))
+        return self
+
+    def __init__(self, logger=logger, title='default') -> None:
+        self.logger = logger
+        self.title = title
         pass
 
     def __str__(self) -> str:
-        return str(self.contents)
+        return f'{self.path} with {self.category_contents()}'
 
 
 class Library:
@@ -70,7 +117,7 @@ class Library:
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
 
-    def __init__(self, base_path, valid_ext: list, logger=logger) -> None:
+    def __init__(self, base_path, valid_ext:list, logger=logger) -> None:
         """Create a new library."""
         if not os.path.isdir(base_path):
             raise OSError
@@ -90,13 +137,16 @@ class Library:
                     audio_clip_paths.append(f)
             # If the clip set is not empty, add it to the library as a new collection
             if len(audio_clip_paths) > 0:
-                new_collection = Collection(root, audio_clip_paths)
+                new_collection = Collection(self.logger)
+                new_collection.load(root, audio_clip_paths)
                 self.collections.append(new_collection)
                 self.logger.debug(f'[{len(self.collections)-1}] {root} added to clip library with {len(new_collection.names)} audio files.')
 
     def get_collection(self, index=None) -> Collection:
         """Return a collection from within the library.\n
         Will randomly select a Collection if valid index is not supplied."""
+        
+        print()
 
         try:
             collection = self.collections[index]
@@ -107,7 +157,7 @@ class Library:
         finally:
             collection = random.choice(self.collections)
 
-        self.logger.debug(f'Collection {collection.path} selected containing {len(collection.clips)} clips.')
+        self.logger.debug(f'Collection selected: {collection}')
 
         return collection
 
