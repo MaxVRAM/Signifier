@@ -81,15 +81,15 @@ Currently trying these:
 ## Todos
 
 Basic playback:
-  1. Create proper exit function and audio clip playback length limiting
+  1. ~~Create proper exit function and audio clip playback length limiting~~
   2. add function to move newly played clip from inactive_pool to active_pool
-  3. differentiate various clip types (short, med, long, loop, etc)
+  3. ~~differentiate various clip types (short, med, long, loop, etc)~~
   4. replate original Signifier audio playback
   5. use noise to modulate channel volumes
 
 Modulated playback:
 
-  6. Create server of some kind. Accepting JSON would be ideal, for key/value control.
+  6. Create server of some kind. Accepting JSON would be ideal, for key/value control. (Flask server?)
   7. Affix server responses to functions
   8. Create documentation for server commands
 
@@ -98,3 +98,31 @@ LED reactivity:
   9. Add function to analyise channel output amplitudes
   10. Test pyserial to Arduino functionality
   11. Create simple LED brightness reactivity based on audio output
+  
+
+
+
+## Random notes
+
+- Producing audio device list:
+
+```python
+import pygame._sdl2 as sdl2
+pg.init()
+is_capture = 0  # zero to request playback devices, non-zero to request recording devices
+num = sdl2.get_num_audio_devices(is_capture)
+names = [str(sdl2.get_audio_device_name(i, is_capture), encoding="utf-8") for i in range(num)]
+print("\n".join(names))
+pg.quit()
+```
+
+
+
+
+# Main fixes
+
+List of fixes over the original Siginifer code:
+- Original code maxed out single thread:
+  - This was mostly due to the program's while loop not containing a time.sleep(), slamming the main thread.
+  - Many hard-coded values, making debugging and alterations difficult.
+  - 
