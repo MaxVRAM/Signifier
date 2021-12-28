@@ -169,13 +169,16 @@ def scan_channels():
 
 
 
-
+# DONE  ---------------------------------------
 @server.address(b'/audio/load')
 def callback(*values):
     logger.info("/audio/load: {}".format(values))
     val, *extra = values
     val = max(min(val,11),1)
     load_samples(val)
+# DONE  ---------------------------------------
+
+
 
 @server.address(b'/audio/sound')
 def callback(*values):
@@ -195,6 +198,7 @@ def callback(*values):
     ch, val, *extra = values
     val = max(min(val,1),0.1)
     pg.mixer.Channel(ch).set_volume(val)
+
 
 @server.address(b'/audio/mastervolume')
 def callback(*values):

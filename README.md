@@ -74,3 +74,27 @@ Currently trying these:
 - [PySerial](https://pypi.org/project/pyserial/)
 - [sounddevices](https://python-sounddevice.readthedocs.io/en/0.4.3/)
 - [Prometheus Python Client](https://pypi.org/project/prometheus-client/0.0.9/)
+
+
+
+
+## Todos
+
+Basic playback:
+  1. Create proper exit function and audio clip playback length limiting
+  2. add function to move newly played clip from inactive_pool to active_pool
+  3. differentiate various clip types (short, med, long, loop, etc)
+  4. replate original Signifier audio playback
+  5. use noise to modulate channel volumes
+
+Modulated playback:
+
+  6. Create server of some kind. Accepting JSON would be ideal, for key/value control.
+  7. Affix server responses to functions
+  8. Create documentation for server commands
+
+LED reactivity:
+
+  9. Add function to analyise channel output amplitudes
+  10. Test pyserial to Arduino functionality
+  11. Create simple LED brightness reactivity based on audio output
