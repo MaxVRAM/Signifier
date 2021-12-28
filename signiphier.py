@@ -42,8 +42,7 @@ BUSY_LEVEL = 4
 MIN_LOOP_LENGTH = 10
 LOOP_RANGE = [0, 6]
 
-# Need to unpack this - I suspect this is a hack to maintain the playback beyond the events 
-CLIP_DONE = pg.USEREVENT+1
+CLIP_END_EVENT = pg.USEREVENT+1
 
 
 def import_clips(collection: Library.Collection) -> set:
@@ -70,8 +69,10 @@ def play_clip(audio_clip: pg.mixer.Sound) -> pg.mixer.Channel:
     # Define loop properties of new audio clip playback and return the channel
     num_loops = -1 if audio_clip.get_length() < MIN_LOOP_LENGTH else random.randint(LOOP_RANGE[0],LOOP_RANGE[1])
     channel.play(audio_clip, loops=num_loops, maxtime=MAX_PLAYTIME, fade_ms=DEFAULT_FADEIN)
-    channel.set_endevent(CLIP_DONE)
-    logger.info(f'Playing sound with length {audio_clip.get_length():.2f}, {num_loops} times.')
+    clip_done_event = pg.event.Event(CLIP_END_EVENT, chan=channel)
+    channel.set_endevent(clip_done_event.type)
+    pg.event.post(clip_done_event)
+    logger.info(f'Playing sound with length {audio_clip.get_length():.2f}, looping {num_loops} times on channel {channel}.')
     return channel
 
 
@@ -138,8 +139,8 @@ if __name__ == '__main__':
 
     while True:
         for event in pg.event.get():
-            if event.type == CLIP_DONE:
-                print(f'EVENT: {event}')
+            if event.type == CLIP_END_EVENT:
+                print(f'Clip ended: {event}   on channel {event.chan}')
 
     # while pg.mixer.get_busy():
     #     time.sleep(0.001)
