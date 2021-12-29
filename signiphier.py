@@ -21,9 +21,9 @@ import pygame as pg
 from clip_library import Library, Collection
 
 # Initialise logging
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-logging.basicConfig(level=logging.DEBUG)
 
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
@@ -48,46 +48,42 @@ MIN_LOOP_LENGTH = 10
 LOOP_RANGE = [0, 6]
 CLIP_END_EVENT = pg.USEREVENT+1
 
-ACTIVE_POOL = Collection(logger, title='active')
-INACTIVE_POOL = Collection(logger, title='inactive')
+active_pool = Collection(title='active')
+inactive_pool = Collection(title='inactive')
 
 
 def play_clip(**kwargs) -> pg.mixer.Sound:
     """Start playback of a Sound object from a given set of Sound objects.\n
     Returns Sound object if successfully triggered, otherwise returns None."""
 
-    global ACTIVE_POOL, INACTIVE_POOL
+    print()
+
+    global active_pool, inactive_pool
 
     if (channel := pg.mixer.find_channel()) is None:
         logger.warning(f'Cannot play audio clip. No available mixer channels.')
         return None
-
-    clip = kwargs.get('clip', None)
-    category = kwargs.get('category', None)
-
-    # Load clip from Collection
+    
+    # Try each playback selection mechanic based on supplied kwargs
     try:
-        if clip is not None:
+        if (clip := kwargs.get('clip')) is not None:
             logger.info(f'Trying specific clip {clip}.')
-            new_clip = INACTIVE_POOL.specific_clip(clip)
-        elif category is not None:
+            new_clip = inactive_pool.get_clip(clip)
+        elif (category := kwargs.get('category')) is not None:
             logger.info(f'Trying random clip from category {category}.')
-            new_clip = INACTIVE_POOL.clip_from_category(category)
+            new_clip = inactive_pool.get_from_category(category)
         else:
             logger.info(f'Trying random clip from inactive pool.')
-            new_clip = INACTIVE_POOL.clip_at_random()
+            new_clip = inactive_pool.get_clip()
     except Exception as exception:
         logger.error(f'Could not load clip with kwargs {kwargs}. Got exception: {exception}.')
         return None
-
-    ACTIVE_POOL.add_clip(new_clip)
 
     # Define loop properties of new audio clip playback, set the end event, and return the clip
     num_loops = -1 if new_clip.looping else random.randint(LOOP_RANGE[0],LOOP_RANGE[1])
     channel.play(new_clip.sound, loops=num_loops, maxtime=MAX_PLAYTIME, fade_ms=DEFAULT_FADEIN)
     channel.set_endevent(CLIP_END_EVENT)
-    logger.info(f'Playing sound {new_clip.name} with category {new_clip.category} at length {new_clip.length:.2f}, looping {num_loops} times on channel {channel}.')
-
+    logger.info(f'Started clip plackback: {active_pool.push_clip(new_clip)}')
     return new_clip
 
 
@@ -98,12 +94,10 @@ def stop_all_clips(fade_time = DEFAULT_FADEOUT):
 
 class ExitHandler:
     signals = { signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM' }
-
     def __init__(self):
         self.exiting = False
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
-
     def shutdown(self, *args):
         print()
         self.exiting = True
@@ -129,16 +123,36 @@ if __name__ == '__main__':
 
     # Initialise audio library
     try:
-        clip_library = Library(BASE_PATH, VALID_EXT, logger)
+        clip_library = Library(BASE_PATH, VALID_EXT)
     except OSError:
         logger.fatal(f'Invalid root path for library: {BASE_PATH}.')
         exit_handler.shutdown()
+
     clip_library.init_library()
 
     # Load random Collection
-    INACTIVE_POOL = clip_library.get_collection()
+    collection = clip_library.get_collection()
+    clip_selection = collection.get_distributed()
+
+    inactive_pool = collection.get_copy(title='inactive', clip_set=clip_selection)
+    active_pool = collection.get_copy(title='active', clip_set=set())
+    inactive_pool.build_sounds()
+
+    print()
+    print(f'inactive pool has the following clips registered: {inactive_pool.names}.')
+    print(f'active pool has the following clips registered: {active_pool.names}.')
+    print()
+    
 
     play_clip()
+
+    # print()
+    # logger.info(f'Inactive pool contains: {inactive_pool.get_contents(count=True)}')
+    # print(f'Inactive pool clip set: {inactive_pool.clips}')
+    
+    # logger.info(f'Active pool contains: {active_pool.get_contents(count=True)}')
+    # print(f'Active pool clip set: {active_pool.clips}')
+    # print()
 
     #active_pool.add(inactive_pool.pop(play_clip()))
 
