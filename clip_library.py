@@ -31,7 +31,7 @@ class Clip:
     def build_sound(self) -> str:
         """Loads the Clip's audio file into memory as a new Sound object."""
         self.sound = Sound(self.path)
-        logger.debug(f'{self.name} loaded into memory as new Sound object.')
+        logger.debug(f'Loaded clip into memory as new Sound object: {self}.')
         return self.name
 
     def __init__(self, root:str, name:str, load=False) -> None:
@@ -49,7 +49,7 @@ class Clip:
 
     def __str__(self) -> str:
         details = (f'{self.name} [{self.category}{", looping" if self.looping else ""}] '
-                   f'{self.length}s ({"LOADED" if self.sound else "NOT LOADED"})')
+                   f'{self.length:.2f}s ({"LOADED" if self.sound else "NOT LOADED"})')
         return details
 
 class Collection:
@@ -105,14 +105,14 @@ class Collection:
         if clip in self.clips:
             logger.warn(f'{clip.name} already in {self.title} Clip set. Skipping.')
             return None
-        if clip.name in [clip.name for clip in self.clips]:
+        if clip.name in [name for name in self.names]:
             self.clips.add(clip)
-            logger.info(f'{clip.name} was pushed into {self.title}.')
+            #logger.info(f'{clip.name} pushed into {self.title}.')
             return clip
         elif force:
             self.names.append(clip.name)
             self.clips.add(clip)
-            logger.info(f'{clip.name} now registered with {self.title} Collection and Clip has been pushed.')
+            logger.info(f'{clip.name} not in {self.title}. Clip has been forced and filename now registered.')
             return clip
         else:
             logger.debug(f'{clip.name} not registered to {self.title}. Use "force=True" argument to register it.')
@@ -122,10 +122,10 @@ class Collection:
         """Pull clip from Collection.\nThis does not remove its name from the registry, allowing it to be re-added."""
         try:
             self.clips.remove(clip)
-            logger.info(f'{clip.name} pulled from {self.title}.')
+            #logger.info(f'{clip.name} pulled from {self.title}.')
             return clip
         except KeyError:
-            logger.debug(f'Clip {clip.name} does not exist in {self.title}. Cannot pull.')
+            logger.debug(f'Clip {clip.name} does not exist in {self.title}. Cannot pull from Collection.')
             return None
 
     def purge_clip(self, clip:Clip):
@@ -177,7 +177,6 @@ class Collection:
         for name in self.names:
             if names is None or name in names:
                 self.clips.add(Clip(self.path, name))
-                logger.info(f'{self.title} created Clip object from {name}.')
             else:
                 logger.warn(f'{name} from {self.title} could not be built. Either no match was found or something went wrong.')
 
@@ -233,7 +232,8 @@ class Library:
     def get_collection(self, index=None) -> Collection:
         """Return a collection from within the library.\n
         Will randomly select a Collection if valid index is not supplied."""
-        logger.info(f'Importing new Collection from Library.')
+        logger.info(f'Importing {"random " if index is None else ""}Collection '
+                    f'{index if index is not None else ""} from Library.')
         try:
             collection = self.collections[index]
         except TypeError:

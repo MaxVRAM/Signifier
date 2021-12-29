@@ -67,13 +67,13 @@ def play_clip(**kwargs) -> pg.mixer.Sound:
     # Try each playback selection mechanic based on supplied kwargs
     try:
         if (clip := kwargs.get('clip')) is not None:
-            logger.info(f'Trying specific clip {clip}.')
+            #logger.info(f'Trying specific clip {clip}.')
             new_clip = inactive_pool.get_clip(clip)
         elif (category := kwargs.get('category')) is not None:
-            logger.info(f'Trying random clip from category {category}.')
+            #logger.info(f'Trying random clip from category {category}.')
             new_clip = inactive_pool.get_from_category(category)
         else:
-            logger.info(f'Trying random clip from inactive pool.')
+            #logger.info(f'Trying random clip from inactive pool.')
             new_clip = inactive_pool.get_clip()
     except Exception as exception:
         logger.error(f'Could not load clip with kwargs {kwargs}. Got exception: {exception}.')
@@ -83,7 +83,7 @@ def play_clip(**kwargs) -> pg.mixer.Sound:
     num_loops = -1 if new_clip.looping else random.randint(LOOP_RANGE[0],LOOP_RANGE[1])
     channel.play(new_clip.sound, loops=num_loops, maxtime=MAX_PLAYTIME, fade_ms=DEFAULT_FADEIN)
     channel.set_endevent(CLIP_END_EVENT)
-    logger.info(f'Started clip plackback: {active_pool.push_clip(new_clip)}')
+    logger.info(f'Started clip plackback: {active_pool.push_clip(new_clip)} looping {num_loops}')
     return new_clip
 
 
@@ -138,23 +138,29 @@ if __name__ == '__main__':
     active_pool = collection.get_copy(title='active', clip_set=set())
     inactive_pool.build_sounds()
 
-    print()
-    print(f'inactive pool has the following clips registered: {inactive_pool.names}.')
-    print(f'active pool has the following clips registered: {active_pool.names}.')
-    print()
-    
-
+    play_clip()
+    play_clip()
+    play_clip()
+    play_clip()
     play_clip()
 
-    # print()
-    # logger.info(f'Inactive pool contains: {inactive_pool.get_contents(count=True)}')
-    # print(f'Inactive pool clip set: {inactive_pool.clips}')
-    
-    # logger.info(f'Active pool contains: {active_pool.get_contents(count=True)}')
-    # print(f'Active pool clip set: {active_pool.clips}')
-    # print()
+    play_clip()
+    play_clip()
+    play_clip()
+    play_clip()
+    play_clip()
 
-    #active_pool.add(inactive_pool.pop(play_clip()))
+    play_clip()
+    play_clip()
+    play_clip()
+    play_clip()
+    play_clip()
+
+    play_clip()
+    play_clip()
+    play_clip()
+    play_clip()
+    play_clip()
 
     # Main loop
     while True:
