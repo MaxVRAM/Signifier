@@ -3,27 +3,29 @@ Python scripts designed for Raspberry Pi 4B to manage sensor inputs, output modu
 
 ## Project targets
 1. Reliable **non-interactive** audio and LEDs.
-  - [x] Reliable non-interactive audio
-  - [x] Reliable non-interactive LEDs
+    - [x] Audio playback
+    - [x] Generative audio layer composition manager
+    - [x] Basic LED modulation
 2. **Interactive** audio and non-interactive LEDs.
-  - [ ] Sensor: Bluetooth
-  - [ ] Sensor: Microphone
-  - [ ] Sensor: Temperature
-  - [ ] Interactive audio manager
+    - [ ] Sensor: Bluetooth
+    - [ ] Sensor: Microphone
+    - [ ] Sensor: Temperature
+    - [ ] Interactive audio manager
 3. Interactive audio & interactive LEDs
-  - [ ] Raspberry Pi / Arduino interfacing
-  - [ ] Audio analysis
-  - [ ] Interactive LED manager
+    - [ ] Raspberry Pi / Arduino interfacing
+    - [ ] Audio analysis
+    - [ ] Interactive LED manager
 4. Network communication over WiFi/cellular to online server:
-  - [ ] Signifier management over WiFi
-  - [ ] Writing sensor data to local time-series database
-  - [ ] Pushing local data to remote database
-  - [ ] Signifier management over cellular
+    - [ ] Simple API control of Signifier manager
+    - [ ] Signifier management over WiFi
+    - [ ] Writing sensor data to local time-series database
+    - [ ] Pushing local data to remote database
+    - [ ] Signifier management over cellular
 BONUS ROUND:
-  - [ ] Web-socket server on Signifiers
-  - [ ] Centralised web-app to monitor and control Signifiers via web-sockets 
-  - [ ] Real-time Signifier GPS coordinate map
-  - [ ] Data-visualisation of sensor values and Signifier states
+    - [ ] Web-socket server on Signifiers
+    - [ ] Centralised web-app to monitor and control Signifiers via web-sockets 
+    - [ ] Real-time Signifier GPS coordinate map
+    - [ ] Data-visualisation of sensor values and Signifier states
 
 ## Hardware
 
