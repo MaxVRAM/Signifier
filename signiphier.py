@@ -147,6 +147,12 @@ if __name__ == '__main__':
     for clip in inactive_pool.clips:
         clip.play(DEFAULT_FADEIN)
 
+
+
+    # TODO Build basic automated clip playback manager!!!!
+
+
+
     # Main loop
     while True:
         for event in pg.event.get():
