@@ -136,16 +136,15 @@ if __name__ == '__main__':
     collection = clip_library.get_collection()
     inactive_pool = collection.get_copy(title='inactive_pool')
     active_pool = collection.get_copy(title='active_pool')
-    inactive_pool.clips = collection.get_distributed(12)
+    inactive_pool.clips = collection.get_distributed(10)
     num_clips = len(inactive_pool.clips)
 
     channels = get_fresh_channels(num_clips)
     inactive_pool.init_sounds(channels)
     print()
 
-    # Initialise Channels and play
-    for clip in inactive_pool.clips:
-        clip.play(DEFAULT_FADEIN)
+
+    active_pool.push_clip(inactive_pool.play_clip(num_clips=3, fade=DEFAULT_FADEIN))
 
 
 

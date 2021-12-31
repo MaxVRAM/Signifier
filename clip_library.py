@@ -34,9 +34,9 @@ class Clip:
     #-----------------
     # Playback methods
     #-----------------
-    def play(self, fade=0, event=None):
+    def play(self, volume=0.5, fade=0, event=None):
         """Starts playback of Clip's Sound object with optional "fade=(int)" in ms
-        and "event=(int)" to produce an end of clip callback."""
+        and "event=(int)" to produce an end of clip callback. Returns itself if successful."""
         if self.channel is None:
             logger.warn(f'Cannot play Clip "{self.name}". Not assigned to Channel.')
             return None
@@ -46,11 +46,11 @@ class Clip:
         else:
             loop_num = -1 if self.looping else random.randint(LOOP_RANGE[0], LOOP_RANGE[1])
             self.channel.play(self.sound, fade_ms=fade, loops=loop_num)
+            self.sound.set_volume(volume)
             self.started = dt.timestamp(dt.now())
             if event is not None:
-                Channel().get_volume
                 self.channel.set_endevent(event)
-            logger.info(f'Playing clip "{self.name}" on channel "{self.index}" (volume={self.channel.get_volume()}, '
+            logger.info(f'Playing clip "{self.name}" on channel ({self.index}) (volume={self.get_volume()}, '
                         f'loops={loop_num}, fade={fade}ms).')
             return self
 
@@ -70,17 +70,17 @@ class Clip:
                 self.channel.stop()
                 return self
 
-    def get_volume(self, volume:float):
-        if self.channel is None:
-            logger.warn(f'Cannot get volume of "{self.name}". Not assigned to Channel.')
+    def get_volume(self) -> float:
+        if self.sound is None:
+            logger.warn(f'Cannot get volume of "{self.name}". Not assigned to Sound object.')
         else:
-            self.channel.set_volume(volume)
+            return self.sound.get_volume()
 
     def set_volume(self, volume:float):
-        if self.channel is None:
-            logger.warn(f'Cannot set volume of "{self.name}". Not assigned to Channel.')
+        if self.sound is None:
+            logger.warn(f'Cannot set volume of "{self.name}". Not assigned to Sound object.')
         else:
-            self.channel.set_volume(volume)
+            self.sound.set_volume(volume)
 
     #----------------
     # Clip management
@@ -140,8 +140,8 @@ class Clip:
         pass
 
     def __str__(self) -> str:
-        details = (f'{self.name}, cat: "{self.category}", "{"looping" if self.looping else "one-shot"}", '
-                   f'{self.length:.2f}s, ({"LOADED" if self.sound else "NOT LOADED"}), '
+        details = (f'{self.name}, "{self.category}", "{"looping" if self.looping else "one-shot"}", '
+                   f'{self.length:.2f}s ({"LOADED" if self.sound else "NOT LOADED"}) on '
                    f'channel ({"NONE" if self.channel is None else self.index})')
         return details
 
@@ -156,6 +156,18 @@ class Collection:
     clips = set()
     title = 'default'
 
+
+    #-------------------------
+    # Collection Clip playback
+    #-------------------------
+    def play_clip(self, name=None, category=None, num_clips=1, volume=0.5, fade=0, event=None) -> set:
+        """Return set of clip(s) by name, category, or at random, remove from Collection and begin playback.\n
+        Specify clip ""name=(str)" or "category=(str)" by name and/or amount with "num_clips=(int)"."""
+        clips = self.get_clip(name=name, category=category, num_clips=num_clips)
+        for clip in clips:
+            clip.play(volume=volume, fade=fade, event=event)
+        return clips
+        
     #-------------------------
     # Clip selection mechanics
     #-------------------------
@@ -174,30 +186,34 @@ class Collection:
                 return clip
         return None
 
-    def get_clip(self, name=None, category=None, num_clips=1):
+    def get_clip(self, name=None, category=None, num_clips=1) -> set:
         """Return clip(s) by name, category, or at random and remove it from the Collection.\n
-        Specify clip ""name=(str)" or "category=(str)" by name and/or amount with "num_clips=(int)"."""  
+        Specify clip ""name=(str)" or "category=(str)" by name and/or amount with "num_clips=(int)"."""
+        #clips_to_get = set()
         clips = self.clips
         if name is not None:
             if (clip := Collection.clip_by_name(name, clips)) is None:
                 logger.warn(f'"{name}" not available from "{self.title}". Skipping request.')
-                return None
-            return self.pull_clip(clip)
+            return (clip,)
         if category:
             contents = self.get_contents()
             if category not in contents:
-                logger.warn(f'Category "{category}" not found in "{self.title}". Skipping request.')
+                logger.warn(f'Category "{category}" not found in "{self.title}". Failed to get clips.')
                 return None
             clips = contents.get(category)
         num = len(clips)
+        if num == 0:
+            logger.warn(f'No clips in "{self.title}" available! Skipping request.')
+            return None
         if num_clips > num:
             logger.debug(f'Requested "{num_clips}" clip{plural(num_clips)} from {("[" + category + "] in ") if category is not None else ""}'
                          f'"{self.title}" with "{num}" Clip{plural(num)}. '
                          f'{("Returning [" + str(num) + "] instead") if num > 0 else "Skipping request"}.')
-        if num == 0:
-            logger.warn(f'No clips in "{self.title}" to play! Skipping request.')
-            return None
-        return set(self.pull_clip(clip) for clip in random.sample(clips, min(num_clips, num)))
+
+        #clips_to_get.add(set([(clip) for clip in random.sample(clips, min(num_clips, num))]))
+        clip_set = set([clip for clip in random.sample(clips, min(num_clips, num))])
+        return self.pull_clip(clip_set)
+        #return self.pull_clip(clips_to_get)
 
     def get_finished(self) -> set:
         """Return any finished clips, removing them from the current Collection."""
@@ -218,6 +234,10 @@ class Collection:
             contents = self.get_contents()
             selection = set()
             clips_per_cat = int(num_clips / len(contents))
+            if clips_per_cat == 0:
+                logger.info(f'Cannot select number of clips less than the number of categories. '
+                            f'Rounding up to {len(contents)}.')
+                clips_per_cat = 1
             for category in contents:
                 selection.update(self.get_clip(category=category, num_clips=clips_per_cat))
         logger.info(f'Returned {self.get_contents(clip_set=selection, count=True)} distributed from "{self.title}".')
@@ -226,38 +246,40 @@ class Collection:
     #----------------
     # Clip management
     #----------------
-    def push_clip(self, clip:Clip, force=False) -> Clip:
-        """Add Clip object to Collection if it is not currently in the Collections {clips} set.\n
-        The Clip name must be registered with the Collection unless "force=True" argument is supplied to add it."""
-        if clip in self.clips:
-            logger.warn(f'"{clip.name}" already in "{self.title}" Clip set. Skipping.')
-            return None
-        if clip.name in [name for name in self.names]:
-            self.clips.add(clip)
-            #logger.debug(f'{clip.name} pushed into {self.title}.') # TODO uncomment when done dev
-            return clip
-        elif force:
-            self.names.append(clip.name)
-            self.clips.add(clip)
-            logger.debug(f'"{clip.name}" not in "{self.title}". Clip has been forced and filename now registered.')
-            return clip
-        else:
-            logger.debug(f'"{clip.name}" not registered to "{self.title}". Use "force=True" argument to register it.')
-            return None
+    def push_clip(self, clip_set:set, force=False) -> set:
+        """Add set of Clip object(s) to Collection if it is not currently in the Collections {clips} set.\n
+        Clip must be registered with the Collection unless "force=True" argument is supplied."""
+        failed = set()
+        for clip in clip_set:
+            if clip in self.clips:
+                logger.warn(f'"{clip.name}" already in "{self.title}" Clip set. Skipping.')
+                failed.add(clip)
+            elif clip.name in [name for name in self.names]:
+                self.clips.add(clip)
+                logger.debug(f'{clip.name} pushed into "{self.title}".') # TODO uncomment when done dev
+            elif force:
+                self.names.append(clip.name)
+                self.clips.add(clip)
+                logger.debug(f'"{clip.name}" not in "{self.title}". Clip has been forced and filename now registered.')
+            else:
+                logger.debug(f'"{clip.name}" not registered to "{self.title}". Use "force=True" argument to register it.')
+                failed.add(clip)
+        return failed
     
-    def pull_clip(self, clip:Clip) -> Clip:
-        """Supply a Clip object to pull it from the Collection.\n
-        This does not remove its name from the registry, allowing it to be re-added."""
-        if clip.name not in self.names:
-            logger.warn(f'"{clip.name}" is not registered with "{self.title}". Skipping request.')
-            return None
-        try:
-            self.clips.remove(clip)
-            #logger.debug(f'"{clip.name}" has been removed from "{self.title}".') # TODO uncomment when done dev
-            return clip
-        except KeyError:
-            logger.info(f'"{clip.name}" is not currently available from "{self.title}". Skipping request.')
-            return None
+    def pull_clip(self, clip_set:set) -> set:
+        """Supply Clip object(s) to pull from the Collection.\n
+        This does not remove them from the registry, allowing them to be re-added."""
+        pulled = set()
+        for clip in clip_set:
+            if clip.name not in self.names:
+                logger.warn(f'"{clip.name}" is not registered with "{self.title}". Skipping.')
+            try:
+                self.clips.remove(clip)
+                logger.debug(f'"{clip.name}" has been removed from "{self.title}".') # TODO uncomment when done dev
+                pulled.add(clip)
+            except KeyError:
+                logger.info(f'"{clip.name}" is not currently available in "{self.title}". Skipping request.')
+        return pulled
 
     def purge_clip(self, clip:Clip):
         """Remove Clip and unregister it from Collection."""
@@ -335,6 +357,7 @@ class Collection:
         """Returns a copy of this Collection a new Collection object with a different title.\n
         No clips will be returned unless "keep_clips=True" is supplied."""
         return Collection(title=title, path=self.path, names=self.names, clips=self.clips if keep_clips else set())
+
 
     #--------------
     # Magic methods
