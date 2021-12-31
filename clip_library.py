@@ -10,8 +10,7 @@
 """Module to manage a Library of audio Clips."""
 
 
-import logging, os, random, bisect
-from datetime import datetime as dt
+import logging, os, random, bisect, time
 from pygame.mixer import Sound, Channel
 
 logger = logging.getLogger(__name__)
@@ -31,10 +30,11 @@ class Clip:
     """Clip objects hold sound file information, its Sound object 
     and its associated Channel, once playback has been triggerd."""
 
+    default_fade = (3000, 2000)
     #-----------------
     # Playback methods
     #-----------------
-    def play(self, volume=0.5, fade=0, event=None):
+    def play(self, volume=0.5, event=None, fade=default_fade[1]):
         """Starts playback of Clip's Sound object with optional "fade=(int)" in ms
         and "event=(int)" to produce an end of clip callback. Returns itself if successful."""
         if self.channel is None:
@@ -47,14 +47,14 @@ class Clip:
             loop_num = -1 if self.looping else random.randint(LOOP_RANGE[0], LOOP_RANGE[1])
             self.channel.play(self.sound, fade_ms=fade, loops=loop_num)
             self.sound.set_volume(volume)
-            self.started = dt.timestamp(dt.now())
+            self.started = time.time()
             if event is not None:
                 self.channel.set_endevent(event)
             logger.info(f'Playing clip "{self.name}" on channel ({self.index}) (volume={self.get_volume()}, '
                         f'loops={loop_num}, fade={fade}ms).')
             return self
 
-    def stop(self, fade_time=0) -> Channel:
+    def stop(self, fade=default_fade[0]):
         """Stops the sound playing from the Clip immediately, otherwise supply "fade_time=(int)" in ms."""
         if self.channel is None:
             logger.warn(f'Cannot stop "{self.name}". Not assigned to Channel.')
@@ -63,9 +63,9 @@ class Clip:
             logger.warn(f'Cannot stop Channel "{self.index}" assigned to "{self.name}". Not playing audio.')
             return None
         else:
-            if fade_time > 0:
-                self.channel.fadeout(fade_time)
-                return self.channel
+            if fade > 0:
+                self.channel.fadeout(fade)
+                return self
             else:
                 self.channel.stop()
                 return self
@@ -124,7 +124,7 @@ class Clip:
         index = bisect.bisect_right(list(cat[1] for cat in CATEGORIES), length) - 1
         return CATEGORIES[index][0]
 
-    def __init__(self, root:str, name:str, load=False) -> None:
+    def __init__(self, root:str, name:str, load=False, fade=default_fade) -> None:
         """Initialises a new Clip object.\nUse additional {True} arguement to load audio 
         file into memory as new Sound object."""
         self.root = root
@@ -137,14 +137,14 @@ class Clip:
         self.sound = sound_object if load else None
         self.channel = None
         self.index = None
+        self.default_fade = fade
         pass
 
     def __str__(self) -> str:
         details = (f'{self.name}, "{self.category}", "{"looping" if self.looping else "one-shot"}", '
-                   f'{self.length:.2f}s ({"LOADED" if self.sound else "NOT LOADED"}) on '
-                   f'channel ({"NONE" if self.channel is None else self.index})')
+                   f'{self.length:.2f}s on '
+                   f'chan ({"NONE" if self.channel is None else self.index}), fade ({self.default_fade})')
         return details
-
 
 
 
@@ -155,17 +155,18 @@ class Collection:
     names = []
     clips = set()
     title = 'default'
+    default_fade = (3000, 2000)
 
 
     #-------------------------
     # Collection Clip playback
     #-------------------------
-    def play_clip(self, name=None, category=None, num_clips=1, volume=0.5, fade=0, event=None) -> set:
+    def play_clip(self, name=None, category=None, num_clips=1, volume=0.5, fade=default_fade[1], event=None) -> set:
         """Return set of clip(s) by name, category, or at random, remove from Collection and begin playback.\n
         Specify clip ""name=(str)" or "category=(str)" by name and/or amount with "num_clips=(int)"."""
-        clips = self.get_clip(name=name, category=category, num_clips=num_clips)
+        clips = self.get_clip(name=name, category=category, num_clips=num_clips, keep=False)
         for clip in clips:
-            clip.play(volume=volume, fade=fade, event=event)
+            clip.play(volume=volume, event=event, fade=fade)
         return clips
         
     #-------------------------
@@ -186,7 +187,7 @@ class Collection:
                 return clip
         return None
 
-    def get_clip(self, name=None, category=None, num_clips=1) -> set:
+    def get_clip(self, name=None, category=None, num_clips=1, keep=True) -> set:
         """Return clip(s) by name, category, or at random and remove it from the Collection.\n
         Specify clip ""name=(str)" or "category=(str)" by name and/or amount with "num_clips=(int)"."""
         #clips_to_get = set()
@@ -194,7 +195,7 @@ class Collection:
         if name is not None:
             if (clip := Collection.clip_by_name(name, clips)) is None:
                 logger.warn(f'"{name}" not available from "{self.title}". Skipping request.')
-            return (clip,)
+            return self.pull_clip(set(clip), keep=keep)
         if category:
             contents = self.get_contents()
             if category not in contents:
@@ -212,20 +213,22 @@ class Collection:
 
         #clips_to_get.add(set([(clip) for clip in random.sample(clips, min(num_clips, num))]))
         clip_set = set([clip for clip in random.sample(clips, min(num_clips, num))])
-        return self.pull_clip(clip_set)
+        return self.pull_clip(clip_set, keep=keep)
         #return self.pull_clip(clips_to_get)
 
-    def get_finished(self) -> set:
+    def get_finished(self, num_clips=1, keep=True) -> set:
         """Return any finished clips, removing them from the current Collection."""
         finished = set()
         for clip in self.clips:
             if not clip.channel.get_busy():
-                logger.info(f'Clip "{self.name}" finished. Removing from Collection.')
-                finished.add(self.pull_clip(clip))
+                logger.info(f'Clip "{clip.name}" finished. Removing from Collection.')
+                finished.add(self.pull_clip(set(clip), keep))
+            if len(finished) >= num_clips:
+                return finished
         return finished
 
-    def get_distributed(self, num_clips=12) -> set:
-        """Return an evenly distributed set of clips based on Collection's categories."""
+    def get_distributed(self, num_clips=12, keep=True) -> set:
+        """Return an evenly distributed set of clips based on Collection's categories. Use "keep=False" to pull clips from Collection."""
         if num_clips > len(self.clips):
             logger.warn(f'Requesting "{num_clips}" Clips from "{self.title}" which has only "{len(self.clips)}"! '
                         f'Will return all available Clips from the Collection.')
@@ -256,7 +259,7 @@ class Collection:
                 failed.add(clip)
             elif clip.name in [name for name in self.names]:
                 self.clips.add(clip)
-                logger.debug(f'{clip.name} pushed into "{self.title}".') # TODO uncomment when done dev
+                logger.debug(f'"{clip.name}" pushed into "{self.title}".') # TODO uncomment when done dev
             elif force:
                 self.names.append(clip.name)
                 self.clips.add(clip)
@@ -266,7 +269,7 @@ class Collection:
                 failed.add(clip)
         return failed
     
-    def pull_clip(self, clip_set:set) -> set:
+    def pull_clip(self, clip_set:set, keep=True) -> set:
         """Supply Clip object(s) to pull from the Collection.\n
         This does not remove them from the registry, allowing them to be re-added."""
         pulled = set()
@@ -274,8 +277,9 @@ class Collection:
             if clip.name not in self.names:
                 logger.warn(f'"{clip.name}" is not registered with "{self.title}". Skipping.')
             try:
-                self.clips.remove(clip)
-                logger.debug(f'"{clip.name}" has been removed from "{self.title}".') # TODO uncomment when done dev
+                if keep == False:
+                    self.clips.remove(clip)
+                    logger.debug(f'"{clip.name}" has been removed from "{self.title}".') # TODO uncomment when done dev
                 pulled.add(clip)
             except KeyError:
                 logger.info(f'"{clip.name}" is not currently available in "{self.title}". Skipping request.')
@@ -336,7 +340,7 @@ class Collection:
             logger.warn(f'Unable to build "{len(remaining)}" Sound object{plural(len(remaining))}! '
                         f'Removing them "{self.title}".')
             for clip in remaining:
-                self.pull_clip(clip)
+                self.pull_clip(clip, keep=False)
             logger.warn(f'"{self.title}" now has "{len(self.clips)}" Clip{plural(len(self.clips))}.')           
         return {'unused_chans':channels, 'failed_clips':remaining}
 
@@ -346,7 +350,7 @@ class Collection:
         clips = []
         for name in self.names:
             if names is None or name in names:
-                clip = Clip(self.path, name)
+                clip = Clip(self.path, name, self.default_fade)
                 clips.append(clip)
                 self.clips.add(clip)
             else:
@@ -356,17 +360,18 @@ class Collection:
     def get_copy(self, title:str, keep_clips=False):
         """Returns a copy of this Collection a new Collection object with a different title.\n
         No clips will be returned unless "keep_clips=True" is supplied."""
-        return Collection(title=title, path=self.path, names=self.names, clips=self.clips if keep_clips else set())
+        return Collection(title=title, path=self.path, names=self.names, fade=self.default_fade, clips=self.clips if keep_clips else set())
 
 
     #--------------
     # Magic methods
     #--------------
-    def __init__(self, title=title, path=path, names=names, clips=clips) -> None:
+    def __init__(self, title=title, path=path, names=names, clips=clips, fade=default_fade) -> None:
         self.title = title
         self.path = path
         self.names = names
         self.clips = clips
+        self.default_fade = fade
         pass
 
     def __str__(self) -> str:
@@ -375,7 +380,7 @@ class Collection:
 
 class Library:
     """Used to create Collections of audio clips for playback."""
-    def __init__(self, base_path:str, valid_ext=['.wav']) -> None:
+    def __init__(self, base_path:str, fade:tuple, valid_ext=['.wav']) -> None:
         """Create a new clip Library object.\n- (required) "base_path=(str)" to define root path to search for collection subdirectories.
         \n- (optional) "valid_ext=(list)" to specify accepted file types."""
         if not os.path.isdir(base_path):
@@ -384,6 +389,10 @@ class Library:
         self.base_path = base_path
         self.valid_ext = valid_ext
         self.collections = []
+        self.default_fade = fade
+        #self.inactive_pool = Collection
+        #self.active_pool = Collection
+
         pass
 
     def init_library(self):
@@ -398,15 +407,15 @@ class Library:
                     names.append(f)
             # Ignore subdirectory if it doesn't contain any audio files
             if len(names) != 0:
-                new_collection = Collection(title=title, path=path, names=names)
+                new_collection = Collection(title=title, path=path, names=names, fade=self.default_fade)
                 self.collections.append(new_collection)
                 # TODO uncomment when done dev
-                #logger.debug(f'"{title}" added to Library with "{len(names)}" audio files.')
+                logger.debug(f'"{title}" added to Library with "{len(names)}" audio files.')
         logger.info(f'Library initialised with "{len(self.collections)}" collection{plural(len(self.collections))}.')
         print()
 
-    def get_collection(self, index=None) -> Collection:
-        """Return a collection from within the library.\n
+    def select_collection(self, index=None) -> Collection:
+        """Selects a collection from within the library and assigns it to the Collection pools.\n
         Will randomly select a Collection if valid index is not supplied."""
         logger.debug(f'Importing {"random " if index is None else ""}Collection '
                     f'{("[" + index + "] ") if index is not None else ""}from Library.')
@@ -418,7 +427,8 @@ class Library:
             logger.warn('Supplied collection index is out of range. One will be randomly selected.')
         finally:
             collection = random.choice(self.collections)
-        collection.init_clips()
+        #collection.init_clips()
         logger.info(f'{collection}')
+        #self.inactive_pool = collection
+        #self.active_pool = collection
         return collection
-
