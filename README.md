@@ -8,8 +8,8 @@ Python scripts designed for Raspberry Pi 4B to manage sensor inputs, output modu
 4. Features of target target 3, plus network communication via WiFi and cellular network to an online server.
 
 ## Feature checklist
-- [ ] Reliable non-interactive audio
-- [ ] Reliable non-interactive LEDs
+- [x] Reliable non-interactive audio
+- [x] Reliable non-interactive LEDs
 - [ ] Interactive audio
 - [ ] Raspberry Pi / Arduino interfacing
 - [ ] Interactive LEDs
