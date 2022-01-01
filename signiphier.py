@@ -207,10 +207,6 @@ if __name__ == '__main__':
     monitor_schedule.start()
 
 
-    # TODO Build basic automated clip playback manager!!!!
-
-
-
     # Main loop
     while True:
         for event in pg.event.get():

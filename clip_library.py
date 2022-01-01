@@ -10,7 +10,7 @@
 """Module to manage a Library of audio Clips."""
 
 
-import logging, os, random, bisect, time
+import logging, os, random, bisect, time, copy
 from pygame.mixer import Sound, Channel
 
 logger = logging.getLogger(__name__)
@@ -338,23 +338,19 @@ class Collection:
         logger.info(f'"{len(done)}" Sound object{plural(len(done))} initialised for "{self.title}".')
         if len(remaining) > 0:
             logger.warn(f'Unable to build "{len(remaining)}" Sound object{plural(len(remaining))}! '
-                        f'Removing them "{self.title}".')
+                        f'Removing them from "{self.title}".')
             for clip in remaining:
                 self.pull_clip(clip, keep=False)
             logger.warn(f'"{self.title}" now has "{len(self.clips)}" Clip{plural(len(self.clips))}.')           
         return {'unused_chans':channels, 'failed_clips':remaining}
 
-    def init_clips(self, names=None):
-        """Initialises the Clip object for each audio file in the Collection. Sounds are not load into memory.\n
-        If a "names=[str,]" list argument is supplied, only matching file names will be initialised."""
+    def init_clips(self):
+        """Initialises the Clip object for each audio file in the Collection. Sounds are not load into memory."""
         clips = []
-        for name in self.names:
-            if names is None or name in names:
-                clip = Clip(self.path, name, self.default_fade)
-                clips.append(clip)
-                self.clips.add(clip)
-            else:
-                logger.warn(f'{name} from {self.title} could not be built. Either no match was found or something went wrong.')
+        for clip in self.clips:
+            clip = Clip(self.path, clip.name, fade=self.default_fade)
+            clips.append(clip)
+            self.clips.add(clip)
         logger.info(f'{len(clips)} Clip object{plural(len(clips))} initialised for {self.title}.')
 
     def get_copy(self, title:str, keep_clips=False):
@@ -371,7 +367,7 @@ class Collection:
         self.path = path
         self.names = names
         self.clips = clips
-        self.default_fade = fade
+        Collection.default_fade = fade
         pass
 
     def __str__(self) -> str:
@@ -388,10 +384,11 @@ class Library:
             raise OSError
         self.base_path = base_path
         self.valid_ext = valid_ext
-        self.collections = []
         self.default_fade = fade
-        #self.inactive_pool = Collection
-        #self.active_pool = Collection
+        self.collections = []
+        self.current = Collection
+        self.inactive_pool = set()
+        self.active_pool = set()
 
         pass
 
@@ -407,28 +404,37 @@ class Library:
                     names.append(f)
             # Ignore subdirectory if it doesn't contain any audio files
             if len(names) != 0:
-                new_collection = Collection(title=title, path=path, names=names, fade=self.default_fade)
+                new_collection = Collection(title=title, path=path, names=names)
                 self.collections.append(new_collection)
                 # TODO uncomment when done dev
                 logger.debug(f'"{title}" added to Library with "{len(names)}" audio files.')
         logger.info(f'Library initialised with "{len(self.collections)}" collection{plural(len(self.collections))}.')
         print()
 
-    def select_collection(self, index=None) -> Collection:
+    def select_collection(self, index=None, num_clips=12) -> Collection:
         """Selects a collection from within the library and assigns it to the Collection pools.\n
         Will randomly select a Collection if valid index is not supplied."""
         logger.debug(f'Importing {"random " if index is None else ""}Collection '
                     f'{("[" + index + "] ") if index is not None else ""}from Library.')
         try:
-            collection = self.collections[index]
+            new_col = self.collections[index]
         except TypeError:
             pass
         except IndexError:
             logger.warn('Supplied collection index is out of range. One will be randomly selected.')
         finally:
-            collection = random.choice(self.collections)
-        #collection.init_clips()
-        logger.info(f'{collection}')
-        #self.inactive_pool = collection
-        #self.active_pool = collection
-        return collection
+            new_col = random.choice(self.collections)
+
+        logger.info(f'{new_col}')
+
+        # Copy Collection into instance then select and initialise
+        self.collection = copy.deepcopy(new_col)
+        self.collection.clips = self.collection.get_distributed(num_clips)
+        self.collection.init_clips()
+        self.active_pool = None
+        self.inactive_pool = self.collection.clips
+
+        return self.collection
+
+
+    
