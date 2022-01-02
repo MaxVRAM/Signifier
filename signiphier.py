@@ -50,67 +50,35 @@ CLIP_EVENT = pg.USEREVENT+1
 COLLECTION_TIMER = 600
 MONITOR_TIMER = 30
 
-
 clip_library = None
-active_pool = Collection
-inactive_pool = None
-
 
 
 def monitor_playback():
-    global active_pool, inactive_pool
     print()
-    logger.info(f'RUNNING MONITORING JOB.')
-    finished_clips = set()
-    finished_clips.update(active_pool.get_finished())
-    for clip in active_pool.clips:
-        if time.time() - clip.started > MAX_PLAYTIME and clip.channel.get_busy() == True:
-            logging.debug(f'{clip.name} has been playing long enough. Telling it to stop.')
-            finished_clips.add(clip.stop())
-            break
+    logger.info(f'RUNNING MONITORING JOB...')
 
-    # Now balance things out
-    if len(active_pool.clips) > BUSY_LEVEL:
-        clip = set(active_pool.get_clip(keep=True))
-        finished_clips.add(clip.stop())
+    clip_library.check_finished()
+    # Stop a random clip after a certain amount of time
+    # Stop a random clip if there's still too many playing
+    # Start new clip if there's not enough playing
 
-    if len(active_pool.clips) - len(finished_clips) < QUIET_LEVEL:
-        active_pool.push_clip(inactive_pool.play_clip(num_clips=1))
-
-    logging.debug(f'Removing {len(finished_clips)} finished clips from active_pool.')
-    inactive_pool.push_clip(active_pool.pull_clip(finished_clips, keep=False))
     print()
 
 
-def start_new_collection(num_clips=NUM_CLIPS):
-    global clip_library, active_pool, inactive_pool
+def start_new_collection():
     print()
     print()
-    logger.info(f'RUNNING NEW COLLECTION JOB.')
+    logger.info(f'RUNNING NEW COLLECTION JOB...')
     stop_all_clips()
     while pg.mixer.get_busy():
         time.sleep(0.1)
 
-    active_pool = None
-    inactive_pool = None
-
-    collection = copy.deepcopy(clip_library.select_collection())
-    collection.init_clips()
-    
-    active_pool = collection.get_copy(title='active_pool')
-    inactive_pool = collection.get_copy(title='inactive_pool')
-    inactive_pool.clips = collection.get_distributed(num_clips)
-
-    num_clips = len(inactive_pool.clips)
-    channels = get_fresh_channels(num_clips)
-    inactive_pool.init_sounds(channels)
-    active_pool.push_clip(inactive_pool.play_clip(num_clips=1))
+    clip_library.select_collection()
+    clip_library.play_clip(num_clips=1)
 
     print()
     logger.info(f'Finished new Collection playback job.')
     print()
-
-
 
 def stop_all_clips(fade_time=DEFAULT_FADE[0]):
     """Fadeout and stop all active clips"""
@@ -118,15 +86,7 @@ def stop_all_clips(fade_time=DEFAULT_FADE[0]):
         logger.info(f'Stopping audio clips with {fade_time}ms fade...')
         pg.mixer.fadeout(fade_time)
 
-def get_fresh_channels(num_wanted:int):
-    if pg.mixer.get_num_channels() != num_wanted:
-        logger.info(f'Mixer has {pg.mixer.get_num_channels()} Channels but '
-                    f'{num_wanted} are needed. Attempting to update mixer...')
-        pg.mixer.set_num_channels(num_wanted)
-        logger.info(f'Mixer now has {pg.mixer.get_num_channels()} channels.')
-        print()
-    channels = [pg.mixer.Channel(i) for i in range(pg.mixer.get_num_channels())]
-    return(list(enumerate(channels)))
+
 
 def prepare_playback_engine():
     """Ensure audio driver exists and initialise the Pygame mixer."""
@@ -140,7 +100,6 @@ def prepare_playback_engine():
         logger.error(f'No audio devices detected!')
         exit_handler.shutdown()
     logger.debug(f'SDL2 detected the following audio devices: {device_names}')
-
     device = None
     for d in device_names:
         if DEFAULT_DEVICE in d:
@@ -149,7 +108,6 @@ def prepare_playback_engine():
     if device is None:
         logger.error(f'Expected audio device "{DEFAULT_DEVICE}" but was not detected on host!')
         exit_handler.shutdown()
-
     logger.info(f'"{device}" found on host and will be used for audio playback.')
     pg.mixer.pre_init(frequency=SAMPLE_RATE, size=SIZE, channels=1, buffer=BUFFER, devicename=device)
     pg.mixer.init()

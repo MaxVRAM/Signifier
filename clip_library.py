@@ -28,8 +28,17 @@ LOOP_RANGE = [0, 6]
 
 
 # Opulent logging utility
-def plural(num:int) -> str:
-    return "" if num == 0 else "s"
+def plural(value) -> str:
+    """Return "s" or "" pluralise strings based on supplied (int) value or len(!int)."""
+    if value is None:
+        return ""
+    try:
+        num = int(value)
+    except TypeError:
+        num = len(value)
+    except:
+        return ""
+    return "" if num == 1 else "s"
 
 
 
@@ -124,7 +133,7 @@ class Clip:
     #---------------------
     # Magic/static methods
     #---------------------
-    def __init__(self, root:str, name:str, load=False, fade=default_fade) -> None:
+    def __init__(self, root:str, name:str, load=False) -> None:
         """Initialises a new Clip object.\nUse additional {True} arguement to load audio 
         file into memory as new Sound object."""
         self.root = root
@@ -137,13 +146,11 @@ class Clip:
         self.looping = self.category in LOOP_CATEGORIES
         self.channel = None
         self.index = None
-        self.default_fade = fade
         pass
 
     def __str__(self) -> str:
         details = (f'{self.name}, "{self.category}", "{"looping" if self.looping else "one-shot"}", '
-                   f'{self.length:.2f}s on '
-                   f'chan ({"NONE" if self.channel is None else self.index}), fade ({self.default_fade})')
+                   f'{self.length:.2f}s on chan ({"NONE" if self.channel is None else self.index}).')
         return details
 
 
@@ -158,15 +165,17 @@ class Collection:
 
 class Library:
     """Used to create Collections of audio clips for playback."""
-    def __init__(self, mixer:Mixer, base_path:str, fade:tuple, valid_ext=['.wav']) -> None:
+    def __init__(self, mixer:Mixer, base_path:str, valid_ext=['.wav'], volume=0.5, fade=tuple(3000,2000)) -> None:
         """Create a new clip Library object.\n- (required) "base_path=(str)" to define root path to search for collection subdirectories.
         \n- (optional) "valid_ext=(list)" to specify accepted file types."""
         if not os.path.isdir(base_path):
             logger.error(f'Invalid root path for library: {base_path}.')
             raise OSError
         self.mixer = mixer
+        self.channels = None
         self.base_path = base_path
         self.valid_ext = valid_ext
+        self.default_volume = volume
         self.default_fade = fade
         self.collections = {}
         self.current = Collection
@@ -187,7 +196,7 @@ class Library:
             if len(names) != 0:
                 self.collections[title] = {'path':path, 'names':names}
                 logger.debug(f'"{title}" added to Library with "{len(names)}" audio files.')
-        logger.info(f'Library initialised with "{len(self.collections)}" collection{plural(len(self.collections))}.')
+        logger.info(f'Library initialised with "{len(self.collections)}" collection{plural(self.collections)}.')
         print()
 
     def select_collection(self, name=None, num_clips=12) -> Collection:
@@ -200,24 +209,40 @@ class Library:
             name = None
         if name is None:
             name = random.choice(self.collections.keys())
-        coll = self.collections[name]
-        logger.info(f'Selected: "{name}, {coll}"')
-        self.collection = Collection(title=name, path=coll['path'], names=coll['names'])
+        path, names = (self.collections[name]['path'], self.collections[name]['names'])
+        logger.info(f'Selected Collection "{name}" ({path}) with {len(names)} audio file{plural(names)}')
+        self.collection = Collection(title=name, path=path, names=names)
         self.clips = init_clips(self.collection)
         self.active_pool = None
         self.inactive_pool = get_distributed(self.clips, num_clips)
+        self.channels = self.get_channels(self.inactive_pool)
+        failed = init_sounds(self.inactive_pool, self.channels)
         return self.collection
+
+    def get_channels(self, clip_set:set) -> set:
+        """Return set of (index, channel) tuples for assigning to Sound objects.
+        Updates the mixer if there aren't enough channels"""
+        num_chans = lambda: self.mixer.get_num_channels()
+        num_wanted = len(clip_set)
+        if num_chans != num_wanted:
+            logger.info(f'Mixer has {num_chans} Channels but '
+                        f'{num_wanted} are needed. Attempting to update mixer...')
+            self.mixer.set_num_channels(num_wanted)
+            logger.info(f'Mixer now has {num_chans} channels.')
+            print()
+        channels = [self.mixer.Channel(i) for i in range(num_chans)]
+        return set(enumerate(channels))
+
 
     def move_to_inactive(self, clips:set):
         """Supplied list of Clip(s) are moved from active to inactive pool."""
         for clip in clips:
-            clip.sound.stop()
             self.active_pool.remove(clip)
             self.inactive_pool.add(clip)
             logger.debug(f'{clip.name} moved from active to inactive pool.')
 
     def move_to_active(self, clips:set):
-        """Moves clip from inactive to active pool."""
+        """Supplied list of Clip(s) are moved from inactive to active pool."""
         for clip in clips:
             self.inactive_pool.remove(clip)
             self.active_pool.add(clip)
@@ -225,7 +250,7 @@ class Library:
 
     # TODO look into callbacks instead of calling this regularly
     def check_finished(self) -> set:
-        """Checks active pool of lingering finished clips and tells them to move to inactive pool."""
+        """Checks active pool for lingering Clips finished playback, and moves them to the inactive pool."""
         finished = set()
         for clip in self.active_pool:
             if not clip.channel.get_busy():
@@ -234,8 +259,9 @@ class Library:
         self.move_to_inactive(set(finished))
         return finished
 
-    def play_clip(self, clips=None, name=None, category=None, num_clips=1, volume=0.5, fade=None, event=None) -> set:
+    def play_clip(self, clips=None, name=None, category=None, num_clips=1, volume=None, fade=None, event=None) -> set:
         """Return set of clip(s) by object, name, category, or at random, and begin playback."""
+        volume = self.default_volume if volume is None else volume
         fade = self.default_fade if fade is None else fade
         if clips is None:
             clips = get_clip(self.inactive_pool, name=name, category=category, num_clips=num_clips)
@@ -247,14 +273,13 @@ class Library:
 #---------------
 # Clip Utilities
 #---------------
-
 def init_clips(collection:Collection) -> set:
     """Initialises the Clip object for each audio file in the Collection. Sounds are not load into memory."""
     clips = set()
     for clip in collection.clips:
         clip = Clip(collection.path, clip.name)
         clips.add(clip)
-    logger.info(f'{len(clips)} Clip object{plural(len(clips))} initialised from {collection.title}.')
+    logger.info(f'{len(clips)} Clip object{plural(clips)} initialised from {collection.title}.')
     return clips
 
 def init_sounds(clips:set, channels:set) -> dict:
@@ -263,25 +288,25 @@ def init_sounds(clips:set, channels:set) -> dict:
     Returns a dictionary of any unused channels and clips that failed to build."""
     done = set()
     if len(channels) < len(clips):
-        logger.warn(f'Trying to initialise {len(clips)} sound{plural(len(clips))} '
-                    f'with only {len(channels)} channel{plural(len(channels))}. Clips not assigned a '
+        logger.warn(f'Trying to initialise {len(clips)} Sound{plural(clips)} '
+                    f'from {len(channels)} Channel{plural(channels)}. Clips not assigned a '
                     f'channel will be pulled from this collection!')
     for clip in clips:
         if len(channels) == 0:
             logger.warn(f'Ran out of channels to assign!')
             break
-        if clip.build_sound(channels.pop(0)) is not None:
+        if clip.build_sound(channels.remove(0)) is not None:
             done.add(clip)
     remaining = list(clips.difference(done))
-    logger.info(f'{len(done)} Sound object{plural(len(done))} initialised.')
+    logger.info(f'{len(done)} Sound object{plural(done)} initialised.')
     if len(remaining) > 0:
-        logger.warn(f'Unable to build {len(remaining)} Sound object{plural(len(remaining))}! ')
+        logger.warn(f'Unable to build {len(remaining)} Sound object{plural(remaining)}! ')
     return {'channels':channels, 'clips':remaining}
 
 def get_distributed(clips:set, num_clips:int) -> set:
     """Return an evenly distributed set of clip based on categories."""
     if num_clips > len(clips):
-        logger.warn(f'Requesting {num_clips} clip{plural(num_clips)} but has only {len(clips)} supplied! '
+        logger.warn(f'Requesting {num_clips} clip{plural(num_clips)} but only {len(clips)} in set! '
                     f'Will return entire set.')
         selection = clips
     else:
@@ -341,11 +366,11 @@ def get_clip(clips:set, name=None, category=None, num_clips=1) -> set:
         if (clips := contents.get(category)) is None:
             logger.warn(f'Category "{category}" not found in set. Ignoring request.')
             return None
-    num = len(clips)
-    if num == 0:
+    available = len(clips)
+    if available == 0:
         logger.warn(f'No clips available. Skipping request.')
         return None
-    if num_clips > num:
+    if num_clips > available:
         logger.debug(f'Requested "{num_clips}" clip{plural(num_clips)} from {("[" + category + "] in ") if category is not None else ""} '
-                        f'with "{num}" Clip{plural(num)}. {("Returning [" + str(num) + "] instead") if num > 0 else "Skipping request"}.')
-    return set([clip for clip in random.sample(clips, min(num_clips, num))])
+                        f'with "{available}" Clip{plural(available)}. {("Returning [" + str(available) + "] instead") if available > 0 else "Skipping request"}.')
+    return set([clip for clip in random.sample(clips, min(num_clips, available))])
