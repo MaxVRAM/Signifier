@@ -28,7 +28,7 @@ LOOP_CATEGORIES = ['medium','loop']
 LOOP_RANGE = [0, 6]
 
 
-# Opulent logging utility
+# WARNING: Excessively Opulent Logging Utility
 def plural(value) -> str:
     """Return "s" or "" pluralise strings based on supplied (int) value or len(!int)."""
     if value is None:

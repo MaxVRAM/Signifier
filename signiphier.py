@@ -10,7 +10,7 @@
 
 
 
-import logging, os, random, signal, sys, time, copy
+import logging, os, random, signal, sys, time, copy, schedule
 import pygame as pg
 from threading import Timer
 
@@ -32,13 +32,12 @@ VALID_EXT = ['.wav']
 BASE_PATH = '/home/pi/Signifier/audio'
 
 # Mixer defaults
-DEFAULT_DEVICE = 'bcm2835'
-#DEFAULT_DEVICE = 'default'
+DEFAULT_DEVICE = 'bcm2835' # TODO check 'default'
 SAMPLE_RATE = 44100
 SIZE = -16
 NUM_CHANNELS = 2
 BUFFER = 2048
-MAX_PLAYTIME = 60
+MAX_PLAYTIME = 60 # seconds 
 DEFAULT_FADE = [3000, 2000] # fade out / fade in
 
 # Playback management
@@ -48,16 +47,14 @@ BUSY_LEVEL = 6
 CLIP_EVENT = pg.USEREVENT+1
 
 COLLECTION_TIMER = 96
-CHANGE_TIMER = 32
+CLIP_TIMER = 32
 MONITOR_TIMER = 16
 VOLUME_TIMER = 2
 
-clip_library = None
+schedule_times = {"collection":96, "clips":32, "monitor":16, "volume":2}
 
-collection_schedule = Timer
-mon_sched = Timer
-clip_sched = Timer
-vol_sched = Timer
+clip_library = None
+coll_sched = mon_sched = vol_sched = Timer
 
 
 def maintain_intensity():
@@ -101,10 +98,8 @@ def new_collection():
     clip_library.play_clip(num_clips=1)
     
     mon_sched = RepeatTimer(MONITOR_TIMER, maintain_intensity)
-    mon_sched.start()
-    clip_sched = RepeatTimer(CHANGE_TIMER, new_collection)
-    clip_sched.start()
     vol_sched = RepeatTimer(VOLUME_TIMER, modulate_volume)
+    mon_sched.start()
     vol_sched.start()
 
     logger.info(f'NEW COLLECTION JOB DONE.')
@@ -116,9 +111,6 @@ def stop_all_clips(fade_time=DEFAULT_FADE[0]):
         if pg.mixer.get_busy():
             logger.info(f'Stopping audio clips, with {fade_time}ms fade...')
             pg.mixer.fadeout(fade_time)
-
-
-
 
 def prepare_playback_engine():
     """Ensure audio driver exists and initialise the Pygame mixer."""
@@ -149,6 +141,18 @@ def prepare_playback_engine():
     print()
 
 
+def set_schedulers(state=True):
+    global mon_sched, vol_sched
+    if state:
+        mon_sched.start()
+        vol_sched.start()
+        logger.debug(f'Started clip monitoring and volume modulation schedulers.')
+    else:
+        mon_sched.cancel()
+        vol_sched.cancel()
+        logger.debug(f'Stopped clip monitoring and volume modulation schedulers.')
+
+
 class RepeatTimer(Timer):
     def run(self):
         while not self.finished.wait(self.interval):
@@ -158,14 +162,14 @@ class ExitHandler:
     signals = { signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM' }
     def __init__(self):
         self.exiting = False
-        signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
+        signal.signal(signal.SIGINT, self.shutdown)
     def shutdown(self, *args):
         print()
         logger.info(f'Shutdown sequence started.')
         self.exiting = True
         logger.info("Clearing schedulers.")
-        collection_schedule.cancel()
+        coll_sched.cancel()
         mon_sched.cancel()
         stop_all_clips()
         while pg.mixer.get_busy():
@@ -190,8 +194,12 @@ if __name__ == '__main__':
 
     new_collection()
 
-    collection_schedule = RepeatTimer(COLLECTION_TIMER, new_collection)
-    collection_schedule.start()
+    coll_sched = RepeatTimer(COLLECTION_TIMER, new_collection)
+    coll_sched.start()
+
+
+    job = schedule.every(CONFIG["general"]["update_interval"]).seconds.do(publish_sensor_values)
+
 
     # Main loop
     while True:
