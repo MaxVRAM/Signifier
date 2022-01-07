@@ -3,27 +3,34 @@ Python scripts designed for Raspberry Pi 4B to manage sensor inputs, output modu
 
 ## Project targets
 1. Reliable **non-interactive** audio and LEDs.
+    - [x] Audio playback
+    - [x] Generative audio layer composition manager
+    - [x] Basic LED modulation
 2. **Interactive** audio and non-interactive LEDs.
-3. Interactive audio, with interactive LEDs controlled by the Raspberry Pi.
-4. Features of target target 3, plus network communication via WiFi and cellular network to an online server.
-
-## Feature checklist
-- [ ] Reliable non-interactive audio
-- [ ] Reliable non-interactive LEDs
-- [ ] Interactive audio
-- [ ] Raspberry Pi / Arduino interfacing
-- [ ] Interactive LEDs
-- [ ] Signifier management over WiFi
-- [ ] Writing sensor data to local time-series database
-- [ ] Pushing local data to remote database
-- [ ] Signifier management over cellular
-- [ ] Web-socket server on Signifiers
-- [ ] Centralised web-app to monitor and control Signifiers via web-sockets 
-- [ ] Real-time Signifier GPS coordinate map
-- [ ] Data-visualisation of sensor values and Signifier states
+    - [ ] Sensor: Bluetooth
+    - [ ] Sensor: Microphone
+    - [ ] Sensor: Temperature
+    - [ ] Interactive audio manager
+3. Interactive audio & interactive LEDs
+    - [ ] Raspberry Pi / Arduino interfacing
+    - [ ] Audio analysis
+    - [ ] Interactive LED manager
+4. Network communication over WiFi/cellular to online server:
+    - [ ] Simple API control of Signifier manager
+    - [ ] Signifier management over WiFi
+    - [ ] Writing sensor data to local time-series database
+    - [ ] Pushing local data to remote database
+    - [ ] Signifier management over cellular
+BONUS ROUND:
+    - [ ] Web-socket server on Signifiers
+    - [ ] Centralised web-app to monitor and control Signifiers via web-sockets 
+    - [ ] Real-time Signifier GPS coordinate map
+    - [ ] Data-visualisation of sensor values and Signifier states
 
 ## Hardware
+
 ### Computation
+
 [Raspberry Pi 4B](https://au.rs-online.com/web/p/raspberry-pi/1822096)
 
 [Arduino Nano Every](https://au.rs-online.com/web/p/arduino/1927590)
