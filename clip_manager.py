@@ -166,7 +166,7 @@ class Collection:
         pass
 
 
-class Library:
+class ClipManager:
     """Used to create Collections of audio clips for playback."""
     def __init__(self, mixer:Mixer, base_path:str, valid_ext=['.wav'], volume=0.5, fade=[3000,2000]) -> None:
         """Create a new clip Library object.\n- (required) "base_path=(str)" to define root path to search for collection subdirectories.
