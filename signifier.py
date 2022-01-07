@@ -160,7 +160,6 @@ def stop_all_clips(fade_time=DEFAULT_FADE[0]):
 
 
 
-
 def prepare_playback_engine():
     """Ensure audio driver exists and initialise the Pygame mixer."""
     import pygame._sdl2 as sdl2
@@ -168,6 +167,7 @@ def prepare_playback_engine():
     is_capture = 0  # zero to request playback devices, non-zero to request recording devices
     num_devices = sdl2.get_num_audio_devices(is_capture)
     device_names = [str(sdl2.get_audio_device_name(i, is_capture), encoding="utf-8") for i in range(num_devices)]
+    pg.mixer.quit()
     pg.quit()
     if device_names is None or len(device_names) == 0:
         logger.error(f'No audio devices detected!')
@@ -241,7 +241,7 @@ class ExitHandler:
 
 if __name__ == '__main__':
     print()
-    logger.info('Prepare to be Signiphied!')
+    logger.info('Prepare to be Signified!!')
     print()
     exit_handler = ExitHandler()
     prepare_playback_engine()
