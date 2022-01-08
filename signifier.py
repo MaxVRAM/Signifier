@@ -8,6 +8,14 @@
 #          \/   /_____/      \/   |__|        \/        \/
 
 
+# Displaying audio hardware
+# aplay -l
+
+# For resolving error 'ALSA lib pcm_direct.c:1846:(_snd_pcm_direct_get_slave_ipc_offset) Invalid value for card'
+# sudo usermod -aG audio $USER
+
+
+
 
 
 # Web UI monitoring/control schema:
@@ -62,7 +70,6 @@
 
 import logging, os, random, signal, sys, time, schedule
 import pygame as pg
-from threading import Timer
 
 from clip_manager import ClipManager
 
@@ -73,85 +80,85 @@ logger.setLevel(logging.DEBUG)
 
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
-RETRY_TIME = 20
-
-# Audio library defaults
-VALID_EXT = ['.wav']
-BASE_PATH = '/home/pi/Signifier/audio'
-
-# Mixer defaults
-DEFAULT_DEVICE = 'bcm2835' # TODO check 'default'
-SAMPLE_RATE = 44100
-SIZE = -16
-NUM_CHANNELS = 2
-BUFFER = 2048
-MAX_PLAYTIME = 60 # seconds 
-DEFAULT_FADE = [3000, 2000] # fade out / fade in
-
-# Playback management
-NUM_CLIPS = 12
-QUIET_LEVEL = 3
-BUSY_LEVEL = 6
 CLIP_EVENT = pg.USEREVENT+1
 
-COLLECTION_TIMER = 96
-CLIP_TIMER = 32
-VOLUME_TIMER = 2
+# TODO Create method to remotely manage this dictionary
+config = {
+    'audio':
+    {
+        'device':'bcm2835 Headphones, bcm2835 Headphones',
+        'sample_rate':44100,
+        'bit_size':-16,
+        'buffer':2048
+    },
+    'composition':
+    {
+        'quiet_level':3,
+        'busy_level':6,
+        'max_playtime':60,
+    },
+    'clips':
+    {
+        'base_path':'/home/pi/Signifier/audio',
+        'fail_retry_delay':5,
+        'valid_extensions':['.wav'],
+        'strict_distribution':False,
+        'collection_size':12,
+        'volume':0.5,
+        'fade_in':2000,
+        'fade_out':3000
+    },
+    'jobs':
+    {
+        'collection':96,
+        'clips':16,
+        'volume':2
+    }
+}
 
-schedule_times = {"collection":96, "clips":32, "volume":2}
-
-clip_library = None
-coll_sched = layers_sched = volume_sched = Timer
+jobs = {'collection':96, 'clips':16, 'volume':2}
+clip_manager = None
 
 
-def layers_job():
+def update_clips():
     print()
-    logger.info(f'RUNNING MONITORING JOB...')
-
-    clip_library.check_finished()
-
-    if clip_library.clips_playing() < QUIET_LEVEL:
-        clip_library.play_clip()
-    elif clip_library.clips_playing() > BUSY_LEVEL:
-        clip_library.stop_clip()
-    # Stop a random clip after a certain amount of time
-    # Stop a random clip if there's still too many playing
-    # Start new clip if there's not enough playing
-    # Modulate playing clips' volume
-    logger.info(f'MONITORING JOB DONE.')
+    changed = set()
+    changed = clip_manager.check_finished()
+    if clip_manager.clips_playing() < config['composition']['quiet_level']:
+        changed.update(clip_manager.play_clip())
+    elif clip_manager.clips_playing() > config['composition']['busy_level']:
+        changed.update(clip_manager.stop_clip())
+    # Stop a random clip after a certain amount of time?
     print()
-
-def stop_random_clip():
-    clip_library.stop_clip()
-    logger.debug(f'RANDOM CLIP STOP JOB DONE.')
 
 def modulate_volume():
-    clip_library.modulate_volumes()
-    logger.debug(f'VOLUME MODULAION JOB DONE.')
+    clip_manager.modulate_volumes()
 
+def stop_random_clip():
+    clip_manager.stop_clip()
 
 
 def new_collection():
-    global layers_sched, volume_sched
     print()
-    logger.info(f'RUNNING NEW COLLECTION JOB...')
-    
-    set_schedulers(False)
+    set_jobs(False)
+    pg.event.clear()
     stop_all_clips()
     while pg.mixer.get_busy():
         time.sleep(0.1)
-
-    if clip_library.select_collection() is not None:
-        clip_library.play_clip(num_clips=1)
-        set_schedulers(True)
-    else:
-        logger.error(f'Failed to retrieve a collection. Retrying in {RETRY_TIME}')
+    
+    while (collection := clip_manager.select_collection("S06") is None):
+        logger.info(f'Trying another collection in {config["clips"]["fail_retry_delay"]} seconds...')
+        time.sleep(config["clips"]["fail_retry_delay"])
         new_collection()
-        logger.info(f'NEW COLLECTION JOB DONE.')
-        print()
+
+    set_jobs(True)
+    logger.info(f'NEW COLLECTION JOB DONE.')
+    print()
+    #update_clips()
+    pg.event.clear()
     
 
-def stop_all_clips(fade_time=DEFAULT_FADE[0]):
+def stop_all_clips(fade_time=config['clips']['fade_out']):
     """Fadeout and stop all active clips"""
     if pg.mixer.get_init():
         if pg.mixer.get_busy():
@@ -160,59 +167,63 @@ def stop_all_clips(fade_time=DEFAULT_FADE[0]):
 
 
 
+def set_jobs(state=True):
+    """Add/remove jobs that control playback modulation."""
+    print()
+    modulation_jobs = schedule.get_jobs('modulation')
+    if len(modulation_jobs) > 1:
+        schedule.clear('modulation')
+    if state:
+        logger.debug(f'Scheduling modulation jobs...')
+        schedule.every(config['jobs']['clips']).seconds.do(update_clips).tag('modulation')
+        schedule.every(config['jobs']['volume']).seconds.do(modulate_volume).tag('modulation')
+        logger.debug(f'Jobs: {schedule.get_jobs("modulation")}')
+
+
+def audio_device_check() -> str:
+    # TODO Create functional mechanism to find and test audio devices
+    default_device = config['audio']['device']
+    try:
+        import pygame._sdl2 as sdl2
+        pg.init()
+        is_capture = 0  # zero to request playback devices, non-zero to request recording devices
+        num_devices = sdl2.get_num_audio_devices(is_capture)
+        device_names = [str(sdl2.get_audio_device_name(i, is_capture), encoding="utf-8") for i in range(num_devices)]
+        pg.mixer.quit()
+        pg.quit()
+        if device_names is None or len(device_names) == 0:
+            logger.warning(f'No audio devices detected by sdl2. Attempting to force default: "{default_device}"...')
+            exit_handler.shutdown()
+        logger.debug(f'SDL2 detected the following audio devices: {device_names}')
+        device = None
+        for d in device_names:
+            if default_device in d:
+                device = d
+                break
+        if device is None:
+            logger.warning(f'Expected audio device "{default_device}" but was not detected by sdl2. '
+                            f'Attempting to force driver...')
+            exit_handler.shutdown()
+        logger.info(f'"{device}" found on host and will be used for audio playback.')
+        return default_device
+    except Exception as exception:
+        logger.warning(f'Error while using sdl2 to determine audio devices available on host. '
+                        f'Attempting to force "{default_device}": {exception}')
+        return default_device
+
 def prepare_playback_engine():
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    import pygame._sdl2 as sdl2
-    pg.init()
-    is_capture = 0  # zero to request playback devices, non-zero to request recording devices
-    num_devices = sdl2.get_num_audio_devices(is_capture)
-    device_names = [str(sdl2.get_audio_device_name(i, is_capture), encoding="utf-8") for i in range(num_devices)]
-    pg.mixer.quit()
-    pg.quit()
-    if device_names is None or len(device_names) == 0:
-        logger.error(f'No audio devices detected!')
-        exit_handler.shutdown()
-    logger.debug(f'SDL2 detected the following audio devices: {device_names}')
-    device = None
-    for d in device_names:
-        if DEFAULT_DEVICE in d:
-            device = d
-            break
-    if device is None:
-        logger.error(f'Expected audio device "{DEFAULT_DEVICE}" but was not detected on host!')
-        exit_handler.shutdown()
-    logger.info(f'"{device}" found on host and will be used for audio playback.')
-    pg.mixer.pre_init(frequency=SAMPLE_RATE, size=SIZE, channels=1, buffer=BUFFER, devicename=device)
+    device = audio_device_check()
+    pg.mixer.pre_init(
+        frequency=config['audio']['sample_rate'],
+        size=config['audio']['bit_size'],
+        channels=1,
+        buffer=config['audio']['buffer'],
+        devicename=device
+        )
     pg.mixer.init()
-    pg.mixer.set_num_channels(NUM_CHANNELS)
     pg.init()
-    logger.debug(f'Audio mixer configured with device "{device} {pg.mixer.get_init()}"')
-    print()
-
-
-
-def set_schedulers(state=True):
-    global layers_sched, volume_sched
-    if state:
-        layers_sched.start()
-        volume_sched.start()
-        logger.debug(f'Started clip monitoring and volume modulation schedulers.')
-    else:
-        layers_sched.cancel()
-        volume_sched.cancel()
-        if layers_sched.is_alive():
-            layers_sched.join()
-            logger.debug(f'Clip monitoring scheduler stopped.')
-        if volume_sched.is_alive():
-            volume_sched.join()
-            logger.debug(f'Volume modulation scheduler stopped.')
-
-
-
-class RepeatTimer(Timer):
-    def run(self):
-        while not self.finished.wait(self.interval):
-            self.function(*self.args, **self.kwargs)
+    logger.debug(f'Audio mixer successfully configured with device: "{device} {pg.mixer.get_init()}"')
 
 
 class ExitHandler:
@@ -225,16 +236,12 @@ class ExitHandler:
         print()
         logger.info(f'Shutdown sequence started.')
         self.exiting = True
-
-        logger.info("Clearing schedulers.")
-        coll_sched.cancel()
-        set_schedulers(False)
-
+        schedule.clear()
         stop_all_clips()
         while pg.mixer.get_busy():
             time.sleep(0.1)
         pg.mixer.quit()
-        logger.info("Signiphier shutdown complete.")
+        logger.info("Signifier shutdown complete.")
         print()
         sys.exit()
 
@@ -243,26 +250,28 @@ if __name__ == '__main__':
     print()
     logger.info('Prepare to be Signified!!')
     print()
+
     exit_handler = ExitHandler()
+
     prepare_playback_engine()
     try:
-        clip_library = ClipManager(pg.mixer, base_path=BASE_PATH, fade=DEFAULT_FADE)
+        clip_manager = ClipManager(pg.mixer, config['clips'])
     except OSError:
         exit_handler.shutdown()
-    clip_library.init_library()
+
+    clip_manager.init_library()
 
     new_collection()
-
-    coll_sched = RepeatTimer(COLLECTION_TIMER, new_collection)
-    coll_sched.start()
-
-
-    #job = schedule.every(CONFIG["general"]["update_interval"]).seconds.do(publish_sensor_values)
-
+    coll_job = schedule.every(config['jobs']['collection']).seconds.do(new_collection)
+    #schedule.run_all()
 
     # Main loop
     while True:
+        schedule.run_pending()
         for event in pg.event.get():
             if event.type == CLIP_EVENT:
+                clip_manager.check_finished()
+                if clip_manager.clips_playing() == 0:
+                    update_clips()
                 print(f'Clip ended: {event}')
         time.sleep(1)
