@@ -18,6 +18,7 @@ logger.setLevel(logging.DEBUG)
 class Clip:
     """Clip objects hold sound file information, its Sound object 
     and its associated Channel, once playback has been triggerd."""
+    
     #-----------------
     # Playback methods
     #-----------------

@@ -4,6 +4,46 @@
 
 # python3 -m pip install pySerialTransfer
 
+
+# Installing remote VSCODE headless Arduino project functionality:
+# https://joachimweise.github.io/post/2020-04-07-vscode-remote/
+#
+# curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+
+# sudo usermod -a -G tty $USER
+# sudo usermod -a -G dialout $USER
+# sudo usermod -a -G uucp $USER
+# sudo usermod -a -G plugdev $USER
+
+# arduino-cli config init
+# arduino-cli core update-index
+# arduino-cli board list
+# arduino-cli core search arduino
+# arduino-cli core install arduino:megaavr
+# arduino-cli lib search adafruit neopixel
+# arduino-cli lib install "Adafruit NeoPixel"
+# arduino-cli lib search SerialTransfer
+# arduino-cli lib install "SerialTransfer"
+# sudo find / -name 'arduino-cli'
+# 
+# GET FQBNs from commands:
+#   arduino-cli board list
+#       e.g.:
+#           "arduino:megaavr:nona4809"
+# Function Commands:
+#   alias acompile="arduino-cli compile --fqbn arduino:megaavr:nona4809"
+#   alias aupload="arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:megaavr:nona4809"
+#
+# Storing the commands:
+#   funcsave acompile
+#   funcsave aupload
+# 
+# Then run the commands like this:
+#   acompile /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple && aupload /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple
+
+
+
+
 import time
 from pySerialTransfer import pySerialTransfer as txfer
 

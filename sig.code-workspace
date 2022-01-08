@@ -4,5 +4,8 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"arduino.path": "/home/pi/arduino-1.8.19",
+		"arduino.useArduinoCli": true
+	}
 }

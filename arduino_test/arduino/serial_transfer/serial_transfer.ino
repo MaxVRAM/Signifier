@@ -1,3 +1,5 @@
+// pip install pySerialTransfer
+
 #include "SerialTransfer.h"
 
 

@@ -6,8 +6,14 @@
 #define LED_PIN 6
 #define LED_COUNT 240
 
+#define BRIGHTNESS 0.1
+#define COLOUR ColorHSV(50000, 255, 255)
+
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
+// https://joachimweise.github.io/post/2020-04-07-vscode-remote/
+
+// acompile /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple && aupload /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple
 
 void setup() {
   // The example code said this wasn't neccessary, but it seems to affect the colour
@@ -19,31 +25,32 @@ void setup() {
   Serial.begin(9600);
   strip.begin();
   strip.show();
-  strip.setBrightness(250);
+  strip.setBrightness(255 * BRIGHTNESS);
 
   randomSeed(analogRead(0));
   int delayOffet = random(0, 3000);
   delay(delayOffet);
 
-  for (int i = 0; i < 255; i++){
-    solidColour(strip.ColorHSV(50000, 255, i));
-    delay(5);
+  for(int i = 0; i < strip.numPixels(); i ++)
+  {
+    strip.setPixelColor(i, COLOUR);
+    strip.show();
+    delay(50);
   }
 }
 
 void loop() {
-  //solidColour(strip.ColorHSV(50000, 255, 255));
+  solidColour(strip.ColorHSV(50000, 255, 255));
 
-  breath(50000, 255, 220, 2000, 1);
-  //delay(500);
-  breath(50000, 255, 150, 500, 0);
-  breath(50000, 255, 100, 1000, 0);
-  breath(50000, 255, 150, 500, 0);
-  //delay(500);
+  // breath(50000, 255, 220, 2000, 1);
+  // breath(50000, 255, 150, 500, 0);
+  // breath(50000, 255, 100, 1000, 0);
+  // breath(50000, 255, 150, 500, 0);
+  delay(100);
 }
 
 void solidColour(uint32_t color){
-  for(int i=0; i<strip.numPixels(); i++) {
+  for(int i=0; i < strip.numPixels(); i++) {
     strip.setPixelColor(i, color);
   }
   strip.show();

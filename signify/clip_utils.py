@@ -46,21 +46,22 @@ def get_distributed(clips:set, num_clips:int, strict=False) -> set:
         contents = get_contents(clips)
         logger.debug(f'Attempting to get ({num_clips}) clips from set of {get_contents(clips, True)}')
         selection = set()
-        clips_per_cat = int(num_clips / len(contents))
-        if clips_per_cat == 0:
+        clips_per_category = int(num_clips / len(contents))
+        if clips_per_category == 0:
             logger.info(f'Cannot select number of clips less than the number of categories. '
                         f'Rounding up to {len(contents)}.')
-            clips_per_cat = 1
+            clips_per_category = 1
         for category in contents:
             try:
-                selection.update(random.sample(contents[category], clips_per_cat))
+                selection.update(random.sample(contents[category], clips_per_category))
             except ValueError as exception:
-                logger.error(f'Could not obtain ({clips_per_cat}) clip{plural(clips_per_cat)} from "{category}" with '
-                            f'({len(contents[category])}) clip{plural(contents[category])}! Exception: "{exception}"')
+                logger.error(f'Could not obtain ({clips_per_category}) clip{plural(clips_per_category)} from '
+                            f'"{category}" with ({len(contents[category])}) clip{plural(contents[category])}! '
+                            f'Exception: "{exception}"')
                 if strict is True:
                     return None
                 else:
-                    failed = clips_per_cat - len(contents[category])
+                    failed = clips_per_category - len(contents[category])
                     logger.info(f'Clip distribution not set to "strict" mode. ({failed}) unassigned clip '
                                 f'slot{plural(failed)} will be selected at random.')
                     selection.update(random.sample(contents[category], len(contents[category])))
@@ -85,7 +86,8 @@ def get_contents(clips:set, count=False) -> dict:
     return contents
 
 def clip_by_name(clips:set, name:str):
-    """Return specific Clip by name from given set of Clips. If no clip is found, will silently return None."""
+    """Return specific Clip by name from given set of Clips.
+    If no clip is found, will silently return None."""
     for clip in clips:
         if clip.name == name:
             return clip
@@ -118,6 +120,8 @@ def get_clip(clips:set, name=None, category=None, num_clips=1) -> set:
         logger.warn(f'No clips available. Skipping request.')
         return None
     if num_clips > available:
-        logger.debug(f'Requested "{num_clips}" clip{plural(num_clips)} from {("[" + category + "] in ") if category is not None else ""} '
-                        f'with "{available}" Clip{plural(available)}. {("Returning [" + str(available) + "] instead") if available > 0 else "Skipping request"}.')
+        logger.debug(f'Requested "{num_clips}" clip{plural(num_clips)} from '
+                    f'{("[" + category + "] in ") if category is not None else ""} with '
+                    f'"{available}" Clip{plural(available)}. '
+                    f'{("Returning [" + str(available) + "] instead") if available > 0 else "Skipping request"}.')
     return set([clip for clip in random.sample(clips, min(num_clips, available))])

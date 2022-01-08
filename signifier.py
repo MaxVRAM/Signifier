@@ -16,7 +16,6 @@
 # sudo usermod -aG audio $USER
 # Or you know... hardcode? :(
 
-
 import logging, os, signal, sys, time, schedule
 import pygame as pg
 from signify.clip_manager import ClipManager
