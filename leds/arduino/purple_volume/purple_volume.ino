@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
  #include <avr/power.h>
@@ -7,13 +8,13 @@
 #define LED_COUNT 240
 
 #define BRIGHTNESS 0.1
-#define COLOUR ColorHSV(50000, 255, 255)
+
+int HUE = 50000;
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 // https://joachimweise.github.io/post/2020-04-07-vscode-remote/
-
-// acompile /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple && aupload /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple
+// acompile /home/pi/Signifier/leds/arduino/purple_volume && aupload /home/pi/Signifier/leds/arduino/purple_volume
 
 void setup() {
   // The example code said this wasn't neccessary, but it seems to affect the colour
@@ -21,29 +22,23 @@ void setup() {
     clock_prescale_set(clock_div_1);
   #endif
  
-  
   Serial.begin(9600);
   strip.begin();
-  strip.show();
   strip.setBrightness(255 * BRIGHTNESS);
 
+  // Initial LED strip population (for testing)
   for(int i = 0; i < strip.numPixels(); i ++)
   {
-    strip.setPixelColor(i, COLOUR);
-    delay(50);
+    strip.setPixelColor(i, strip.ColorHSV(HUE, 255, 255));
+    delay(1);
+    strip.show();
   }
-  
   strip.show();
 }
 
 void loop() {
-  solidColour(strip.ColorHSV(50000, 255, 255));
-
-  // breath(50000, 255, 220, 2000, 1);
-  // breath(50000, 255, 150, 500, 0);
-  // breath(50000, 255, 100, 1000, 0);
-  // breath(50000, 255, 150, 500, 0);
-  delay(100);
+  solidColour(strip.ColorHSV(HUE, 255, 255));
+  delay(10);
 }
 
 void solidColour(uint32_t color){

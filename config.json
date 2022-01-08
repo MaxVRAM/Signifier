@@ -1,0 +1,48 @@
+{
+    "audio":
+    {
+        "device":"bcm2835 Headphones, bcm2835 Headphones",
+        "sample_rate":44100,
+        "bit_size":-16,
+        "buffer":2048
+    },
+    "clip_manager":
+    {
+        "fail_retry_delay":5,
+        "base_path":"/home/pi/Signifier/audio",
+        "valid_extensions":[".wav"],
+        "strict_distribution":false,
+        "volume":0.5,
+        "fade_in":2000,
+        "fade_out":3000,
+        "max_playtime":60,
+        "categories":
+        {
+            "oneshot":{"threshold":0, "is_loop":false, "loop_range":[0,0]},
+            "short":{"threshold":5, "is_loop":false, "loop_range":[2,6]},
+            "medium":{"threshold":10, "is_loop":true, "loop_range":[0,0]},
+            "loop":{"threshold":30, "is_loop":true, "loop_range":[0,0]}
+        }
+    },
+    "jobs":
+    {
+        "collection":
+        {
+            "state":true,
+            "timer":96,
+            "parameters": {"size":12}
+        },
+        "composition":
+        {
+            "state":true,
+            "timer":16,
+            "parameters": {"quiet_level":3, "busy_level":6}
+        },
+        "volume":
+        {
+            "state":true,
+            "timer":2,
+            "parameters": {"speed":5, "weight":0}
+        }
+    }
+}

@@ -39,13 +39,19 @@
 #   funcsave aupload
 # 
 # Then, you can compile and push Arduino sketches like this:
-#   acompile /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple && aupload /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple
+#   acompile /home/pi/Signifier/leds/arduino/mmw_led_breath_purple && aupload /home/pi/Signifier/leds/arduino/mmw_led_breath_purple
 #
 # `cpptools`` is returning very high on the CPU and memory stats for `top`
 # ..So is `node`. I wonder how related `node` and `cpptools` are to the Arduino apps. 
 #  Going to reboot and see what happens... but almost 80%+ CPU usage on all cores RN.
 #
-
+# Still very high, doing to disable Sys-QTT and Node Exporter...
+# - Investigating furhter, this is a known issue with cpptools
+#   - https://github.com/microsoft/vscode-cpptools/issues/5574
+# - Attempting to limit C++ library directories to prevent recursive searching by library...
+#
+# CPU usage seems to have settled for the moment. Obviously this won't be a problem for production,
+# but it would be good to have VS Code -> Arduino functionality during development. Will stick with this for now.
 
 
 

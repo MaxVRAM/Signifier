@@ -16,7 +16,7 @@
 # sudo usermod -aG audio $USER
 # Or you know... hardcode? :(
 
-import logging, os, signal, sys, time, schedule
+import logging, os, signal, sys, time, schedule, json
 import pygame as pg
 from signify.clip_manager import ClipManager
 
@@ -30,56 +30,9 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 clip_manager = None
 CLIP_EVENT = pg.USEREVENT+1
 
-# TODO Export as JSON and create method to remotely manage this dictionary
-config = {
-    'audio':
-    {
-        'device':'bcm2835 Headphones, bcm2835 Headphones',
-        'sample_rate':44100,
-        'bit_size':-16,
-        'buffer':2048
-    },
-    'clip_manager':
-    {
-        'fail_retry_delay':5,
-        'base_path':'/home/pi/Signifier/audio',
-        'valid_extensions':['.wav'],
-        'strict_distribution':False,
-        'volume':0.5,
-        'fade_in':2000,
-        'fade_out':3000,
-        'max_playtime':60,
-        'categories':
-        {
-            'oneshot':{'threshold':0, 'is_loop':False, 'loop_range':[0,0]},
-            'short':{'threshold':5, 'is_loop':False, 'loop_range':[2,6]},
-            'medium':{'threshold':10, 'is_loop':True, 'loop_range':[0,0]},
-            'loop':{'threshold':30, 'is_loop':True, 'loop_range':[0,0]}
-        }
-    },
-    'jobs':
-    {
-        'collection':
-        {
-            'state':True,
-            'timer':96,
-            'parameters': {'size':12}
-        },
-        'composition':
-        {
-            'state':True,
-            'timer':16,
-            'parameters': {'quiet_level':3, 'busy_level':6}
-        },
-        'volume':
-        {
-            'state':True,
-            'timer':2,
-            'parameters': {'speed':5, 'weight':0}
-        }
-    }
-}
-
+CONFIG_FILE = 'config.json'
+with open(CONFIG_FILE) as c:
+    config = json.load(c)
 
 
 #  _________                __                .__   
@@ -251,18 +204,16 @@ if __name__ == '__main__':
         exit_handler.shutdown()
 
     clip_manager.init_library()
-
     new_collection()
     coll_job = schedule.every(config['jobs']['collection']['timer']).seconds.do(new_collection)
-    #schedule.run_all()
 
     # Main loop
     while True:
         schedule.run_pending()
         for event in pg.event.get():
             if event.type == CLIP_EVENT:
+                logger.info(f'Clip end event: {event}')
                 clip_manager.check_finished()
-                if clip_manager.clips_playing() == 0:
-                    update_clips()
-                print(f'Clip ended: {event}')
+                # if clip_manager.clips_playing() == 0:
+                #     update_clips()
         time.sleep(1)
