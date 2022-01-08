@@ -8,13 +8,27 @@ Python scripts designed for Raspberry Pi 4B to manage sensor inputs, output modu
     - [x] Basic LED modulation
 2. **Interactive** audio and non-interactive LEDs.
     - [ ] Sensor: Bluetooth
+        - [ ] Tested 
+        - [ ] Integrated
     - [ ] Sensor: Microphone
+        - [ ] Tested 
+        - [ ] Integrated
     - [ ] Sensor: Temperature
+        - [ ] Tested 
+        - [ ] Integrated
     - [ ] Interactive audio manager
+        - [ ] Tested 
+        - [ ] Integrated
 3. Interactive audio & interactive LEDs
     - [ ] Raspberry Pi / Arduino interfacing
+        - [ ] Tested 
+        - [ ] Integrated
     - [ ] Audio analysis
+        - [ ] Tested 
+        - [ ] Integrated
     - [ ] Interactive LED manager
+        - [ ] Tested 
+        - [ ] Integrated
 4. Network communication over WiFi/cellular to online server:
     - [ ] Simple API control of Signifier manager
     - [ ] Signifier management over WiFi
