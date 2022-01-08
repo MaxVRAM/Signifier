@@ -6,6 +6,14 @@
 #  /_______  /|__\___  /|___|  /__|   __/|___|  /__|\___  >__|   
 #          \/   /_____/      \/   |__|        \/        \/
 
+
+# ARDUINO SCRIPT CURRENTLY LOADED:
+# - purple_volume.ino
+#
+# STATUS: Serial working, but no brightness change. Need to debug.
+
+
+
 # Displaying audio hardware:
 # aplay -l
 
@@ -16,9 +24,10 @@
 # sudo usermod -aG audio $USER
 # Or you know... hardcode? :(
 
-import logging, os, signal, sys, time, schedule, json
+import logging, os, signal, sys, time, schedule, json, random
 import pygame as pg
 from signify.clip_manager import ClipManager
+from pySerialTransfer import pySerialTransfer as txfer
 
 # Initialise logging
 logging.basicConfig(level=logging.DEBUG)
@@ -27,6 +36,7 @@ logger.setLevel(logging.DEBUG)
 
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
+arduino_link = None
 clip_manager = None
 CLIP_EVENT = pg.USEREVENT+1
 
@@ -164,14 +174,17 @@ def prepare_playback_engine():
 
 class ExitHandler:
     signals = { signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM' }
+
     def __init__(self):
         self.exiting = False
         signal.signal(signal.SIGTERM, self.shutdown)
         signal.signal(signal.SIGINT, self.shutdown)
+
     def shutdown(self, *args):
         print()
         logger.info(f'Shutdown sequence started.')
         self.exiting = True
+        arduino_link.close()
         schedule.clear()
         stop_all_clips()
         while pg.mixer.get_busy():
@@ -180,6 +193,28 @@ class ExitHandler:
         logger.info("Signifier shutdown complete.")
         print()
         sys.exit()
+
+
+
+
+def arduino_send_test(value:float):
+        sendSize = arduino_link.tx_obj(value)
+        print(f'Sending Arduino: {value}')
+        print(f'Success: {arduino_link.send(sendSize)}')
+
+        # send_size = 0
+        # ###################################################################
+        # # Send a float
+        # ###################################################################
+        # float_ = value
+        # float_size = arduino_link.tx_obj(float_, send_size) - send_size
+        # send_size += float_size
+        
+        # ###################################################################
+        # # Transmit all the data to send in a single packet
+        # ###################################################################
+        # arduino_link.send(send_size)
+
 
 
 
@@ -197,6 +232,10 @@ if __name__ == '__main__':
 
     exit_handler = ExitHandler()
 
+    # Arduino setup
+    arduino_link = txfer.SerialTransfer('/dev/ttyACM0')
+    arduino_link.open()
+
     prepare_playback_engine()
     try:
         clip_manager = ClipManager(config['clip_manager'], pg.mixer, CLIP_EVENT)
@@ -205,10 +244,16 @@ if __name__ == '__main__':
 
     clip_manager.init_library()
     new_collection()
+
+    time.sleep(4) # allow some time for the Arduino to completely reset
+
     coll_job = schedule.every(config['jobs']['collection']['timer']).seconds.do(new_collection)
 
     # Main loop
     while True:
+        random_float = random.triangular(0.0, 1.0, 0.5)
+        print(random_float)
+        arduino_send_test(random_float)
         schedule.run_pending()
         for event in pg.event.get():
             if event.type == CLIP_EVENT:

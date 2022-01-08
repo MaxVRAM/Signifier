@@ -3,24 +3,24 @@
 #include "SerialTransfer.h"
 
 
-SerialTransfer myTransfer;
+SerialTransfer sig_serial;
 
 
 void setup()
 {
   Serial.begin(115200);
-  myTransfer.begin(Serial);
+  sig_serial.begin(Serial);
 }
 
 
 void loop()
 {
-  if(myTransfer.available())
+  if(sig_serial.available())
   {
     // send all received data back to Python
-    for(uint16_t i=0; i < myTransfer.bytesRead; i++)
-      myTransfer.packet.txBuff[i] = myTransfer.packet.rxBuff[i];
+    for(uint16_t i=0; i < sig_serial.bytesRead; i++)
+      sig_serial.packet.txBuff[i] = sig_serial.packet.rxBuff[i];
     
-    myTransfer.sendData(myTransfer.bytesRead);
+    sig_serial.sendData(sig_serial.bytesRead);
   }
 }

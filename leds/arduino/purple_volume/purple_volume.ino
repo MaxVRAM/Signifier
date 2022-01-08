@@ -1,5 +1,25 @@
+
+// WORKING IN VS CODE:
+// Include Arduino.h so intellisense can find the standard Arduino packages. Produces false-negative for Arduino.h 
+// #include <Arduino.h> 
+// 
+// Compile with this:
+// acompile /home/pi/Signifier/leds/arduino/purple_volume && aupload /home/pi/Signifier/leds/arduino/purple_volume
+//
+// https://joachimweise.github.io/post/2020-04-07-vscode-remote/
+//
+
+
+// TODO
+// - Add serial receive from Python/Pi
+// - Control LED brightness with value
+// - Move to callbacks for serial read?
+// - Move to FastLED?
+
+
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
+#include <SerialTransfer.h>
 #ifdef __AVR__
  #include <avr/power.h>
 #endif
@@ -7,25 +27,27 @@
 #define LED_PIN 6
 #define LED_COUNT 240
 
-#define BRIGHTNESS 0.1
+#define BRIGHTNESS 1
+double sig_volume;
+int8_t reactive_bright = 0;
 
-int HUE = 50000;
+// MMW Purple hue code
+int16_t HUE = 50000;
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+SerialTransfer sig_serial;
 
-// https://joachimweise.github.io/post/2020-04-07-vscode-remote/
-// acompile /home/pi/Signifier/leds/arduino/purple_volume && aupload /home/pi/Signifier/leds/arduino/purple_volume
 
 void setup() {
   // The example code said this wasn't neccessary, but it seems to affect the colour
   #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
     clock_prescale_set(clock_div_1);
   #endif
- 
-  Serial.begin(9600);
+
+  // Strip setup
   strip.begin();
   strip.setBrightness(255 * BRIGHTNESS);
-
+  
   // Initial LED strip population (for testing)
   for(int i = 0; i < strip.numPixels(); i ++)
   {
@@ -34,11 +56,22 @@ void setup() {
     strip.show();
   }
   strip.show();
+
+  // Serial transfer setup
+  Serial.begin(57600);
+  sig_serial.begin(Serial);
 }
 
 void loop() {
-  solidColour(strip.ColorHSV(HUE, 255, 255));
-  delay(10);
+  if(sig_serial.available())
+  {
+    sig_serial.rxObj(sig_volume);
+    //sig_volume = round(sig_volume * 255);
+    //reactive_bright = (int8_t)sig_volume;
+  }
+  solidColour(strip.ColorHSV(HUE, 255, 255 * BRIGHTNESS));
+  strip.setBrightness(sig_volume * 255);
+  delay(1);
 }
 
 void solidColour(uint32_t color){

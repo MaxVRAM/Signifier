@@ -5,6 +5,8 @@
 # python3 -m pip install pySerialTransfer
 
 
+# DEVELOPMENT STEPS ONLY (NO NEED FOR THESE TOOLS FOR PRODUCTION)
+#
 # Installing remote VSCODE headless Arduino project functionality:
 # https://joachimweise.github.io/post/2020-04-07-vscode-remote/
 #
@@ -22,6 +24,8 @@
 # arduino-cli core install arduino:megaavr
 # arduino-cli lib search adafruit neopixel
 # arduino-cli lib install "Adafruit NeoPixel"
+# arduino-cli lib search FastLED
+# arduino-cli lib install "FastLED"
 # arduino-cli lib search SerialTransfer
 # arduino-cli lib install "SerialTransfer"
 # sudo find / -name 'arduino-cli'
@@ -52,7 +56,7 @@
 #
 # CPU usage seems to have settled for the moment. Obviously this won't be a problem for production,
 # but it would be good to have VS Code -> Arduino functionality during development. Will stick with this for now.
-
+# CPU is good again. Narrowed the libraries included in c_cpp_properties.json
 
 
 import time
@@ -62,7 +66,6 @@ from pySerialTransfer import pySerialTransfer as txfer
 if __name__ == '__main__':
     try:
         link = txfer.SerialTransfer('COM3')
-        
         link.open()
         time.sleep(2) # allow some time for the Arduino to completely reset
         
