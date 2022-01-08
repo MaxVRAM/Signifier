@@ -38,8 +38,13 @@
 #   funcsave acompile
 #   funcsave aupload
 # 
-# Then run the commands like this:
+# Then, you can compile and push Arduino sketches like this:
 #   acompile /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple && aupload /home/pi/Signifier/arduino_test/arduino/mmw_led_breath_purple
+#
+# `cpptools`` is returning very high on the CPU and memory stats for `top`
+# ..So is `node`. I wonder how related `node` and `cpptools` are to the Arduino apps. 
+#  Going to reboot and see what happens... but almost 80%+ CPU usage on all cores RN.
+#
 
 
 

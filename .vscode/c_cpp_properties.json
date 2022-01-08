@@ -4,7 +4,8 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/home/pi/Arduino/libraries"
+                "/home/pi/Arduino/libraries/**",
+                "/home/pi/.arduino15/packages/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
