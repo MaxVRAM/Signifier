@@ -1,4 +1,12 @@
 {
+    "general":
+    {
+        "start_delay":5
+    },
+    "leds":
+    {
+        "max_brightness":255
+    },
     "audio":
     {
         "device":"bcm2835 Headphones, bcm2835 Headphones",

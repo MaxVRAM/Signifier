@@ -9,8 +9,6 @@
 
 # ARDUINO SCRIPT CURRENTLY LOADED:
 # - purple_volume.ino
-#
-# STATUS: Serial working, but no brightness change. Need to debug.
 
 
 
@@ -36,13 +34,18 @@ logger.setLevel(logging.DEBUG)
 
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
-arduino_link = None
+arduino = None
 clip_manager = None
 CLIP_EVENT = pg.USEREVENT+1
 
 CONFIG_FILE = 'config.json'
 with open(CONFIG_FILE) as c:
     config = json.load(c)
+
+class ArduinoCmd(object):
+    def __init__(self, name:str, value) -> None:
+        self.name = name
+        self.value = value
 
 
 #  _________                __                .__   
@@ -52,7 +55,7 @@ with open(CONFIG_FILE) as c:
 #   \______  /\____/|___|  /__|  |__|   \____/|____/
 #          \/            \/                         
 
-def new_collection(pool_size=None):
+def new_collection(pool_size=None, start_jobs=True):
     pool_size = config['jobs']['collection']['parameters']['size'] if pool_size is None else pool_size
     print()
     set_jobs(False)
@@ -66,9 +69,9 @@ def new_collection(pool_size=None):
         new_collection()
     logger.info(f'NEW COLLECTION JOB DONE.')
     print()
-    time.sleep(2)
-    set_jobs(True)
-    #update_clips()
+    if start_jobs is True:
+        time.sleep(1)
+        set_jobs(True)
     pg.event.clear()
 
 def modulate_volume(speed=None, weight=None):
@@ -108,7 +111,6 @@ def stop_all_clips(fade_time=None):
 
 def set_jobs(state=True):
     """Add/remove jobs that control playback modulation."""
-    print()
     modulation_jobs = schedule.get_jobs('modulation')
     if len(modulation_jobs) > 1:
         schedule.clear('modulation')
@@ -184,7 +186,7 @@ class ExitHandler:
         print()
         logger.info(f'Shutdown sequence started.')
         self.exiting = True
-        arduino_link.close()
+        arduino.close()
         schedule.clear()
         stop_all_clips()
         while pg.mixer.get_busy():
@@ -198,23 +200,17 @@ class ExitHandler:
 
 
 def arduino_send_test(value:float):
-        sendSize = arduino_link.tx_obj(value)
-        print(f'Sending Arduino: {value}')
-        print(f'Success: {arduino_link.send(sendSize)}')
+    sendSize = arduino.tx_obj(value)
+    success = arduino.send(sendSize)
+    print(f'Success ({success}) sending Arduino: {value}')
 
-        # send_size = 0
-        # ###################################################################
-        # # Send a float
-        # ###################################################################
-        # float_ = value
-        # float_size = arduino_link.tx_obj(float_, send_size) - send_size
-        # send_size += float_size
-        
-        # ###################################################################
-        # # Transmit all the data to send in a single packet
-        # ###################################################################
-        # arduino_link.send(send_size)
 
+def led_command(command:ArduinoCmd) -> bool:
+    # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
+    sendSize = 0
+    sendSize = arduino.tx_obj(command.name, start_pos=sendSize)
+    sendSize = arduino.tx_obj(command.value, start_pos=sendSize)
+    return arduino.send(sendSize)
 
 
 
@@ -233,8 +229,8 @@ if __name__ == '__main__':
     exit_handler = ExitHandler()
 
     # Arduino setup
-    arduino_link = txfer.SerialTransfer('/dev/ttyACM0')
-    arduino_link.open()
+    arduino = txfer.SerialTransfer('/dev/ttyACM0')
+    arduino.open()
 
     prepare_playback_engine()
     try:
@@ -243,16 +239,24 @@ if __name__ == '__main__':
         exit_handler.shutdown()
 
     clip_manager.init_library()
-    new_collection()
+    new_collection(start_jobs=False)
 
-    time.sleep(4) # allow some time for the Arduino to completely reset
+    print()
+    start_delay = config["general"]["start_delay"]
+    logger.info(f'Signifier ready! Starting in ({start_delay}) seconds...')
+    time.sleep(1)
+    for i in range(1, start_delay):
+        print(f'...{start_delay-i}')
+        time.sleep(1)
+    print()
 
     coll_job = schedule.every(config['jobs']['collection']['timer']).seconds.do(new_collection)
-
+    set_jobs(True)
+    update_clips()
+    
     # Main loop
     while True:
         random_float = random.triangular(0.0, 1.0, 0.5)
-        print(random_float)
         arduino_send_test(random_float)
         schedule.run_pending()
         for event in pg.event.get():
