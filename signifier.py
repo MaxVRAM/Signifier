@@ -43,9 +43,21 @@ with open(CONFIG_FILE) as c:
     config = json.load(c)
 
 class ArduinoCmd(object):
-    def __init__(self, name:str, value) -> None:
-        self.name = name
+    def __init__(self, command:str, value:int, duration=0) -> None:
+        self.command = command
         self.value = value
+        self.duration = duration
+    #
+    # TYPE CASTING:
+    # - (char) name
+    # - (uint8_t) value
+    # - (uint16_t) value
+    #
+    # COMMANDS:
+    # - b = set strip brightness
+    # - m = set max brightness
+    # - h = set strip hue
+    # - s = set strip saturation
 
 
 #  _________                __                .__   
@@ -208,9 +220,13 @@ def arduino_send_test(value:float):
 def led_command(command:ArduinoCmd) -> bool:
     # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
     sendSize = 0
-    sendSize = arduino.tx_obj(command.name, start_pos=sendSize)
+    sendSize = arduino.tx_obj(command.command, start_pos=sendSize)
     sendSize = arduino.tx_obj(command.value, start_pos=sendSize)
-    return arduino.send(sendSize)
+    sendSize = arduino.tx_obj(command.duration, start_pos=sendSize)
+    success = arduino.send(sendSize)
+    # print(f'Success ({success}) sending Arduino command "{command.command}" with value '
+    #     f'({command.value}) over ({command.duration})ms.')
+    return success
 
 
 
@@ -231,6 +247,8 @@ if __name__ == '__main__':
     # Arduino setup
     arduino = txfer.SerialTransfer('/dev/ttyACM0')
     arduino.open()
+
+    time.sleep(1)
 
     prepare_playback_engine()
     try:
@@ -257,7 +275,26 @@ if __name__ == '__main__':
     # Main loop
     while True:
         random_float = random.triangular(0.0, 1.0, 0.5)
-        arduino_send_test(random_float)
+        #arduino_send_test(random_float)
+        led_command(ArduinoCmd('b', (int)(random_float*255), 0))
+        
+        if arduino.available():
+            print()
+            print('GOT VALUE, YOU IDIOT!')
+            return_serial = arduino.rx_obj(obj_type='f')
+            #recSize += txfer.STRUCT_FORMAT_LENGTHS['i']
+            print(f'{return_serial}')
+            print()
+        elif arduino.status < 0:
+            if arduino.status == txfer.CRC_ERROR:
+                print('ERROR: CRC_ERROR')
+            elif arduino.status == txfer.PAYLOAD_ERROR:
+                print('ERROR: PAYLOAD_ERROR')
+            elif arduino.status == txfer.STOP_BYTE_ERROR:
+                print('ERROR: STOP_BYTE_ERROR')
+            else:
+                print(f'ERROR: {arduino.status}')
+
         schedule.run_pending()
         for event in pg.event.get():
             if event.type == CLIP_EVENT:
@@ -265,4 +302,4 @@ if __name__ == '__main__':
                 clip_manager.check_finished()
                 # if clip_manager.clips_playing() == 0:
                 #     update_clips()
-        time.sleep(1)
+        time.sleep(0.01)

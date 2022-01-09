@@ -1,0 +1,228 @@
+// WORKING IN VS CODE:
+// Include Arduino.h so intellisense can find the standard Arduino packages. Produces false-negative for Arduino.h 
+// #include <Arduino.h> 
+// 
+// Compile with this:
+// acompile /home/pi/Signifier/leds/arduino/purple_volume && aupload /home/pi/Signifier/leds/arduino/purple_volume
+//
+// https://joachimweise.github.io/post/2020-04-07-vscode-remote/
+//
+//
+// HUE INFO: https://learn.adafruit.com/adafruit-neopixel-uberguide/arduino-library-use#hsv-hue-saturation-value-colors-dot-dot-dot-3024464-41
+
+
+// TODO
+// - Move to callbacks for serial read?
+
+#include <Arduino.h>
+#include <SerialTransfer.h>
+#include <FastLED.h>
+#define NUM_LEDS 240
+#define DATA_PIN 6
+#define LOOP_DELAY 1
+
+const uint8_t INIT_BRIGHTNESS = 255U;
+const uint8_t INIT_SATURATION = 255U;
+const uint16_t INIT_HUE = 195U;
+
+struct HSV_PROP {
+  unsigned short current;
+  unsigned short target;
+  unsigned short max;
+  unsigned int duration;
+};
+
+struct COMMAND {
+  char command;
+  unsigned short value;
+  unsigned int duration;
+};
+
+unsigned short hardBright = 0;
+
+//void fill_noise8(CRGB *leds, int num_leds, uint8_t octaves, uint16_t x, int scale, uint8_t hue_octaves, uint16_t hue_x, int hue_scale, uint16_t time)
+
+CRGB initialLed = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
+CRGB leds[NUM_LEDS];
+CRGB noise[NUM_LEDS];
+unsigned long ms;
+
+HSV_PROP brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, 255, 0};
+HSV_PROP saturation = {INIT_SATURATION, INIT_SATURATION, 255, 0};
+HSV_PROP hue = {INIT_HUE, INIT_HUE, 255, 0};
+
+//fill_noise8(noise, NUM_LEDS, 4, 0, 1, 4, 0, 1, 0);
+
+SerialTransfer sigSerial;
+
+void setup() {
+  FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+  startup_sequence();
+  
+  // Serial transfer setup
+  Serial.begin(115200);
+  sigSerial.begin(Serial);
+  delay(100);
+}
+
+
+void loop() {
+  
+  ms = millis();
+  processInput();
+  // blend (leds[], target[], fract8 (ratio 0-255))
+  // rainbow(leds, NUM_LEDS);
+  // millisCheck(leds, NUM_LEDS);
+  // FastLED.setBrightness(map(milliPong(4000), 0, 1000, 0, 255));
+  
+  //double y = 4.5;
+  //brightness = fadeToTarget(brightness);
+  //sendSerial(hardBright);
+  FastLED.setBrightness(hardBright);
+  FastLED.show();
+}
+
+// void loop() {
+//   // processInput();
+//   // // brightness = fadeToTarget(brightness);
+//   // // saturation = fadeToTarget(saturation);
+//   // // hue = fadeToTarget(hue);
+//   // brightness.current = brightness.target;
+//   // saturation.current = saturation.target;
+//   // hue.current = hue.target;
+
+//   // strip.fill(strip.ColorHSV(hue.current, saturation.current>>8, brightness.current>>8));
+
+//   delay(LOOP_DELAY);
+// }
+
+
+
+// Mirror/pingpong values the reach the provided ms time
+unsigned short milliPong(unsigned int time) {
+  unsigned short outVal;
+  unsigned int half = time / 2;
+  unsigned short odd = ms / (half / 2) % 2;
+  if (odd == 1) outVal = half - ms % half;
+  else outVal = ms % half;
+  return outVal;
+}
+
+void rainbow(CRGB led_array[], int arraySize) {
+  for (uint16_t i = 0; i < arraySize; i++) {
+    led_array[i] = CHSV((millis() / 4) - (i * 3), 255, 255);
+  }
+}
+
+// void solidColour(uint32_t color) {
+//   for (int i = 0; i < strip.numPixels(); i++) {
+//     strip.setPixelColor(i, color);
+//   }
+//   strip.show();
+// }
+
+void sendSerial(double value) {
+  sigSerial.sendDatum(value);
+}
+
+
+void processInput() {
+  if(sigSerial.available())
+  {
+    COMMAND inputCommand;
+    unsigned int recSize = 0;
+    recSize = sigSerial.rxObj(inputCommand, recSize);
+
+    unsigned short value = inputCommand.value;
+    unsigned int dur = inputCommand.duration;
+
+    sendSerial(value);
+    hardBright = value;
+
+    switch (inputCommand.command) {
+      case 'b':
+        brightness.target = constrain(value, 0, brightness.max);
+        if (dur == 0) brightness.current = brightness.target;
+        brightness.duration = dur;
+        break;
+      case 's':
+        saturation.target = constrain(value, 0, saturation.max);
+        if (dur == 0) saturation.current = brightness.target;
+        saturation.duration = dur;
+        break;
+      case 'h':
+        hue.target = constrain(value, 0, hue.max);
+        if (dur == 0) hue.current = hue.target;
+        hue.duration = dur;
+        break;
+      default:
+        return;
+    }
+  }
+}
+
+HSV_PROP fadeToTarget(HSV_PROP inputProperty) {
+  long diff = (long)inputProperty.current - inputProperty.target;
+  // Return intact property struct if it's value is at the target and duration has ended
+  if (inputProperty.duration == 0 && diff == 0) {
+    return inputProperty;
+  }
+  // Reset duration and/or current value to target if stuck
+  if (inputProperty.duration < 1 || (diff < -1 && diff > 1)) {
+    inputProperty.current = inputProperty.target;
+    inputProperty.duration = 0;
+    return inputProperty;
+  }
+  // Otherwise, start moving value towards target. Maybe add shaping/smoothing later?
+  long step = diff / inputProperty.duration / LOOP_DELAY;
+  inputProperty.current -= step;
+
+  if (inputProperty.current < 0) {
+    inputProperty.current = 0;
+  } else if (inputProperty.current > inputProperty.max) {
+    inputProperty.current = inputProperty.max;
+  }
+  //inputProperty.current = constrain(inputProperty.current, 0U, inputProperty.max);
+  inputProperty.duration -= LOOP_DELAY; 
+  return inputProperty;
+}
+
+
+void startup_sequence() {
+  FastLED.clear(true);
+  CRGB whiteTarget = CRGB::White;
+
+  // Initial colour population
+  for (uint16_t i = 0; i < NUM_LEDS; i++) {
+    leds[i] = initialLed;
+    FastLED.show();
+    for (uint16_t j = 0; j < NUM_LEDS; j++) {
+      leds[j].nscale8_video(253);
+    }
+  }
+
+  // Shiney!
+  for (uint16_t i = 0; i < NUM_LEDS; i++) {
+    CRGB currentA = leds[i];
+    CRGB currentB = leds[NUM_LEDS-i-1];
+    whiteTarget.nscale8(253);
+    leds[i] = whiteTarget;
+    leds[NUM_LEDS-i-1] = whiteTarget;
+    FastLED.show();
+    leds[i] = blend(currentA, initialLed, 1);
+    leds[NUM_LEDS-i-1] = blend(currentB, initialLed, 1);
+    //leds[i].lerp8(targetLed, 0.9);
+    //leds[NUM_LEDS-i-1].lerp8(targetLed, 0.9);
+    for (uint16_t j = 0; j < NUM_LEDS; j++) {
+      leds[j].nscale8(253);
+    }
+  }
+
+  for (uint16_t i = 0; i < NUM_LEDS; i++) {
+    leds[i] = initialLed;
+  }
+
+  FastLED.setBrightness(0);
+  FastLED.show();
+  FastLED.showColor(initialLed);
+}

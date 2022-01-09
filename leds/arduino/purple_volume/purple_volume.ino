@@ -7,6 +7,9 @@
 //
 // https://joachimweise.github.io/post/2020-04-07-vscode-remote/
 //
+//
+// HUE INFO: https://learn.adafruit.com/adafruit-neopixel-uberguide/arduino-library-use#hsv-hue-saturation-value-colors-dot-dot-dot-3024464-41
+
 
 // TODO
 // - Add serial receive from Python/Pi
@@ -27,15 +30,35 @@
 #define LED_PIN 6
 #define LED_COUNT 240
 
-#define MAX_BRIGHT 255
-double sig_volume;
-int8_t reactive_bright = 0;
+#define LOOP_DELAY 1
 
-// MMW Purple hue code
-int16_t HUE = 50000;
+const unsigned int INIT_BRIGHTNESS = 127U * 256U;
+const unsigned int INIT_SATURATION = 255U * 256U;
+const unsigned int INIT_HUE = 50000U;
+
+uint8_t maxBrightness = 255;
+
+struct HSV_PROP {
+  unsigned int current;
+  unsigned int target;
+  unsigned int duration;
+  unsigned int max;
+  long step;
+  bool looping;
+};
+
+HSV_PROP brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0, 65535U, 0, false};
+HSV_PROP saturation = {INIT_SATURATION, INIT_SATURATION, 0, 65535U, 0, false};
+HSV_PROP hue = {INIT_HUE, INIT_HUE, 0, 65535U, 0, true};
+
+struct COMMAND {
+  char command;
+  double value;
+  double duration;
+};
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
-SerialTransfer sig_serial;
+SerialTransfer sigSerial;
 
 void setup() {
   // The example code said this wasn't neccessary, but it seems to affect the colour
@@ -49,18 +72,28 @@ void setup() {
   delay(100);
 
   // Serial transfer setup
-  Serial.begin(115200);
-  sig_serial.begin(Serial);
+  Serial.begin(9600);
+  //sigSerial.begin(Serial);
 }
 
+
 void loop() {
-  if (sig_serial.available()) {
-    sig_serial.rxObj(sig_volume);
-  }
-  strip.fill(strip.ColorHSV(HUE, 255, sig_volume * MAX_BRIGHT));
-  //strip.setBrightness(sig_volume * 255);
-  delay(1);
+  // processInput();
+  // // brightness = fadeToTarget(brightness);
+  // // saturation = fadeToTarget(saturation);
+  // // hue = fadeToTarget(hue);
+  // brightness.current = brightness.target;
+  // saturation.current = saturation.target;
+  // hue.current = hue.target;
+
+  // strip.fill(strip.ColorHSV(hue.current, saturation.current>>8, brightness.current>>8));
+
+  delay(LOOP_DELAY);
 }
+
+
+
+
 
 void solidColour(uint32_t color) {
   for (int i = 0; i < strip.numPixels(); i++) {
@@ -79,7 +112,6 @@ void breath(uint16_t hue, int valStart, int valEnd, int duration, int mode) {
     float posRad = i * M_PI / 180;
     float sinResult = sin(posRad);
     int value = valStart + sinResult * valDiff;
-    Serial.println(value);
     for (int j = 0; j < strip.numPixels(); j++) {
       if (mode == 0) {
         colour = strip.ColorHSV(hue, 255, value);
@@ -94,36 +126,133 @@ void breath(uint16_t hue, int valStart, int valEnd, int duration, int mode) {
 }
 
 
+
+void processInput() {
+  if(sigSerial.available())
+  {
+    COMMAND inputCommand;
+
+    uint16_t recSize = 0;
+    recSize = sigSerial.rxObj(inputCommand, recSize);
+
+    uint32_t value = inputCommand.value;
+
+    switch (inputCommand.command) {
+      case 'b':
+        value = value << 8;
+        brightness.target = constrain(value, 0, brightness.max);
+        brightness.duration = inputCommand.duration;
+        break;
+      case 's':
+        value = value << 8;
+        saturation.target = constrain(value, 0, saturation.max);
+        saturation.duration = inputCommand.duration;
+        break;
+      case 'h':
+        hue.target = constrain(value, 0, hue.max);
+        hue.duration = inputCommand.duration;
+        break;
+      default:
+        return;
+    }
+  }
+}
+
+HSV_PROP fadeToTarget(HSV_PROP inputProperty) {
+  long diff = (long)inputProperty.current - inputProperty.target;
+  // Return intact property struct if it's value is at the target and duration has ended
+  if (inputProperty.duration == 0U && diff == 0L) {
+    return inputProperty;
+  }
+  // Reset duration and/or current value to target if stuck
+  if (inputProperty.duration < 1U || (diff < -10L && diff > 10L)) {
+    inputProperty.current = inputProperty.target;
+    inputProperty.duration = 0;
+    return inputProperty;
+  }
+  // Otherwise, start moving value towards target. Maybe add shaping/smoothing later?
+  long step = diff / (long)inputProperty.duration / LOOP_DELAY;
+  inputProperty.current -= step;
+
+  
+
+  if (inputProperty.current < 0U) {
+    inputProperty.current = 0U;
+  } else if (inputProperty.current > inputProperty.max) {
+    inputProperty.current = inputProperty.max;
+  }
+  #inputProperty.current = constrain(inputProperty.current, 0U, inputProperty.max);
+  inputProperty.duration -= LOOP_DELAY; 
+  return inputProperty;
+}
+
+
 void startup() {
-  int bright = 255 / 2;
-  int saturation = 255;
   strip.clear();
-  strip.setBrightness(bright);
+  strip.setBrightness(255);
   strip.show();
   delay(100);
 
   // Run through pixels for testing and dramatic effect
   for (int i = 0; i < strip.numPixels(); i++) {
-    strip.setPixelColor(i, strip.ColorHSV(HUE, 255, bright));
+    strip.setPixelColor(i, strip.ColorHSV(hue.current, saturation.current >> 8, brightness.current >> 8));
     strip.show();
-    delay(1);
+    delay(LOOP_DELAY);
   }
 
+  strip.clear();
+  strip.show();
   // Now pulse bright white once...
-  for (int i = 0; bright < 255; i++) {
-    bright = constrain(bright + 2, 0, 255);
-    saturation = constrain(saturation - 3, 0, 255);
-    strip.fill(strip.ColorHSV(HUE, saturation, bright));
+  brightness.current = 0 * 256;
+  brightness.target = 100 * 256;
+  brightness.duration = 1000;
+  
+  Serial.println('Fading to: ' + brightness.target);
+  while (brightness.current != brightness.target) {
+    brightness = fadeToTarget(brightness);
+    strip.fill(strip.ColorHSV(hue.current, saturation.current >> 8, 255));
+    strip.setBrightness(brightness.current >> 8);
     strip.show();
-    delay(1);
+    Serial.println(brightness.current);
+    delay(LOOP_DELAY);
+  }
+  brightness.target = 0 * 256;
+  brightness.duration = 1000;
+  while (brightness.current != brightness.target) {
+    brightness = fadeToTarget(brightness);
+    strip.fill(strip.ColorHSV(hue.current, saturation.current >> 8, brightness.current >> 8));
+    strip.show();
+    Serial.println(brightness.current);
+    delay(LOOP_DELAY);
   }
 
-  // Now fade out to show LEDs are ready...
-  for (int i = 0; bright > 0; i++) {
-    bright = constrain(bright - 1, 0, 255);
-    saturation = constrain(saturation + 2, 0, 255);
-    strip.fill(strip.ColorHSV(HUE, saturation, bright));
-    strip.show();
-    delay(1);
-  }
+  brightness.current = 0;
+  brightness.target = 255 * 256;
+  brightness.duration = 0;
+  brightness = fadeToTarget(brightness);
+  strip.fill(strip.ColorHSV(hue.current, saturation.current >> 8, brightness.current >> 8));
+  strip.show();
+  delay(1000);
+  strip.clear();
+  strip.show();
+  Serial.println('Finished startup.');
+  //saturation = fadeToTarget(saturation);
+  //hue = fadeToTarget(hue);
+
+  // for (int i = 0; brightness.current < 255; i++) {
+  //   brightness.current = constrain(brightness.current + 2, 0, 255);
+  //   saturation.current = constrain(saturation.current - 3, 0, 255);
+  //   strip.fill(strip.ColorHSV(hue.current, saturation.current, brightness.current));
+  //   strip.show();
+  //   delay(LOOP_DELAY);
+  // }
+
+  // // Now fade out to show LEDs are ready...
+  // for (int i = 0; brightness.current > 0; i++) {
+  //   brightness.current = constrain(brightness.current - 1, 0, 255);
+  //   saturation.current = constrain(saturation.current + 0.8, 0, 255);
+  //   strip.fill(strip.ColorHSV(hue.current, saturation.current, brightness.current));
+  //   strip.show();
+  //   delay(LOOP_DELAY);
+  // }
 }
