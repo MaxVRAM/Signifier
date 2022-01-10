@@ -14,12 +14,14 @@
 // TODO
 // - Move to callbacks for serial read?
 
+#define FASTLED_ALLOW_INTERRUPTS 0
+
 #include <Arduino.h>
 #include <SerialTransfer.h>
 #include <FastLED.h>
 #define NUM_LEDS 240
 #define DATA_PIN 6
-#define LOOP_DELAY 1
+#define LOOP_DELAY 10
 
 const uint8_t INIT_BRIGHTNESS = 255U;
 const uint8_t INIT_SATURATION = 255U;
@@ -38,26 +40,34 @@ struct COMMAND {
   unsigned int duration;
 };
 
-unsigned short hardBright = 0;
+struct SIG_MESSAGE {
+  char command;
+  double value;
+};
 
-//void fill_noise8(CRGB *leds, int num_leds, uint8_t octaves, uint16_t x, int scale, uint8_t hue_octaves, uint16_t hue_x, int hue_scale, uint16_t time)
+SIG_MESSAGE sigMessage = {'r', 1};
+char sigArray[] = "OK";
+
+
+unsigned short hardBright = 0;
+unsigned long ms;
 
 CRGB initialLed = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
 CRGB leds[NUM_LEDS];
 CRGB noise[NUM_LEDS];
-unsigned long ms;
+//fill_noise8(noise, NUM_LEDS, 4, 0, 1, 4, 0, 1, 0);
 
 HSV_PROP brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, 255, 0};
 HSV_PROP saturation = {INIT_SATURATION, INIT_SATURATION, 255, 0};
 HSV_PROP hue = {INIT_HUE, INIT_HUE, 255, 0};
 
-//fill_noise8(noise, NUM_LEDS, 4, 0, 1, 4, 0, 1, 0);
+
 
 SerialTransfer sigSerial;
 
 void setup() {
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
-  startup_sequence();
+  //startup_sequence();
   
   // Serial transfer setup
   Serial.begin(115200);
@@ -67,7 +77,6 @@ void setup() {
 
 
 void loop() {
-  
   ms = millis();
   processInput();
   // blend (leds[], target[], fract8 (ratio 0-255))
@@ -78,8 +87,16 @@ void loop() {
   //double y = 4.5;
   //brightness = fadeToTarget(brightness);
   //sendSerial(hardBright);
-  FastLED.setBrightness(hardBright);
+  // FastLED.setBrightness(hardBright);
+  
   FastLED.show();
+  FastLED.delay(10);
+
+
+  uint16_t sendSize = 0;
+  sendSize = sigSerial.txObj(sigMessage, sendSize);
+  //sendSize = sigSerial.txObj(sigArray, sendSize);
+  sigSerial.sendData(sendSize);
 }
 
 // void loop() {
@@ -96,6 +113,9 @@ void loop() {
 //   delay(LOOP_DELAY);
 // }
 
+void sendSerial(double value) {
+  sigSerial.sendDatum(value);
+}
 
 
 // Mirror/pingpong values the reach the provided ms time
@@ -107,24 +127,6 @@ unsigned short milliPong(unsigned int time) {
   else outVal = ms % half;
   return outVal;
 }
-
-void rainbow(CRGB led_array[], int arraySize) {
-  for (uint16_t i = 0; i < arraySize; i++) {
-    led_array[i] = CHSV((millis() / 4) - (i * 3), 255, 255);
-  }
-}
-
-// void solidColour(uint32_t color) {
-//   for (int i = 0; i < strip.numPixels(); i++) {
-//     strip.setPixelColor(i, color);
-//   }
-//   strip.show();
-// }
-
-void sendSerial(double value) {
-  sigSerial.sendDatum(value);
-}
-
 
 void processInput() {
   if(sigSerial.available())
@@ -188,41 +190,47 @@ HSV_PROP fadeToTarget(HSV_PROP inputProperty) {
 }
 
 
-void startup_sequence() {
-  FastLED.clear(true);
-  CRGB whiteTarget = CRGB::White;
+// void rainbow(CRGB led_array[], int arraySize) {
+//   for (uint16_t i = 0; i < arraySize; i++) {
+//     led_array[i] = CHSV((millis() / 4) - (i * 3), 255, 255);
+//   }
+// }
 
-  // Initial colour population
-  for (uint16_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = initialLed;
-    FastLED.show();
-    for (uint16_t j = 0; j < NUM_LEDS; j++) {
-      leds[j].nscale8_video(253);
-    }
-  }
+// void startup_sequence() {
+//   FastLED.clear(true);
+//   CRGB whiteTarget = CRGB::White;
 
-  // Shiney!
-  for (uint16_t i = 0; i < NUM_LEDS; i++) {
-    CRGB currentA = leds[i];
-    CRGB currentB = leds[NUM_LEDS-i-1];
-    whiteTarget.nscale8(253);
-    leds[i] = whiteTarget;
-    leds[NUM_LEDS-i-1] = whiteTarget;
-    FastLED.show();
-    leds[i] = blend(currentA, initialLed, 1);
-    leds[NUM_LEDS-i-1] = blend(currentB, initialLed, 1);
-    //leds[i].lerp8(targetLed, 0.9);
-    //leds[NUM_LEDS-i-1].lerp8(targetLed, 0.9);
-    for (uint16_t j = 0; j < NUM_LEDS; j++) {
-      leds[j].nscale8(253);
-    }
-  }
+//   // Initial colour population
+//   for (uint16_t i = 0; i < NUM_LEDS; i++) {
+//     leds[i] = initialLed;
+//     FastLED.show();
+//     for (uint16_t j = 0; j < NUM_LEDS; j++) {
+//       leds[j].nscale8_video(253);
+//     }
+//   }
 
-  for (uint16_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = initialLed;
-  }
+//   // Shiney!
+//   for (uint16_t i = 0; i < NUM_LEDS; i++) {
+//     CRGB currentA = leds[i];
+//     CRGB currentB = leds[NUM_LEDS-i-1];
+//     whiteTarget.nscale8(253);
+//     leds[i] = whiteTarget;
+//     leds[NUM_LEDS-i-1] = whiteTarget;
+//     FastLED.show();
+//     leds[i] = blend(currentA, initialLed, 1);
+//     leds[NUM_LEDS-i-1] = blend(currentB, initialLed, 1);
+//     //leds[i].lerp8(targetLed, 0.9);
+//     //leds[NUM_LEDS-i-1].lerp8(targetLed, 0.9);
+//     for (uint16_t j = 0; j < NUM_LEDS; j++) {
+//       leds[j].nscale8(253);
+//     }
+//   }
 
-  FastLED.setBrightness(0);
-  FastLED.show();
-  FastLED.showColor(initialLed);
-}
+//   for (uint16_t i = 0; i < NUM_LEDS; i++) {
+//     leds[i] = initialLed;
+//   }
+
+//   FastLED.setBrightness(0);
+//   FastLED.show();
+//   FastLED.showColor(initialLed);
+// }

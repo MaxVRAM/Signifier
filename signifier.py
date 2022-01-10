@@ -22,7 +22,8 @@
 # sudo usermod -aG audio $USER
 # Or you know... hardcode? :(
 
-import logging, os, signal, sys, time, schedule, json, random
+import logging, os, signal, sys, time, schedule, json, random, queue
+from threading import Thread
 import pygame as pg
 from signify.clip_manager import ClipManager
 from pySerialTransfer import pySerialTransfer as txfer
@@ -42,13 +43,18 @@ CONFIG_FILE = 'config.json'
 with open(CONFIG_FILE) as c:
     config = json.load(c)
 
+
+arduino = txfer.SerialTransfer('/dev/ttyACM0')
+receive_thread = None
+q = queue.Queue()
+
 class ArduinoCmd(object):
     def __init__(self, command:str, value:int, duration=0) -> None:
         self.command = command
         self.value = value
         self.duration = duration
     #
-    # TYPE CASTING:
+    # TYPES:
     # - (char) name
     # - (uint8_t) value
     # - (uint16_t) value
@@ -58,6 +64,7 @@ class ArduinoCmd(object):
     # - m = set max brightness
     # - h = set strip hue
     # - s = set strip saturation
+
 
 
 #  _________                __                .__   
@@ -186,6 +193,29 @@ def prepare_playback_engine():
     logger.debug(f'Audio mixer successfully configured with device: "{device} {pg.mixer.get_init()}"')
     print()
 
+
+def prepare_clip_manager():
+    """Load Clip Manager with audio library and initialise the clips."""
+    global clip_manager
+    try:
+        clip_manager = ClipManager(config['clip_manager'], pg.mixer, CLIP_EVENT)
+    except OSError:
+        exit_handler.shutdown()
+    clip_manager.init_library()
+
+def wait_to_start():
+    print()
+    start_delay = config["general"]["start_delay"]
+    logger.info(f'Signifier ready! Starting in ({start_delay}) seconds...')
+    time.sleep(1)
+    for i in range(1, start_delay):
+        print(f'...{start_delay-i}')
+        time.sleep(1)
+    print()
+
+
+
+
 class ExitHandler:
     signals = { signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM' }
 
@@ -198,6 +228,12 @@ class ExitHandler:
         print()
         logger.info(f'Shutdown sequence started.')
         self.exiting = True
+        if receive_thread is not None:
+            logger.debug(f'Attempting to stop threads.')
+            q.put('shutdown')
+            receive_thread.join(2)
+            if receive_thread.is_alive():
+                logger.warning(f'Thread "{receive_thread.name}" join timeout! An error will be raised.')
         arduino.close()
         schedule.clear()
         stop_all_clips()
@@ -211,13 +247,8 @@ class ExitHandler:
 
 
 
-def arduino_send_test(value:float):
-    sendSize = arduino.tx_obj(value)
-    success = arduino.send(sendSize)
-    print(f'Success ({success}) sending Arduino: {value}')
-
-
 def led_command(command:ArduinoCmd) -> bool:
+    """Sends a command to the Arduino via serial. Commands should be formatted using ArduinoCmd objects."""
     # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
     sendSize = 0
     sendSize = arduino.tx_obj(command.command, start_pos=sendSize)
@@ -228,6 +259,90 @@ def led_command(command:ArduinoCmd) -> bool:
     #     f'({command.value}) over ({command.duration})ms.')
     return success
 
+def arduino_callback():
+    print('Arduino ready...')
+    random_float = random.triangular(0.0, 1.0, 0.5)
+    led_command(ArduinoCmd('b', (int)(random_float*255), 0))
+
+def arduino_check():
+    serial_char = None
+    serial_value = None
+    # Do stuff with packets from Arduino 
+    if arduino.available():
+        print()
+        serial_char = arduino.rx_obj(obj_type='c')
+        serial_value = arduino.rx_obj(obj_type='f')
+        #recSize += txfer.STRUCT_FORMAT_LENGTHS['i']
+        if serial_char is not None:
+            print('GOT CHAR, YOU IDIOT!')
+            print(f'{serial_char}')
+            print()
+        if serial_value is not None:
+            print('GOT VALUE, YOU IDIOT!')
+            print(f'{serial_value}')
+            print()
+    elif arduino.status < 0:
+        if arduino.status == txfer.CRC_ERROR:
+            print('ERROR: CRC_ERROR')
+        elif arduino.status == txfer.PAYLOAD_ERROR:
+            print('ERROR: PAYLOAD_ERROR')
+        elif arduino.status == txfer.STOP_BYTE_ERROR:
+            print('ERROR: STOP_BYTE_ERROR')
+        else:
+            print(f'ERROR: {arduino.status}')
+
+
+
+
+
+def arduino_listen():
+    """Thread to jump on serial data as soon as it's received from the Arduino."""
+    logger.info(f'Arduino Listener Thread started.')
+    q_message = None
+
+    while True:
+        try:
+            while not arduino.available():
+                try:
+                    q_message = q.get(block=False)
+                except queue.Empty:
+                    pass
+                if q_message == 'shutdown':
+                    return None
+                if arduino.status < 0:
+                    if arduino.status == txfer.CRC_ERROR:
+                        logger.error('ERROR: CRC_ERROR')
+                    elif arduino.status == txfer.PAYLOAD_ERROR:
+                        logger.error('ERROR: PAYLOAD_ERROR')
+                    elif arduino.status == txfer.STOP_BYTE_ERROR:
+                        logger.error('ERROR: STOP_BYTE_ERROR')
+                    else:
+                        logger.error('ERROR: {}'.format(arduino.status))
+
+            # NOTE: Had issues with data types while using arrays. Sticking with stucts...
+            recSize = 0
+            command = arduino.rx_obj(obj_type='c', start_pos=recSize)
+            recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
+            command = command.decode("utf-8")        
+            value = arduino.rx_obj(obj_type='f', start_pos=recSize)
+            recSize += txfer.STRUCT_FORMAT_LENGTHS['f']
+            print(f'Command: {command}, Value: {value}')
+
+        except txfer.serial.SerialException:
+            pass
+
+def init_arduino_comms():
+    receive_thread = Thread(target=arduino_listen, name='Arduino Listener Thread')
+    receive_thread.daemon = True
+    receive_thread.start()
+
+def arduino_setup():
+    """TODO will populate with checks and timeouts for Arduino serial connection.\n
+    If reaches timeout before connection, will disable Arduino/LED portion of the Signifier code."""
+    arduino.open()
+
+# Probably won't need, but will keep it here just in case
+callback_list = [ arduino_callback ]
 
 
 #     _____         .__        
@@ -243,63 +358,28 @@ if __name__ == '__main__':
     print()
 
     exit_handler = ExitHandler()
-
-    # Arduino setup
-    arduino = txfer.SerialTransfer('/dev/ttyACM0')
-    arduino.open()
-
-    time.sleep(1)
+    
+    arduino_setup()
+    time.sleep(1) # wait for a moment to ensure Arduino connection
 
     prepare_playback_engine()
-    try:
-        clip_manager = ClipManager(config['clip_manager'], pg.mixer, CLIP_EVENT)
-    except OSError:
-        exit_handler.shutdown()
-
-    clip_manager.init_library()
+    prepare_clip_manager()
     new_collection(start_jobs=False)
 
-    print()
-    start_delay = config["general"]["start_delay"]
-    logger.info(f'Signifier ready! Starting in ({start_delay}) seconds...')
-    time.sleep(1)
-    for i in range(1, start_delay):
-        print(f'...{start_delay-i}')
-        time.sleep(1)
-    print()
+    wait_to_start()
+    init_arduino_comms()
 
-    coll_job = schedule.every(config['jobs']['collection']['timer']).seconds.do(new_collection)
-    set_jobs(True)
-    update_clips()
+    # coll_job = schedule.every(config['jobs']['collection']['timer']).seconds.do(new_collection)
+    # set_jobs(True)
+    # update_clips()
     
     # Main loop
     while True:
-        random_float = random.triangular(0.0, 1.0, 0.5)
-        #arduino_send_test(random_float)
-        led_command(ArduinoCmd('b', (int)(random_float*255), 0))
-        
-        if arduino.available():
-            print()
-            print('GOT VALUE, YOU IDIOT!')
-            return_serial = arduino.rx_obj(obj_type='f')
-            #recSize += txfer.STRUCT_FORMAT_LENGTHS['i']
-            print(f'{return_serial}')
-            print()
-        elif arduino.status < 0:
-            if arduino.status == txfer.CRC_ERROR:
-                print('ERROR: CRC_ERROR')
-            elif arduino.status == txfer.PAYLOAD_ERROR:
-                print('ERROR: PAYLOAD_ERROR')
-            elif arduino.status == txfer.STOP_BYTE_ERROR:
-                print('ERROR: STOP_BYTE_ERROR')
-            else:
-                print(f'ERROR: {arduino.status}')
-
-        schedule.run_pending()
-        for event in pg.event.get():
-            if event.type == CLIP_EVENT:
-                logger.info(f'Clip end event: {event}')
-                clip_manager.check_finished()
-                # if clip_manager.clips_playing() == 0:
-                #     update_clips()
-        time.sleep(0.01)
+        # schedule.run_pending()
+        # for event in pg.event.get():
+        #     if event.type == CLIP_EVENT:
+        #         logger.info(f'Clip end event: {event}')
+        #         clip_manager.check_finished()
+        #         # if clip_manager.clips_playing() == 0:
+        #         #     update_clips()
+        time.sleep(1)
