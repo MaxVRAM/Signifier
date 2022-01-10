@@ -38,7 +38,7 @@
         {
             "state":true,
             "timer":96,
-            "parameters": {"size":12}
+            "parameters": {"pool_size":12}
         },
         "composition":
         {

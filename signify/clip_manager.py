@@ -116,7 +116,8 @@ class ClipManager:
             logger.debug(f'MOVED: {clip.name} | inactive >>> ACTIVE.')
 
     def check_finished(self) -> set:
-        """Checks active pool for lingering Clips finished playback, and moves them to the inactive pool."""
+        """Checks active pool for lingering Clips finished playback, and moves them to the inactive pool.
+        Returns a set containing any clips moved."""
         finished = set()
         for clip in self.active_pool:
             if not clip.channel.get_busy():

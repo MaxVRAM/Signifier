@@ -22,7 +22,7 @@
 # sudo usermod -aG audio $USER
 # Or you know... hardcode? :(
 
-from ctypes import c_byte, c_char
+from ctypes import c_byte, c_char, c_wchar
 import logging, os, signal, sys, time, schedule, json, random, queue, threading
 import pygame as pg
 from signify.clip_manager import ClipManager
@@ -36,7 +36,7 @@ logger.setLevel(logging.DEBUG)
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 arduino = None
-clip_manager = None
+clip_manager:ClipManager
 CLIP_EVENT = pg.USEREVENT+1
 
 CONFIG_FILE = 'config.json'
@@ -45,28 +45,16 @@ with open(CONFIG_FILE) as c:
 
 
 arduino_okay = False
-arduino = txfer.SerialTransfer('/dev/ttyACM0')
+arduino = txfer.SerialTransfer('/dev/ttyACM0', baud=9600)
 receive_thread = None
 q = queue.Queue()
 
 
+class arduinoStruct(object):
+    command = ''
+    value = 0
 
-
-
-class BaseThread(threading.Thread):
-    """Modified Thread class for executing callback functions on completion."""
-    def __init__(self, callback=None, callback_args=None, *args, **kwargs):
-        target = kwargs.pop('target')
-        super(BaseThread, self).__init__(target=self.target_with_callback, *args, **kwargs)
-        self.callback = callback
-        self.method = target
-        self.callback_args = callback_args
-
-    def target_with_callback(self):
-        self.method()
-        if self.callback is not None:
-            self.callback(*self.callback_args)
-
+arduinoReturn = arduinoStruct
 
 class ArduinoCmd(object):
     def __init__(self, command:str, value:int, duration=0) -> None:
@@ -95,7 +83,13 @@ class ArduinoCmd(object):
 #          \/            \/                         
 
 def new_collection(pool_size=None, start_jobs=True):
-    pool_size = config['jobs']['collection']['parameters']['size'] if pool_size is None else pool_size
+    """Select a new collection from the clip manager, replacing any currently loaded collection.\n 
+    - "pool_size=(int)" defines the number of clips to load from the collection. If parameter is
+    not provided, the job's config.json default "pool_size" value will be used.\n 
+    - "start_jobs=(bool)" tells the function if the additional modulation jobs should be started 
+    immediately after the new collection has been loaded. If set to False, they will need to be
+    manually triggered using the "set_jobs()" function."""
+    pool_size = config['jobs']['collection']['parameters']['pool_size'] if pool_size is None else pool_size
     print()
     set_jobs(False)
     pg.event.clear()
@@ -123,8 +117,10 @@ def modulate_volume(speed=None, weight=None):
     clip_manager.modulate_volumes(speed, weight)
 
 def update_clips(quiet_level=None, busy_level=None):
-    """Ensure the clip manager is playing an appropriate number of clips,
-    and tidy lingering completed clips from the active pool."""
+    """Ensure the clip manager is playing an appropriate number of clips, and move any finished clips
+    still lingering in the active pool to the inactive pool.\n 
+    - "quiet_level=(int)" the lowest number of concurrent clips playing before looking for more to play.\n 
+    - "busy_level=(int)" the highest number of concurrent clips playing before stopping active clips."""
     quiet_level = config['jobs']['composition']['parameters']['quiet_level'] if quiet_level is None else quiet_level
     busy_level = config['jobs']['composition']['parameters']['busy_level'] if busy_level is None else busy_level
     print()
@@ -138,10 +134,13 @@ def update_clips(quiet_level=None, busy_level=None):
     print()
 
 def stop_random_clip():
+    """Stop a single clip from the active pool at random."""
     clip_manager.stop_clip()
 
 def stop_all_clips(fade_time=None):
-    """Fadeout and stop all active clips"""
+    """Tell all active clips to stop playing, emptying the mixer of active channels.\n 
+    - "fade_time=(int)" the number of milliseconds active clips should take to fade their volumes before stopping
+    playback. If no parameter is provided, the [clip_manager][fade_out] value from the config.json will be used."""
     fade_time = config['clip_manager']['fade_out'] if fade_time is None else fade_time
     if pg.mixer.get_init():
         if pg.mixer.get_busy():
@@ -149,7 +148,7 @@ def stop_all_clips(fade_time=None):
             pg.mixer.fadeout(fade_time)
 
 def set_jobs(state=True):
-    """Add/remove jobs that control playback modulation."""
+    """Enable/disable Signifier automation jobs."""
     modulation_jobs = schedule.get_jobs('modulation')
     if len(modulation_jobs) > 1:
         schedule.clear('modulation')
@@ -168,6 +167,7 @@ def set_jobs(state=True):
 #          \/     \/           |__|    
 
 def audio_device_check() -> str:
+    """Check if a valid audio device exists on the host. If so, return it."""
     # TODO Create functional mechanism to find and test audio devices
     default_device = config['audio']['device']
     try:
@@ -198,7 +198,7 @@ def audio_device_check() -> str:
                         f'Attempting to force "{default_device}": {exception}')
         return default_device
 
-def prepare_playback_engine():
+def init_audio_engine():
     """Ensure audio driver exists and initialise the Pygame mixer."""
     device = audio_device_check()
     pg.mixer.pre_init(
@@ -213,8 +213,7 @@ def prepare_playback_engine():
     logger.debug(f'Audio mixer successfully configured with device: "{device} {pg.mixer.get_init()}"')
     print()
 
-
-def prepare_clip_manager():
+def init_clip_manager():
     """Load Clip Manager with audio library and initialise the clips."""
     global clip_manager
     try:
@@ -223,16 +222,17 @@ def prepare_clip_manager():
         exit_handler.shutdown()
     clip_manager.init_library()
 
-def wait_to_start():
+def wait_to_start(start_delay=None):
+    """Sleep after initialisation to make sure Arduino and RPi start at the same time."""
+    # TODO: Replace with a serial message callback to let Python know the Arduino is listening.
     print()
-    start_delay = config["general"]["start_delay"]
+    start_delay = config["general"]["start_delay"] if start_delay is None else start_delay
     logger.info(f'Signifier ready! Starting in ({start_delay}) seconds...')
     time.sleep(1)
     for i in range(1, start_delay):
         print(f'...{start_delay-i}')
         time.sleep(1)
     print()
-
 
 class ExitHandler:
     signals = { signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM' }
@@ -264,85 +264,41 @@ class ExitHandler:
 
 
 
-
-def led_command(command:c_byte, value:int, duration:int) -> bool:
-    """Sends a command to the Arduino via serial. Commands should be formatted using ArduinoCmd objects."""
+def arduino_command(command:c_wchar, value:int, duration:int) -> bool:
+    """Send the Arduino a command via serial, including a value, and duration for the command to run for."""
     # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
     sendSize = 0
+    value = int(value)
     sendSize = arduino.tx_obj(command, start_pos=sendSize)
     sendSize = arduino.tx_obj(value, start_pos=sendSize)
     sendSize = arduino.tx_obj(duration, start_pos=sendSize)
     success = arduino.send(sendSize)
-    print(f'Sent Arduino "{command}" with value ({value}) and ({duration})... success? {success}')
+    #print(f'Sent Arduino "{command}" with value ({value}) over ({duration})ms... success? {success}')
     return success
 
 def arduino_callback():
+    """Called when arduino.tick() receives a serial message from the Arduino, automatically parsing the
+    serial packets for processing (i.e. using the arduino.rx_obj() function).\n
+    Depending on the message received, this function may or may not execute additional commands."""
     recSize = 0
-    command = arduino.rx_obj(obj_type='c', start_pos=recSize)
+    arduinoReturn.command = arduino.rx_obj(obj_type='c', start_pos=recSize)
     recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
-    command = command.decode("utf-8")        
-    value = arduino.rx_obj(obj_type='f', start_pos=recSize)
-    recSize += txfer.STRUCT_FORMAT_LENGTHS['f']
+    arduinoReturn.command = arduinoReturn.command.decode("utf-8")        
+    arduinoReturn.value = arduino.rx_obj(obj_type='l', start_pos=recSize)
+    recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
     #return_value = ['main', command, value]
-    print(f'From Arduino... command: "{command}", Value: ({value})')
-
-    if command == 'r':
+    print(f'From Arduino... command: "{arduinoReturn.command}", Value: ({arduinoReturn.value})')
+    if arduinoReturn.command == 'r':
         random_float = random.triangular(0.0, 1.0, 0.5)
-        led_command('B', (random_float * 255), 0)
+        arduino_command('B', int(random_float * 255), 0)
+    else:
+        print()
+        print()
+        print(f'WOAH! I got something other than "r"eady message from the Arduino')
+        print(f'{arduinoReturn.command}: {arduinoReturn.value}')
+        print()
+        print()
 
-
-# NOTE Try this thread callback example in case Serial callbacks don't work
-# https://gist.github.com/amirasaran/e91c7253c03518b8f7b7955df0e954bb
-def arduino_listen():
-    """Thread to jump on serial data as soon as it's received from the Arduino."""
-    logger.info(f'Arduino Listener Thread started.')
-    q_message = None
-    okay = False
-    while True:
-        try:
-            while not arduino.available():
-                # Thread queue message processing
-                # try:
-                #     q_message = q.get(block=False)
-                # except queue.Empty:
-                #     pass
-                # if q_message[0] == 'thread':
-                #     if q_message[1] == 'shutdown':
-                #         return None
-                #     if q_message[1] == 'okay':
-                #         okay = True
-                #         print(f'Thread got {q_message} and has set Arduino status to {okay}')
-
-                # Arduino error processing
-                if arduino.status < 0:
-                    if arduino.status == txfer.CRC_ERROR:
-                        logger.error('Arduino: CRC_ERROR')
-                    elif arduino.status == txfer.PAYLOAD_ERROR:
-                        logger.error('Arduino: PAYLOAD_ERROR')
-                    elif arduino.status == txfer.STOP_BYTE_ERROR:
-                        logger.error('Arduino: STOP_BYTE_ERROR')
-                    else:
-                        logger.error(f'Arduino: {arduino.status}')
-
-            # NOTE: Had issues with data types while using arrays. Sticking with stucts...
-            recSize = 0
-            command = arduino.rx_obj(obj_type='c', start_pos=recSize)
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
-            command = command.decode("utf-8")        
-            value = arduino.rx_obj(obj_type='f', start_pos=recSize)
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['f']
-            return_value = ['main', command, value]
-            print(f'Command: {command}, Value: {value}')
-            q.put(return_value)
-            
-
-        except (txfer.serial.SerialException, OSError, TypeError):
-            pass
-
-def init_arduino_comms():
-    receive_thread = threading.Thread(target=arduino_listen, name='Arduino Listener Thread')
-    receive_thread.daemon = True
-    receive_thread.start()
 
 def arduino_setup():
     """TODO will populate with checks and timeouts for Arduino serial connection.\n
@@ -351,23 +307,8 @@ def arduino_setup():
     arduino.open()
     time.sleep(1)
 
-# Probably won't need, but will keep it here just in case
 callback_list = [arduino_callback]
 
-
-
-
-# def my_thread_job():
-#     # do any things here
-#     print("thread start successfully and sleep for 5 seconds")
-#     time.sleep(5)
-#     print ("thread ended successfully!")
-
-
-# def cb(param1, param2):
-#     # this is run after your thread end
-#     print ("callback function called")
-#     print (f'{param1}, {param2}')
 
 
 
@@ -386,26 +327,11 @@ if __name__ == '__main__':
     exit_handler = ExitHandler()
     
     arduino_setup()
-    prepare_playback_engine()
-    prepare_clip_manager()
+    init_audio_engine()
+    init_clip_manager()
     new_collection(start_jobs=False)
 
     wait_to_start()
-
-
-
-
-    # # example using BaseThread with callback
-    # thread = BaseThread(
-    #     name='test',
-    #     target=my_thread_job,
-    #     callback=cb,
-    #     callback_args=("hello", "world")
-    # )
-
-    # thread.start()
-
-    #init_arduino_comms()
 
     # coll_job = schedule.every(config['jobs']['collection']['timer']).seconds.do(new_collection)
     # set_jobs(True)
