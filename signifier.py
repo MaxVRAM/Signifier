@@ -22,8 +22,8 @@
 # sudo usermod -aG audio $USER
 # Or you know... hardcode? :(
 
-import logging, os, signal, sys, time, schedule, json, random, queue
-from threading import Thread
+from ctypes import c_byte, c_char
+import logging, os, signal, sys, time, schedule, json, random, queue, threading
 import pygame as pg
 from signify.clip_manager import ClipManager
 from pySerialTransfer import pySerialTransfer as txfer
@@ -44,9 +44,29 @@ with open(CONFIG_FILE) as c:
     config = json.load(c)
 
 
+arduino_okay = False
 arduino = txfer.SerialTransfer('/dev/ttyACM0')
 receive_thread = None
 q = queue.Queue()
+
+
+
+
+
+class BaseThread(threading.Thread):
+    """Modified Thread class for executing callback functions on completion."""
+    def __init__(self, callback=None, callback_args=None, *args, **kwargs):
+        target = kwargs.pop('target')
+        super(BaseThread, self).__init__(target=self.target_with_callback, *args, **kwargs)
+        self.callback = callback
+        self.method = target
+        self.callback_args = callback_args
+
+    def target_with_callback(self):
+        self.method()
+        if self.callback is not None:
+            self.callback(*self.callback_args)
+
 
 class ArduinoCmd(object):
     def __init__(self, command:str, value:int, duration=0) -> None:
@@ -214,8 +234,6 @@ def wait_to_start():
     print()
 
 
-
-
 class ExitHandler:
     signals = { signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM' }
 
@@ -230,7 +248,7 @@ class ExitHandler:
         self.exiting = True
         if receive_thread is not None:
             logger.debug(f'Attempting to stop threads.')
-            q.put('shutdown')
+            q.put(['thread', 'shutdown'])
             receive_thread.join(2)
             if receive_thread.is_alive():
                 logger.warning(f'Thread "{receive_thread.name}" join timeout! An error will be raised.')
@@ -247,77 +265,64 @@ class ExitHandler:
 
 
 
-def led_command(command:ArduinoCmd) -> bool:
+def led_command(command:c_byte, value:int, duration:int) -> bool:
     """Sends a command to the Arduino via serial. Commands should be formatted using ArduinoCmd objects."""
     # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
     sendSize = 0
-    sendSize = arduino.tx_obj(command.command, start_pos=sendSize)
-    sendSize = arduino.tx_obj(command.value, start_pos=sendSize)
-    sendSize = arduino.tx_obj(command.duration, start_pos=sendSize)
+    sendSize = arduino.tx_obj(command, start_pos=sendSize)
+    sendSize = arduino.tx_obj(value, start_pos=sendSize)
+    sendSize = arduino.tx_obj(duration, start_pos=sendSize)
     success = arduino.send(sendSize)
-    # print(f'Success ({success}) sending Arduino command "{command.command}" with value '
-    #     f'({command.value}) over ({command.duration})ms.')
+    print(f'Sent Arduino "{command}" with value ({value}) and ({duration})... success? {success}')
     return success
 
 def arduino_callback():
-    print('Arduino ready...')
-    random_float = random.triangular(0.0, 1.0, 0.5)
-    led_command(ArduinoCmd('b', (int)(random_float*255), 0))
+    recSize = 0
+    command = arduino.rx_obj(obj_type='c', start_pos=recSize)
+    recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
+    command = command.decode("utf-8")        
+    value = arduino.rx_obj(obj_type='f', start_pos=recSize)
+    recSize += txfer.STRUCT_FORMAT_LENGTHS['f']
+    #return_value = ['main', command, value]
+    print(f'From Arduino... command: "{command}", Value: ({value})')
 
-def arduino_check():
-    serial_char = None
-    serial_value = None
-    # Do stuff with packets from Arduino 
-    if arduino.available():
-        print()
-        serial_char = arduino.rx_obj(obj_type='c')
-        serial_value = arduino.rx_obj(obj_type='f')
-        #recSize += txfer.STRUCT_FORMAT_LENGTHS['i']
-        if serial_char is not None:
-            print('GOT CHAR, YOU IDIOT!')
-            print(f'{serial_char}')
-            print()
-        if serial_value is not None:
-            print('GOT VALUE, YOU IDIOT!')
-            print(f'{serial_value}')
-            print()
-    elif arduino.status < 0:
-        if arduino.status == txfer.CRC_ERROR:
-            print('ERROR: CRC_ERROR')
-        elif arduino.status == txfer.PAYLOAD_ERROR:
-            print('ERROR: PAYLOAD_ERROR')
-        elif arduino.status == txfer.STOP_BYTE_ERROR:
-            print('ERROR: STOP_BYTE_ERROR')
-        else:
-            print(f'ERROR: {arduino.status}')
+    if command == 'r':
+        random_float = random.triangular(0.0, 1.0, 0.5)
+        led_command('B', (random_float * 255), 0)
 
 
-
-
-
+# NOTE Try this thread callback example in case Serial callbacks don't work
+# https://gist.github.com/amirasaran/e91c7253c03518b8f7b7955df0e954bb
 def arduino_listen():
     """Thread to jump on serial data as soon as it's received from the Arduino."""
     logger.info(f'Arduino Listener Thread started.')
     q_message = None
-
+    okay = False
     while True:
         try:
             while not arduino.available():
-                try:
-                    q_message = q.get(block=False)
-                except queue.Empty:
-                    pass
-                if q_message == 'shutdown':
-                    return None
+                # Thread queue message processing
+                # try:
+                #     q_message = q.get(block=False)
+                # except queue.Empty:
+                #     pass
+                # if q_message[0] == 'thread':
+                #     if q_message[1] == 'shutdown':
+                #         return None
+                #     if q_message[1] == 'okay':
+                #         okay = True
+                #         print(f'Thread got {q_message} and has set Arduino status to {okay}')
+
+                # Arduino error processing
                 if arduino.status < 0:
                     if arduino.status == txfer.CRC_ERROR:
-                        logger.error('ERROR: CRC_ERROR')
+                        logger.error('Arduino: CRC_ERROR')
                     elif arduino.status == txfer.PAYLOAD_ERROR:
-                        logger.error('ERROR: PAYLOAD_ERROR')
+                        logger.error('Arduino: PAYLOAD_ERROR')
                     elif arduino.status == txfer.STOP_BYTE_ERROR:
-                        logger.error('ERROR: STOP_BYTE_ERROR')
+                        logger.error('Arduino: STOP_BYTE_ERROR')
                     else:
-                        logger.error('ERROR: {}'.format(arduino.status))
+                        logger.error(f'Arduino: {arduino.status}')
 
             # NOTE: Had issues with data types while using arrays. Sticking with stucts...
             recSize = 0
@@ -326,23 +331,44 @@ def arduino_listen():
             command = command.decode("utf-8")        
             value = arduino.rx_obj(obj_type='f', start_pos=recSize)
             recSize += txfer.STRUCT_FORMAT_LENGTHS['f']
+            return_value = ['main', command, value]
             print(f'Command: {command}, Value: {value}')
+            q.put(return_value)
+            
 
-        except txfer.serial.SerialException:
+        except (txfer.serial.SerialException, OSError, TypeError):
             pass
 
 def init_arduino_comms():
-    receive_thread = Thread(target=arduino_listen, name='Arduino Listener Thread')
+    receive_thread = threading.Thread(target=arduino_listen, name='Arduino Listener Thread')
     receive_thread.daemon = True
     receive_thread.start()
 
 def arduino_setup():
     """TODO will populate with checks and timeouts for Arduino serial connection.\n
     If reaches timeout before connection, will disable Arduino/LED portion of the Signifier code."""
+    arduino.set_callbacks(callback_list)
     arduino.open()
+    time.sleep(1)
 
 # Probably won't need, but will keep it here just in case
-callback_list = [ arduino_callback ]
+callback_list = [arduino_callback]
+
+
+
+
+# def my_thread_job():
+#     # do any things here
+#     print("thread start successfully and sleep for 5 seconds")
+#     time.sleep(5)
+#     print ("thread ended successfully!")
+
+
+# def cb(param1, param2):
+#     # this is run after your thread end
+#     print ("callback function called")
+#     print (f'{param1}, {param2}')
+
 
 
 #     _____         .__        
@@ -360,21 +386,53 @@ if __name__ == '__main__':
     exit_handler = ExitHandler()
     
     arduino_setup()
-    time.sleep(1) # wait for a moment to ensure Arduino connection
-
     prepare_playback_engine()
     prepare_clip_manager()
     new_collection(start_jobs=False)
 
     wait_to_start()
-    init_arduino_comms()
+
+
+
+
+    # # example using BaseThread with callback
+    # thread = BaseThread(
+    #     name='test',
+    #     target=my_thread_job,
+    #     callback=cb,
+    #     callback_args=("hello", "world")
+    # )
+
+    # thread.start()
+
+    #init_arduino_comms()
 
     # coll_job = schedule.every(config['jobs']['collection']['timer']).seconds.do(new_collection)
     # set_jobs(True)
     # update_clips()
     
+
     # Main loop
     while True:
+        arduino.tick()
+        # q_message = None
+        # try:
+        #     q_message = q.get(block=False)
+        # except queue.Empty:
+        #     print('Queue empty.')
+        #     pass
+        # if q_message is not None:
+        #     print('Queue is not empty.')
+        #     if q_message[0] == 'main':
+        #         print(f'Returned value from Arduino thread: {q_message}')
+        #         if q_message[1] == 'o':
+        #             arduino_okay = True
+        #             print(f'Arduino status is now {arduino_okay}')
+        #             q.put(['thread', 'okay'])
+        #         if q_message[1] == 'r':
+        #             print(f'Arduino is ready to be sent serial data.')
+
+
         # schedule.run_pending()
         # for event in pg.event.get():
         #     if event.type == CLIP_EVENT:
@@ -382,4 +440,4 @@ if __name__ == '__main__':
         #         clip_manager.check_finished()
         #         # if clip_manager.clips_playing() == 0:
         #         #     update_clips()
-        time.sleep(1)
+        #time.sleep(1)
