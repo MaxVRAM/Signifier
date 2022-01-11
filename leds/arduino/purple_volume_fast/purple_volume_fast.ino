@@ -38,7 +38,7 @@ struct COMMAND {
   byte command;
   int value;
   int duration;
-};
+} inputCommand;
 
 struct SEND_STRUCT {
   char command;
@@ -53,6 +53,7 @@ struct SIG_MESSAGE {
 unsigned short hardBright = 0;
 unsigned long ms = 0;
 unsigned long start_ms = 0;
+unsigned long end_ms = 0;
 bool new_message = false;
 
 CRGB initialLed = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
@@ -80,7 +81,6 @@ void setup() {
 }
 
 void loop() {
-  ms = millis();
   //processInput();
   // blend (leds[], target[], fract8 (ratio 0-255))
   // rainbow(leds, NUM_LEDS);
@@ -88,18 +88,26 @@ void loop() {
   // FastLED.setBrightness(map(milliPong(4000), 0, 1000, 0, 255));
   
   //double y = 4.5;
+  start_ms = millis();
   main_brightness = fadeToTarget(main_brightness);
   FastLED.setBrightness(main_brightness.current);
-  
-  FastLED.show();
+  FastLED.show();  ////// TAKES ~16ms to complete show() command
+  sendCommand('a', (int) millis() - start_ms);
 
   sendCommand('r', 1);
   
-  start_ms = millis();
-  while (start_ms + LOOP_DELAY > ms && new_message == false) {
-    new_message = processInput();
+  end_ms = millis() + LOOP_DELAY;
+  while (ms < end_ms && new_message == false) {
     ms = millis();
+    if( sigSerial.available() ) {
+      sendCommand('g', 9999);
+      sigSerial.rxObj(inputCommand, 0U);
+      break;
+    }
+    // new_message = processInput();
+    // ms = millis();
   }
+  sendCommand('b', ms - start_ms);
 
   //sendCommand('m', ms);
 
@@ -153,44 +161,41 @@ unsigned short milliPong(unsigned int time) {
   return outVal;
 }
 
-bool processInput() {
-  if(sigSerial.available())
-  {
-    COMMAND inputCommand;
-    unsigned int recSize = 0;
-    recSize = sigSerial.rxObj(inputCommand, recSize);
+bool processInput(COMMAND input) {
+  // if(sigSerial.available())
+  // {
+  //   unsigned int recSize = 0;
+  //   recSize = sigSerial.rxObj(inputCommand, recSize);
 
-    int value = inputCommand.value;
-    int dur = inputCommand.duration;
+  int value = input.value;
+  int dur = input.duration;
 
-    sendCommand(inputCommand.command, value);
+  sendCommand(input.command, input.value);
 
-    switch (inputCommand.command) {
-      case 'B':
-        main_brightness.target = constrain(value, 0, main_brightness.max);
-        if (dur == 0) main_brightness.current = main_brightness.target;
-        main_brightness.duration = dur;
-        return true;
-      case 'b':
-        brightness.target = constrain(value, 0, brightness.max);
-        if (dur == 0) brightness.current = brightness.target;
-        brightness.duration = dur;
-        return true;
-      case 's':
-        saturation.target = constrain(value, 0, saturation.max);
-        if (dur == 0) saturation.current = brightness.target;
-        saturation.duration = dur;
-        return true;
-      case 'h':
-        hue.target = constrain(value, 0, hue.max);
-        if (dur == 0) hue.current = hue.target;
-        hue.duration = dur;
-        return true;
-      default:
-        return false;
-    }
+  switch (input.command) {
+    case 'B':
+      main_brightness.target = constrain(value, 0, main_brightness.max);
+      if (dur == 0) main_brightness.current = main_brightness.target;
+      main_brightness.duration = dur;
+      return true;
+    case 'b':
+      brightness.target = constrain(value, 0, brightness.max);
+      if (dur == 0) brightness.current = brightness.target;
+      brightness.duration = dur;
+      return true;
+    case 's':
+      saturation.target = constrain(value, 0, saturation.max);
+      if (dur == 0) saturation.current = brightness.target;
+      saturation.duration = dur;
+      return true;
+    case 'h':
+      hue.target = constrain(value, 0, hue.max);
+      if (dur == 0) hue.current = hue.target;
+      hue.duration = dur;
+      return true;
+    default:
+      return false;
   }
-  else return false;
 }
 
 HSV_PROP fadeToTarget(HSV_PROP inputProperty) {

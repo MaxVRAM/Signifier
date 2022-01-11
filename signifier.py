@@ -234,35 +234,12 @@ def wait_to_start(start_delay=None):
         time.sleep(1)
     print()
 
-class ExitHandler:
-    signals = { signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM' }
-
-    def __init__(self):
-        self.exiting = False
-        signal.signal(signal.SIGTERM, self.shutdown)
-        signal.signal(signal.SIGINT, self.shutdown)
-
-    def shutdown(self, *args):
-        print()
-        logger.info(f'Shutdown sequence started.')
-        self.exiting = True
-        if receive_thread is not None:
-            logger.debug(f'Attempting to stop threads.')
-            q.put(['thread', 'shutdown'])
-            receive_thread.join(2)
-            if receive_thread.is_alive():
-                logger.warning(f'Thread "{receive_thread.name}" join timeout! An error will be raised.')
-        arduino.close()
-        schedule.clear()
-        stop_all_clips()
-        while pg.mixer.get_busy():
-            time.sleep(0.1)
-        pg.mixer.quit()
-        logger.info("Signifier shutdown complete.")
-        print()
-        sys.exit()
-
-
+#     _____            .___    .__               
+#    /  _  \_______  __| _/_ __|__| ____   ____  
+#   /  /_\  \_  __ \/ __ |  |  \  |/    \ /  _ \ 
+#  /    |    \  | \/ /_/ |  |  /  |   |  (  <_> )
+#  \____|__  /__|  \____ |____/|__|___|  /\____/ 
+#          \/           \/             \/        
 
 def arduino_command(command:c_wchar, value:int, duration:int) -> bool:
     """Send the Arduino a command via serial, including a value, and duration for the command to run for."""
@@ -293,12 +270,9 @@ def arduino_callback():
         arduino_command('B', int(random_float * 255), 0)
     else:
         print()
-        print()
         print(f'WOAH! I got something other than "r"eady message from the Arduino')
         print(f'{arduinoReturn.command}: {arduinoReturn.value}')
         print()
-        print()
-
 
 def arduino_setup():
     """TODO will populate with checks and timeouts for Arduino serial connection.\n
@@ -310,6 +284,41 @@ def arduino_setup():
 callback_list = [arduino_callback]
 
 
+
+#    _________.__            __      .___                   
+#   /   _____/|  |__  __ ___/  |_  __| _/______  _  ______  
+#   \_____  \ |  |  \|  |  \   __\/ __ |/  _ \ \/ \/ /    \ 
+#   /        \|   Y  \  |  /|  | / /_/ (  <_> )     /   |  \
+#  /_______  /|___|  /____/ |__| \____ |\____/ \/\_/|___|  /
+#          \/      \/                 \/                 \/ 
+
+class ExitHandler:
+    signals = { signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM' }
+
+    def __init__(self):
+        self.exiting = False
+        signal.signal(signal.SIGTERM, self.shutdown)
+        signal.signal(signal.SIGINT, self.shutdown)
+
+    def shutdown(self, *args):
+        print()
+        logger.info(f'Shutdown sequence started.')
+        self.exiting = True
+        if receive_thread is not None:
+            logger.debug(f'Attempting to stop threads.')
+            q.put(['thread', 'shutdown'])
+            receive_thread.join(2)
+            if receive_thread.is_alive():
+                logger.warning(f'Thread "{receive_thread.name}" join timeout! An error will be raised.')
+        arduino.close()
+        schedule.clear()
+        stop_all_clips()
+        while pg.mixer.get_busy():
+            time.sleep(0.1)
+        pg.mixer.quit()
+        logger.info("Signifier shutdown complete.")
+        print()
+        sys.exit()
 
 
 #     _____         .__        
@@ -325,7 +334,6 @@ if __name__ == '__main__':
     print()
 
     exit_handler = ExitHandler()
-    
     arduino_setup()
     init_audio_engine()
     init_clip_manager()
