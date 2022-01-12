@@ -125,10 +125,10 @@ class Clip:
         self.length = Sound(self.path).get_length()
         self.category = None
         self.looping = None
-        self.determine_category(categories)
         self.sound = None
         self.channel = None
         self.index = None
+        self.determine_category(categories)
         pass
 
     def __str__(self) -> str:

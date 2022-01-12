@@ -1,14 +1,13 @@
 {
-    "general":
-    {
-        "start_delay":5
-    },
     "leds":
     {
-        "max_brightness":255
+        "enabled":true,
+        "max_brightness":255,
+        "arduino_delay":5
     },
     "audio":
     {
+        "enabled":true,
         "device":"bcm2835 Headphones, bcm2835 Headphones",
         "sample_rate":44100,
         "bit_size":-16,
@@ -36,19 +35,22 @@
     {
         "collection":
         {
-            "state":true,
+            "enabled":true,
+            "tags":["collection", "primary"],
             "timer":96,
             "parameters": {"pool_size":12}
         },
         "composition":
         {
-            "state":true,
+            "enabled":true,
+            "tags":["composition", "audio"],
             "timer":16,
             "parameters": {"quiet_level":3, "busy_level":6}
         },
         "volume":
         {
-            "state":true,
+            "enabled":true,
+            "tags":["volume", "audio"],
             "timer":2,
             "parameters": {"speed":5, "weight":0}
         }

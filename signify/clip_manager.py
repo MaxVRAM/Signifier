@@ -171,3 +171,8 @@ class ClipManager:
     def clips_playing(self) -> int:
         """Return number of active clips."""
         return len(self.active_pool)
+
+    def clear_events(self):
+        """Clears the end event callbacks from all clips in the active pool."""
+        for clip in self.active_pool:
+            clip.channel.set_endevent()
