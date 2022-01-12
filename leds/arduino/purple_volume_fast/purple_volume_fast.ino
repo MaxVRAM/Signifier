@@ -75,7 +75,7 @@ void setup() {
   startup_sequence();
   
   // Serial transfer setup
-  Serial.begin(9600);
+  Serial.begin(38400);
   sigSerial.begin(Serial);
   delay(100);
 }
@@ -92,7 +92,7 @@ void loop() {
   main_brightness = fadeToTarget(main_brightness);
   FastLED.setBrightness(main_brightness.current);
   FastLED.show();  ////// TAKES ~16ms to complete show() command
-  sendCommand('a', (int) millis() - start_ms);
+  //sendCommand('a', (int) millis() - start_ms);
 
   sendCommand('r', 1);
   
@@ -100,14 +100,14 @@ void loop() {
   while (ms < end_ms && new_message == false) {
     ms = millis();
     if( sigSerial.available() ) {
-      sendCommand('g', 9999);
       sigSerial.rxObj(inputCommand, 0U);
+      processInput(inputCommand);
       break;
     }
     // new_message = processInput();
     // ms = millis();
   }
-  sendCommand('b', ms - start_ms);
+  //sendCommand('b', ms - start_ms);
 
   //sendCommand('m', ms);
 
@@ -162,36 +162,26 @@ unsigned short milliPong(unsigned int time) {
 }
 
 bool processInput(COMMAND input) {
-  // if(sigSerial.available())
-  // {
-  //   unsigned int recSize = 0;
-  //   recSize = sigSerial.rxObj(inputCommand, recSize);
-
-  int value = input.value;
-  int dur = input.duration;
-
-  sendCommand(input.command, input.value);
-
   switch (input.command) {
     case 'B':
-      main_brightness.target = constrain(value, 0, main_brightness.max);
+      main_brightness.target = constrain(input.value, 0, main_brightness.max);
       if (dur == 0) main_brightness.current = main_brightness.target;
-      main_brightness.duration = dur;
+      main_brightness.duration = input.duration;
       return true;
     case 'b':
-      brightness.target = constrain(value, 0, brightness.max);
+      brightness.target = constrain(input.value, 0, brightness.max);
       if (dur == 0) brightness.current = brightness.target;
-      brightness.duration = dur;
+      brightness.duration = input.duration;
       return true;
     case 's':
-      saturation.target = constrain(value, 0, saturation.max);
+      saturation.target = constrain(input.value, 0, saturation.max);
       if (dur == 0) saturation.current = brightness.target;
-      saturation.duration = dur;
+      saturation.duration = input.duration;
       return true;
     case 'h':
-      hue.target = constrain(value, 0, hue.max);
+      hue.target = constrain(input.value, 0, hue.max);
       if (dur == 0) hue.current = hue.target;
-      hue.duration = dur;
+      hue.duration = input.duration;
       return true;
     default:
       return false;

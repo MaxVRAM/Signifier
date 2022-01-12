@@ -7,7 +7,7 @@
     },
     "audio":
     {
-        "enabled":true,
+        "enabled":false,
         "device":"bcm2835 Headphones, bcm2835 Headphones",
         "sample_rate":44100,
         "bit_size":-16,
@@ -36,21 +36,21 @@
         "collection":
         {
             "enabled":true,
-            "tags":["collection", "primary"],
+            "tag":"audio",
             "timer":96,
             "parameters": {"pool_size":12}
         },
         "composition":
         {
             "enabled":true,
-            "tags":["composition", "audio"],
+            "tag":"audio",
             "timer":16,
             "parameters": {"quiet_level":3, "busy_level":6}
         },
         "volume":
         {
             "enabled":true,
-            "tags":["volume", "audio"],
+            "tag":"audio",
             "timer":2,
             "parameters": {"speed":5, "weight":0}
         }

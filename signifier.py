@@ -42,7 +42,15 @@ active_jobs = {}
 arduino = None
 arduino_okay = False
 callback_list = None
-arduino = txfer.SerialTransfer('/dev/ttyACM0', baud=9600)
+arduino = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
+
+# NOTE here!
+# 38400 is the only baud rate that worked to a standard I was happy with.
+# Initally, I had issues with serial communication between the Arduino and RPi, so I attempted various baud rates.
+# 9600, 14400, 19200, 28800... they all had major issues with dropped serial packets.
+# 38400 is extremely robust, and I feel like I can rely on this to produce the results I'm after.
+
+
 q = queue.Queue()
 
 class ArduinoCmd(object):
@@ -88,6 +96,12 @@ def stop_all_clips(fade_time=None, disable_events=False):
                     clip_manager.clear_events()
                 pg.mixer.fadeout(fade_time)
 
+def check_audio_events():
+    if config['audio']['enabled'] is True and pg.get_init() is True:
+        for event in pg.event.get():
+            if event.type == CLIP_EVENT:
+                logger.info(f'Clip end event: {event}')
+                clip_manager.check_finished()
 
 #       ____.     ___.           
 #      |    | ____\_ |__   ______
@@ -153,14 +167,14 @@ def modulate_volumes(speed=None, weight=None):
 
 def start_job(jobs:list):
     """Start jobs that exist and are enabled in the config file from a supplied list of job names."""
-    logger.debug(f'Attempting to start job(s) from {jobs}')
     if isinstance(jobs, str):
         jobs = [jobs]
     for job in jobs:
         job_info = config['jobs'].get(job, None)
-        if job_info is not None and job_info['enabled'] is True and job in jobs_dict and job not in active_jobs:
+        if job_info is not None and job_info['enabled'] is True and job in jobs_dict and job not in active_jobs \
+                and config[job_info['tag']]['enabled'] is not False:
             active_jobs[job] = schedule.every(job_info['timer']).seconds.do(jobs_dict[job])
-            
+
 def stop_job(jobs:list):
     """Stop jobs matching the name or tag from provided list."""
     if isinstance(jobs, str):
@@ -276,22 +290,26 @@ def arduino_callback():
         arduino_return.value = arduino.rx_obj(obj_type='l', start_pos=recSize)
         recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
         #return_value = ['main', command, value]
-        print(f'From Arduino... command: "{arduino_return.command}", Value: ({arduino_return.value})')
+        #print(f'From Arduino... command: "{arduino_return.command}", Value: ({arduino_return.value})')
         if arduino_return.command == 'r':
             random_float = random.triangular(0.0, 1.0, 0.5)
             arduino_command('B', int(random_float * 255), 0)
-        else:
-            print()
-            print(f'WOAH! I got something other than "r"eady message from the Arduino')
-            print(f'{arduino_return.command}: {arduino_return.value}')
-            print()
+        if arduino_return.command == 'B':
+            print(f'HOLY SHIT!!! ARDUINO BRIGHTNESS: {arduino_return.value}')
+        # else:
+        #     print()
+        #     print(f'WOAH! I got something other than "r"eady message from the Arduino')
+        #     print(f'{arduino_return.command}: {arduino_return.value}')
+        #     print()
 
 def arduino_setup():
     """TODO will populate with checks and timeouts for Arduino serial connection.\n
     If reaches timeout before connection, will disable Arduino/LED portion of the Signifier code."""
     if config['leds']['enabled'] is True:
         arduino.set_callbacks(callback_list)
+        logger.debug(f'({len(arduino.callbacks)}) Arduino callback(s) set.')
         arduino.open()
+        
         wait_to_start()
 
 def wait_to_start(start_delay=None):
@@ -382,9 +400,6 @@ if __name__ == '__main__':
         arduino.tick()
 
         schedule.run_pending()
-        for event in pg.event.get():
-            if event.type == CLIP_EVENT:
-                logger.info(f'Clip end event: {event}')
-                clip_manager.check_finished()
+        check_audio_events()
 
-        time.sleep(1)
+        #time.sleep(1)
