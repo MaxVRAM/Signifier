@@ -2,8 +2,9 @@
     "leds":
     {
         "enabled":true,
+        "arduino_delay":5,
         "max_brightness":255,
-        "arduino_delay":5
+        "default_hue":""
     },
     "audio":
     {
