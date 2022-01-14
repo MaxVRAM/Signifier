@@ -45,7 +45,7 @@ clip_manager:ClipManager
 arduino = None
 arduino_callbacks = None
 arduino_send_time = time.time_ns() // 1_000_000
-arduino_send_period = 1000
+arduino_send_period = 300
 brightness_value = 0
 
 class arduinoStruct(object):
@@ -168,8 +168,7 @@ def modulate_volumes(speed=None, weight=None):
 
 
 def start_job(jobs:list):
-    """Start jobs that exist and are enabled in the config file from a\
-    supplied list of job names."""
+    """Start jobs matching the (str)name or list of from provided list."""
     if isinstance(jobs, str):
         jobs = [jobs]
     for job in jobs:
@@ -180,17 +179,16 @@ def start_job(jobs:list):
             active_jobs[job] = \
                 schedule.every(job_info['timer']).seconds.do(jobs_dict[job])
 
-def stop_job(jobs:list):
-    """Stop jobs matching the name or tag from provided list."""
+def stop_job(jobs):
+    """Stop jobs matching the (str)name or list of from provided list."""
     if isinstance(jobs, str):
         jobs = [jobs]
-
     for job in jobs:
         if job in active_jobs:
             schedule.cancel_job(active_jobs.pop(job))
 
-# Dictionary object to convert the strings representing scheduler
-# jobs to their associated function calls
+"""Dictionary object to convert job strings from the config file to
+their associated function calls"""
 jobs_dict = {
     'collection': get_collection,
     'composition': automate_composition,
@@ -307,6 +305,10 @@ def arduino_callback():
         arduino_return.duration = arduino.rx_obj(obj_type='l', start_pos=recSize)
         recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
 
+        if arduino_return.command != 'r':
+            print(f'RECEIVED FROM ARDUINO: {arduino_return.command} '
+                  f'{arduino_return.value} {arduino_return.duration}')
+
         if arduino_return.command == 'r':
             global arduino_send_time, brightness_value
             # Test message for checking Arduino Tx/Rx and LED control
@@ -317,14 +319,13 @@ def arduino_callback():
                 if brightness_value == 0:
                     brightness_value = 1
                 else:
-                    brightness_value = 0 
+                    brightness_value = 0
+
+                dur = int(arduino_send_period / 2)
                 arduino_command('B', int(brightness_value * 255),\
-                    int(arduino_send_period * 2))
+                    int(dur))
                 print()
-                print(f'SEND TO ARDUINO: "B" {brightness_value * 255} {arduino_send_period * 2}')
-        else:
-            print(f'RECEIVED FROM ARDUINO: {arduino_return.command} '
-                  f'{arduino_return.value} {arduino_return.duration}')
+                print(f'SEND TO ARDUINO: "B" {brightness_value * 255} {dur}')
 
 def arduino_setup():
     """TODO will populate with checks and timeouts for Arduino serial\
