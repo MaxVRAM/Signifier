@@ -20,20 +20,23 @@ Python scripts designed for Raspberry Pi 4B to manage sensor inputs, output modu
         - [ ] Tested 
         - [ ] Integrated
 3. Interactive audio & interactive LEDs
-    - [ ] Raspberry Pi / Arduino interfacing
-        - [ ] Tested 
-        - [ ] Integrated
+    - [x] Raspberry Pi / Arduino interfacing
+        - [x] Tested 
+        - [x] Integrated
     - [ ] Audio analysis
         - [ ] Tested 
         - [ ] Integrated
     - [ ] Interactive LED manager
+        - [x] Tested 
+        - [ ] Integrated
+    - [ ] LED effects suite
         - [ ] Tested 
         - [ ] Integrated
 4. Network communication over WiFi/cellular to online server:
     - [ ] Simple API control of Signifier manager
     - [ ] Signifier management over WiFi
     - [ ] Writing sensor data to local time-series database
-    - [ ] Pushing local data to remote database
+    - [ ] Pushing to remote database
     - [ ] Signifier management over cellular
 BONUS ROUND:
     - [ ] Web-socket server on Signifiers
@@ -64,7 +67,7 @@ BONUS ROUND:
 
 - It's unfortunate the amp doesn't have a 3.5mm jack input, as this would provide more options should there be issues with USB communication.
 
-Currently trying these:
+Currently using these:
 - `python3 -m pip install sounddevice`
 - `python3 -m pip install alsa-utils`
 - `sudo apt install libportaudio2`
