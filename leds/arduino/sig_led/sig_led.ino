@@ -11,7 +11,9 @@
 // acompile /home/pi/Signifier/leds/arduino/sig_led && aupload /home/pi/Signifier/leds/arduino/sig_led
 
 // TODO:
-// Mapping: Fixed hardware mapped positions, north <-> south, in <-> out
+// Reporting: periodic updates to RPi with average loop length, run-time, etc.
+// Systems: shutdown sequence...
+// Mapping: fixed hardware mapped positions, north <-> south, in <-> out
 // Functions: layer blending, blend modulation, position and HSV shaping
 // Layers: solid colours, gradients, noise, trails, shapes (line blocks, etc)
 
@@ -88,7 +90,7 @@ void loop()
   prevLoopTime = millis() - loopStartTime;
   loopStartTime = millis();
   smooth(loopAvg, prevLoopTime);
-  //sendCommand(COMMAND{'L', loopStartTime, loopAvg.average});
+  sendCommand(COMMAND{'L', loopStartTime, loopAvg.average});
 
   fadeToTarget(main_brightness);
 
@@ -205,9 +207,8 @@ void startup_sequence()
     }
   }
 
-  CRGB whiteTarget = CRGB::White;
-
   // Shiney demo bit
+  CRGB whiteTarget = CRGB::White;
   for (unsigned int i = 0; i < NUM_LEDS; i++)
   {
     CRGB currentA = leds[i];
@@ -223,7 +224,6 @@ void startup_sequence()
       leds[j].nscale8(253);
     }
   }
-
   for (unsigned int i = 0; i < NUM_LEDS; i++)
   {
     leds[i] = initRGB;

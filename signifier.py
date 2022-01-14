@@ -15,6 +15,7 @@ import schedule
 import json
 import math
 
+from datetime import datetime as dt
 from ctypes import c_wchar
 from signify.clip_manager import ClipManager
 from pySerialTransfer import pySerialTransfer as txfer
@@ -23,6 +24,8 @@ import pygame as pg
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 active_jobs = {}
+audio_active = False
+arduino_active = False
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -38,7 +41,7 @@ clip_manager:ClipManager
 arduino = None
 arduino_callbacks = None
 arduino_send_time = time.time_ns() // 1_000_000
-arduino_send_period = 50
+arduino_send_period = 20
 brightness_value = 0
 
 class arduinoStruct(object):
@@ -58,7 +61,7 @@ arduino_return = arduinoStruct
 
 def stop_random_clip():
     """Stop a single clip from the active pool at random."""
-    if config['audio']['enabled'] is True:
+    if audio_active:
         clip_manager.stop_clip()
 
 def stop_all_clips(fade_time=None, disable_events=False):
@@ -67,7 +70,7 @@ def stop_all_clips(fade_time=None, disable_events=False):
     active clips should take to fade their volumes before stopping
     playback. If no parameter is provided, the [clip_manager][fade_out] 
     value from the config.json will be used."""
-    if config['audio']['enabled'] is True:
+    if audio_active:
         fade_time = config['clip_manager']['fade_out'] if fade_time is None \
             else fade_time
         if pg.mixer.get_init():
@@ -80,7 +83,7 @@ def stop_all_clips(fade_time=None, disable_events=False):
 def check_audio_events():
     """Check for audio playback completion events, 
     call the clip manager to clean them up"""
-    if config['audio']['enabled'] is True and pg.get_init() is True:
+    if audio_active:
         for event in pg.event.get():
             if event.type == CLIP_EVENT:
                 logger.info(f'Clip end event: {event}')
@@ -103,12 +106,12 @@ def get_collection(pool_size=None, restart_jobs=True):
     additional modulation jobs should be started immediately after the 
     new collection has been loaded. If set to False, they will need 
     to be manually triggered using the "set_jobs()" function."""
-    if config['audio']['enabled'] is True:
+    if audio_active:
         pool_size = config['jobs']['collection']['parameters']['pool_size']\
             if pool_size is None else pool_size
         print()
         if restart_jobs is True:
-            stop_job(['composition', 'volume'])
+            stop_job('composition', 'volume')
         stop_all_clips(disable_events=True)
         while pg.mixer.get_busy():
             time.sleep(0.1)
@@ -122,7 +125,7 @@ def get_collection(pool_size=None, restart_jobs=True):
         if restart_jobs is True:
             time.sleep(1)
             automate_composition()
-            start_job(['composition', 'volume'])
+            start_job('composition', 'volume')
 
 def automate_composition(quiet_level=None, busy_level=None):
     """Ensure the clip manager is playing an appropriate number of clips,\
@@ -131,7 +134,7 @@ def automate_composition(quiet_level=None, busy_level=None):
     concurrent clips playing before looking for more to play.\n -
     "busy_level=(int)" the highest number of concurrent clips playing
     before stopping active clips."""
-    if config['audio']['enabled'] is True:
+    if audio_active:
         quiet_level = config['jobs']['composition']['parameters']['quiet_level']\
             if quiet_level is None else quiet_level
         busy_level = config['jobs']['composition']['parameters']['busy_level']\
@@ -152,7 +155,7 @@ def modulate_volumes(speed=None, weight=None):
     as a percentage of the total volume. 1 is slow, 10 is very quick.\n -
     "weight=(float)" is a signed normalised float (-1.0 to 1.0) that
     weighs the random steps towards either direction."""
-    if config['audio']['enabled'] is True:
+    if audio_active:
         speed = config['jobs']['volume']['parameters']['speed']\
             if speed is None else speed
         weight = config['jobs']['volume']['parameters']['weight']\
@@ -160,25 +163,29 @@ def modulate_volumes(speed=None, weight=None):
         clip_manager.modulate_volumes(speed, weight)
 
 
-def start_job(jobs:list):
-    """Start jobs matching the (str)name or list of from provided list."""
-    if isinstance(jobs, str):
-        jobs = [jobs]
+def start_job(*args):
+    """Start jobs matching names provided as string arguments.\n
+    Jobs will only start if it is registered in the jobs dict,\
+    not in the active jobs pool, and where it's tagged service\
+    and the job ifself are both enabled in config file."""
+    jobs = set(args)
+    jobs.intersection_update(jobs_dict.keys())
+    jobs.difference_update(active_jobs.keys())
+    jobs.intersection_update(
+        set(k for k,v in config['jobs'].items()\
+        if v['enabled'] and config[v['tag']]['enabled']))
     for job in jobs:
-        job_info = config['jobs'].get(job, None)
-        if job_info is not None and job_info['enabled'] is True and\
-                job in jobs_dict and job not in active_jobs \
-                and config[job_info['tag']]['enabled'] is not False:
-            active_jobs[job] = \
-                schedule.every(job_info['timer']).seconds.do(jobs_dict[job])
+        active_jobs[job] = schedule.every(config['jobs'][job]['timer'])\
+                            .seconds.do(jobs_dict[job])
+    print(f'Jobs active: {active_jobs}')
 
-def stop_job(jobs):
-    """Stop jobs matching the (str)name or list of from provided list."""
-    if isinstance(jobs, str):
-        jobs = [jobs]
+def stop_job(*args):
+    """Stop jobs matching names provided as string arguments.\n
+    Jobs will only be stopped if they are found in the active pool."""
+    jobs = set(args)
+    jobs.intersection_update(active_jobs.keys())
     for job in jobs:
-        if job in active_jobs:
-            schedule.cancel_job(active_jobs.pop(job))
+        schedule.cancel_job(active_jobs.pop(job))
 
 """Dictionary object to convert job strings from the config file to
 their associated function calls"""
@@ -196,43 +203,53 @@ jobs_dict = {
 #  /_______  /\___  >__| |____/|   __/ 
 #          \/     \/           |__|    
 
+def init_clip_manager():
+    """Load Clip Manager with audio library and initialise the clips."""
+    if audio_active:
+        global clip_manager
+        try:
+            clip_manager = ClipManager(config['clip_manager'],\
+                pg.mixer, CLIP_EVENT)
+        except OSError:
+            exit_handler.shutdown()
+        clip_manager.init_library()
+
 def audio_device_check() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
-    if config['audio']['enabled'] is True:
-        default_device = config['audio']['device']
-        try:
-            import pygame._sdl2 as sdl2
-            pg.init()
-            is_capture = 0
-            num_devices = sdl2.get_num_audio_devices(is_capture)
-            device_names = [str(sdl2.get_audio_device_name(i, is_capture),\
-                encoding="utf-8") for i in range(num_devices)]
-            pg.mixer.quit()
-            pg.quit()
-            if device_names is None or len(device_names) == 0:
-                logger.warning(f'No audio devices detected by sdl2. Attempting '
-                               f'to force default: "{default_device}"...')
-                exit_handler.shutdown()
-            logger.debug(f'SDL2 detected the following audio devices: '
-                         f'{device_names}')
-            device = None
-            for d in device_names:
-                if default_device in d:
-                    device = d
-                    break
-            if device is None:
-                logger.warning(f'Expected audio device "{default_device}" '
-                               f'but was not detected by sdl2. '
-                               f'Attempting to force driver...')
-                exit_handler.shutdown()
-            logger.info(f'"{device}" found on host and will be used for audio playback.')
-            return default_device
-        except Exception as exception:
-            logger.warning(f'Error while using sdl2 to determine audio devices '
-                           f'available on host. Attempting to force '
-                           f'"{default_device}": {exception}')
-            return default_device
+    default_device = config['audio']['device']
+    try:
+        import pygame._sdl2 as sdl2
+        pg.init()
+        is_capture = 0
+        num_devices = sdl2.get_num_audio_devices(is_capture)
+        device_names = [str(sdl2.get_audio_device_name(i, is_capture),\
+            encoding="utf-8") for i in range(num_devices)]
+        pg.mixer.quit()
+        pg.quit()
+        if device_names is None or len(device_names) == 0:
+            logger.warning(f'No audio devices detected by sdl2. Attempting '
+                            f'to force default: "{default_device}"...')
+            exit_handler.shutdown()
+        logger.debug(f'SDL2 detected the following audio devices: '
+                        f'{device_names}')
+        device = None
+        for d in device_names:
+            if default_device in d:
+                device = d
+                break
+        if device is None:
+            logger.warning(f'Expected audio device "{default_device}" '
+                            f'but was not detected by sdl2. '
+                            f'Attempting to force driver...')
+            exit_handler.shutdown()
+        logger.info(f'"{device}" found on host and will be used for audio playback.')
+        return default_device
+    except Exception as exception:
+        logger.warning(f'Error while using sdl2 to determine audio devices '
+                        f'available on host. Attempting to force '
+                        f'"{default_device}": {exception}')
+        return default_device
 
 def init_audio_engine():
     """Ensure audio driver exists and initialise the Pygame mixer."""
@@ -247,20 +264,11 @@ def init_audio_engine():
             )
         pg.mixer.init()
         pg.init()
+        audio_active = True
         logger.debug(f'Audio mixer successfully configured with device: '
-                     f'"{device} {pg.mixer.get_init()}"')
+                     f'"{device} {pg.mixer.get_init()}". Audio system active.')
         print()
 
-def init_clip_manager():
-    """Load Clip Manager with audio library and initialise the clips."""
-    if config['audio']['enabled'] is True:
-        global clip_manager
-        try:
-            clip_manager = ClipManager(config['clip_manager'],\
-                pg.mixer, CLIP_EVENT)
-        except OSError:
-            exit_handler.shutdown()
-        clip_manager.init_library()
 
 
 #     _____            .___    .__               
@@ -274,7 +282,7 @@ def arduino_command(command:c_wchar, value:int, duration:int) -> bool:
     """Send the Arduino a command via serial, including a value,\
     and duration for the command to run for."""
     # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
-    if config['leds']['enabled'] is True:
+    if arduino_active:
         sendSize = 0
         value = int(value)
         sendSize = arduino.tx_obj(command, start_pos=sendSize)
@@ -288,7 +296,7 @@ def arduino_callback():
     Arduino, automatically parsing the serial packets for processing (i.e.\
     using the arduino.rx_obj() function).\n Depending on the message\
     received, this function may or may not execute additional commands."""
-    if config['leds']['enabled'] is True:
+    if arduino_active:
         recSize = 0
         arduino_return.command = arduino.rx_obj(obj_type='c', start_pos=recSize)
         arduino_return.command = arduino_return.command.decode("utf-8")
@@ -298,10 +306,6 @@ def arduino_callback():
         arduino_return.duration = arduino.rx_obj(obj_type='l', start_pos=recSize)
         recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
 
-        if arduino_return.command != 'r':
-            print(f'RECEIVED FROM ARDUINO: {arduino_return.command} '
-                  f'{arduino_return.value} {arduino_return.duration}')
-
         if arduino_return.command == 'r':
             global arduino_send_time, brightness_value
             # Test message for checking Arduino Tx/Rx and LED control
@@ -309,40 +313,21 @@ def arduino_callback():
                     > arduino_send_time + arduino_send_period:
                 arduino_send_time = current_ms
                 #brightness_value = random.triangular(0.0, 1.0, 0.5)
-                
+
                 dur = int(arduino_send_period)
 
-
-
                 # Flash
-                if brightness_value == 0:
-                    brightness_value = 1
-                else:
-                    brightness_value = 0
-
+                # if brightness_value == 0:
+                #     brightness_value = 1
+                # else:
+                #     brightness_value = 0
                 # Slow sine pulse
-                brightness_value = int(((math.sin(time.time()) + 1) / 2) * 255)
-
-
-
+                brightness_value = int(((math.sin(time.time()*3) + 1) / 2) * 255)
+                
                 arduino_command('B', brightness_value, dur)
-                print()
-                print(f'SEND TO ARDUINO: "B" {brightness_value} {dur}')
+                print(f'{dt.now()}    SEND TO ARDUINO: "B" {brightness_value} {dur}')
 
-def arduino_setup():
-    """TODO will populate with checks and timeouts for Arduino serial\
-    connection.\n If reaches timeout before connection, will disable\
-    Arduino/LED portion of the Signifier code."""
-    if config['leds']['enabled'] is True:
-        global arduino
-        arduino = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
-        arduino.set_callbacks(arduino_callbacks)
-        logger.debug(f'({len(arduino.callbacks)}) Arduino callback(s) set.')
-        arduino.open()
-        
-        wait_to_start()
-
-def wait_to_start(start_delay=None):
+def wait_for_arduino(start_delay=None):
     """Sleep after initialisation to make sure Arduino and\
     RPi start at the same time."""
     # TODO: Replace with a serial message callback for Arduino ready.
@@ -358,6 +343,20 @@ def wait_to_start(start_delay=None):
             time.sleep(1)
         print()
 
+def open_arduino():
+    """TODO will populate with checks and timeouts for Arduino serial\
+    connection.\n If reaches timeout before connection, will disable\
+    Arduino/LED portion of the Signifier code."""
+    global arduino_active
+    if config['leds']['enabled'] is True:
+        global arduino
+        arduino = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
+        arduino.set_callbacks(arduino_callbacks)
+        logger.debug(f'({len(arduino.callbacks)}) Arduino callback(s) set.')
+        arduino.open()
+        wait_for_arduino()
+        arduino_active = True
+
 arduino_callbacks = [arduino_callback]
 
 
@@ -369,20 +368,24 @@ arduino_callbacks = [arduino_callback]
 #          \/      \/                 \/                 \/ 
 
 def stop_scheduler():
-    logger.debug(f'({len(schedule.get_jobs())}) active jobs.')
+    logger.debug(f'({len(schedule.get_jobs())}) active jobs will be stopped.')
     schedule.clear()
 
 def close_arduino():
+    global arduino_active
     # TODO: Check if Arduino is connected
     # TODO: Tell it to stop / go into idle state
     arduino.close()
+    arduino_active = False
 
 def stop_audio():
+    global audio_active
     if pg.get_init() is True and pg.mixer.get_init() is not None:
         stop_all_clips()
         while pg.mixer.get_busy():
             time.sleep(0.1)
         pg.quit()
+    audio_active = False
 
 class ExitHandler:
     signals = {signal.SIGINT:'SIGINT', signal.SIGTERM:'SIGTERM'}
@@ -420,9 +423,9 @@ if __name__ == '__main__':
     init_audio_engine()
     init_clip_manager()
     get_collection(restart_jobs=False)
-    arduino_setup()
+    open_arduino()
 
-    start_job(['collection','composition', 'volume'])
+    start_job('collection','composition', 'volume')
     automate_composition()
 
     while True:
