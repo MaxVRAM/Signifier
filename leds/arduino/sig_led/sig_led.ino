@@ -1,4 +1,20 @@
 
+//    _________.__         .____     ___________________   
+//   /   _____/|__| ____   |    |    \_   _____/\______ \  
+//   \_____  \ |  |/ ___\  |    |     |    __)_  |    |  \ 
+//   /        \|  / /_/  > |    |___  |        \ |    `   \
+//  /_______  /|__\___  /  |_______ \/_______  //_______  /
+//          \/   /_____/           \/        \/         \/ 
+
+// Compile using Ardino-CLI: https://github.com/arduino/arduino-cli
+// Use command:
+// acompile /home/pi/Signifier/leds/arduino/sig_led && aupload /home/pi/Signifier/leds/arduino/sig_led
+
+// TODO:
+// Mapping: Fixed hardware mapped positions, north <-> south, in <-> out
+// Functions: layer blending, blend modulation, position and HSV shaping
+// Layers: solid colours, gradients, noise, trails, shapes (line blocks, etc)
+
 #define FASTLED_ALLOW_INTERRUPTS 0
 
 #include <Arduino.h>
@@ -188,6 +204,8 @@ void startup_sequence()
       leds[j].nscale8_video(253);
     }
   }
+
+  CRGB whiteTarget = CRGB::White;
 
   // Shiney demo bit
   for (unsigned int i = 0; i < NUM_LEDS; i++)
