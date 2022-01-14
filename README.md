@@ -233,12 +233,3 @@ snd_timer              36864  1 snd_pcm
 snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_compress,snd_soc_core,snd_pcm
 ```
 
-
-
-# Main fixes
-
-List of fixes over the original Siginifer code:
-- Original code maxed out single thread:
-  - This was mostly due to the program's while loop not containing a time.sleep(), slamming the main thread.
-  - Many hard-coded values, making debugging and alterations difficult.
-  - 
