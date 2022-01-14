@@ -94,11 +94,18 @@ Currently using these:
 - Docker/Portainer - local and remote management of additional packages.
 - Prometheus - time-series database for local database recording of sensor data.
 
-## Python modules
+## Dependencies
+
+Audio loopback with ALSA:
+- `sudo modprobe snd-aloop`
+- `sudo  cat /proc/asound/version`
+// Advanced Linux Sound Architecture Driver Version k5.10.63-v8+.
+
+### Python modules
+- [PyGame]
 - [PySerial](https://pypi.org/project/pyserial/)
 - [sounddevices](https://python-sounddevice.readthedocs.io/en/0.4.3/)
 - [Prometheus Python Client](https://pypi.org/project/prometheus-client/0.0.9/)
-
 
 
 

@@ -1,3 +1,4 @@
 pygame
 pySerialTransfer
 bleson
+sounddevice

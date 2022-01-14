@@ -14,6 +14,9 @@ import time
 import schedule
 import json
 import math
+import sounddevice as sd
+
+import alsaaudio as asla
 
 from datetime import datetime as dt
 from ctypes import c_wchar
@@ -28,7 +31,6 @@ active_jobs = {}
 audio_active = False
 arduino_active = False
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -63,17 +65,18 @@ arduino_return = arduinoStruct
 #          \/        |__|       \/
 
 def stop_random_clip():
-    """Stop a single clip from the active pool at random."""
+    """Stop a randomly selected audio clip from the active pool."""
     if audio_active:
         clip_manager.stop_clip()
 
 
 def stop_all_clips(fade_time=None, disable_events=False):
     """Tell all active clips to stop playing, emptying the mixer of\
-    active channels.\n - "fade_time=(int)" the number of milliseconds
-    active clips should take to fade their volumes before stopping
-    playback. If no parameter is provided, the [clip_manager][fade_out]
-    value from the config.json will be used."""
+    active channels.\n `fade_time=(int)` the number of milliseconds active\
+    clips should take to fade their volumes before stopping playback.\
+    If no parameter is provided, the clip_manager's `fade_out`\
+    value from the config.json will be used.\n Use 'disable_events=True'\
+    to prevent misfiring audio jobs that use clip end events to launch more."""
     if audio_active:
         fade_time = config['clip_manager']['fade_out'] if fade_time is None \
             else fade_time
@@ -88,7 +91,7 @@ def stop_all_clips(fade_time=None, disable_events=False):
 
 def cleanup_audio_events():
     """Check for audio playback completion events,
-    call the clip manager to clean them up"""
+    call the clip manager to clean them up."""
     if audio_active:
         for event in pg.event.get():
             if event.type == CLIP_EVENT:
@@ -105,13 +108,13 @@ def cleanup_audio_events():
 
 def get_collection(pool_size=None, restart_jobs=True):
     """Select a new collection from the clip manager, replacing any\
-    currently loaded collection.\n - "pool_size=(int)" defines the
+    currently loaded collection.\n - `pool_size=(int)` defines the
     number of clips to load from the collection.\n If parameter is
-    not provided, the job's config.json default "pool_size" value
-    will be used.\n - "restart_jobs=(bool)" tells the function if the
+    not provided, the job's config.json default `pool_size` value
+    will be used.\n - `restart_jobs=(bool)` tells the function if the
     additional modulation jobs should be started immediately after the
     new collection has been loaded. If set to False, they will need
-    to be manually triggered using the "set_jobs()" function."""
+    to be manually triggered using the `set_jobs()` function."""
     if audio_active:
         pool_size = config['jobs']['collection']['parameters']['pool_size']\
             if pool_size is None else pool_size
@@ -137,9 +140,9 @@ def get_collection(pool_size=None, restart_jobs=True):
 def automate_composition(quiet_level=None, busy_level=None):
     """Ensure the clip manager is playing an appropriate number of clips,\
     and move any finished clips still lingering in the active pool to
-    the inactive pool.\n - "quiet_level=(int)" the lowest number of
+    the inactive pool.\n - `quiet_level=(int)` the lowest number of
     concurrent clips playing before looking for more to play.\n -
-    "busy_level=(int)" the highest number of concurrent clips playing
+    `busy_level=(int)` the highest number of concurrent clips playing
     before stopping active clips."""
     if audio_active:
         job_params = config['jobs']['composition']['parameters']
@@ -160,7 +163,7 @@ def automate_composition(quiet_level=None, busy_level=None):
 
 def modulate_volumes(speed=None, weight=None):
     """Randomly modulate the Channel volumes for all Clip(s) in the\
-    active pool.\n - "speed=(int)" is the maximum volume jump per tick
+    active pool.\n - `speed=(int)` is the maximum volume jump per tick
     as a percentage of the total volume. 1 is slow, 10 is very quick.\n -
     "weight=(float)" is a signed normalised float (-1.0 to 1.0) that
     weighs the random steps towards either direction."""
@@ -314,9 +317,9 @@ def arduino_command(command: c_wchar, value: int, duration: int) -> bool:
 
 
 def arduino_callback():
-    """Called when arduino.tick() receives a serial message from the\
+    """Called when `arduino.tick()` receives a serial message from the\
     Arduino, automatically parsing the serial packets for processing (i.e.\
-    using the arduino.rx_obj() function).\n Depending on the message\
+    using the `arduino.rx_obj()` function).\n Depending on the message\
     received, this function may or may not execute additional commands."""
     if arduino_active:
         recSize = 0
