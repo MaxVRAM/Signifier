@@ -20,20 +20,23 @@ Python scripts designed for Raspberry Pi 4B to manage sensor inputs, output modu
         - [ ] Tested 
         - [ ] Integrated
 3. Interactive audio & interactive LEDs
-    - [ ] Raspberry Pi / Arduino interfacing
-        - [ ] Tested 
-        - [ ] Integrated
+    - [x] Raspberry Pi / Arduino interfacing
+        - [x] Tested 
+        - [x] Integrated
     - [ ] Audio analysis
         - [ ] Tested 
         - [ ] Integrated
     - [ ] Interactive LED manager
+        - [x] Tested 
+        - [ ] Integrated
+    - [ ] LED effects suite
         - [ ] Tested 
         - [ ] Integrated
 4. Network communication over WiFi/cellular to online server:
     - [ ] Simple API control of Signifier manager
     - [ ] Signifier management over WiFi
     - [ ] Writing sensor data to local time-series database
-    - [ ] Pushing local data to remote database
+    - [ ] Pushing to remote database
     - [ ] Signifier management over cellular
 BONUS ROUND:
     - [ ] Web-socket server on Signifiers
@@ -64,7 +67,7 @@ BONUS ROUND:
 
 - It's unfortunate the amp doesn't have a 3.5mm jack input, as this would provide more options should there be issues with USB communication.
 
-Currently trying these:
+Currently using these:
 - `python3 -m pip install sounddevice`
 - `python3 -m pip install alsa-utils`
 - `sudo apt install libportaudio2`
@@ -230,12 +233,3 @@ snd_timer              36864  1 snd_pcm
 snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_compress,snd_soc_core,snd_pcm
 ```
 
-
-
-# Main fixes
-
-List of fixes over the original Siginifer code:
-- Original code maxed out single thread:
-  - This was mostly due to the program's while loop not containing a time.sleep(), slamming the main thread.
-  - Many hard-coded values, making debugging and alterations difficult.
-  - 
