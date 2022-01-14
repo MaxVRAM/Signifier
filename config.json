@@ -37,21 +37,21 @@
         "collection":
         {
             "enabled":true,
-            "tag":"audio",
+            "service":"audio",
             "timer":96,
             "parameters": {"pool_size":12}
         },
         "composition":
         {
             "enabled":true,
-            "tag":"audio",
+            "service":"audio",
             "timer":16,
             "parameters": {"quiet_level":3, "busy_level":6}
         },
         "volume":
         {
             "enabled":true,
-            "tag":"audio",
+            "service":"audio",
             "timer":2,
             "parameters": {"speed":5, "weight":0}
         }
