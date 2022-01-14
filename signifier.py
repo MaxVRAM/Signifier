@@ -13,6 +13,7 @@ import sys
 import time
 import schedule
 import json
+import math
 
 from ctypes import c_wchar
 from signify.clip_manager import ClipManager
@@ -34,18 +35,10 @@ with open(CONFIG_FILE) as c:
 CLIP_EVENT = pg.USEREVENT+1
 clip_manager:ClipManager
 
-# NOTE The Arduino is here!
-# 38400 is the only baud rate that worked to a standard I was happy with.
-# Initally, I had issues with serial communication between the Arduino
-# and RPi, so I attempted various baud rates: 9600, 14400, 19200, 28800.
-# They all had major issues with dropped serial packets. 38400 is
-# extremely robust, and I feel like I can rely on this to produce the
-# results I'm after.
-
 arduino = None
 arduino_callbacks = None
 arduino_send_time = time.time_ns() // 1_000_000
-arduino_send_period = 300
+arduino_send_period = 50
 brightness_value = 0
 
 class arduinoStruct(object):
@@ -316,16 +309,25 @@ def arduino_callback():
                     > arduino_send_time + arduino_send_period:
                 arduino_send_time = current_ms
                 #brightness_value = random.triangular(0.0, 1.0, 0.5)
+                
+                dur = int(arduino_send_period)
+
+
+
+                # Flash
                 if brightness_value == 0:
                     brightness_value = 1
                 else:
                     brightness_value = 0
 
-                dur = int(arduino_send_period / 2)
-                arduino_command('B', int(brightness_value * 255),\
-                    int(dur))
+                # Slow sine pulse
+                brightness_value = int(((math.sin(time.time()) + 1) / 2) * 255)
+
+
+
+                arduino_command('B', brightness_value, dur)
                 print()
-                print(f'SEND TO ARDUINO: "B" {brightness_value * 255} {dur}')
+                print(f'SEND TO ARDUINO: "B" {brightness_value} {dur}')
 
 def arduino_setup():
     """TODO will populate with checks and timeouts for Arduino serial\
