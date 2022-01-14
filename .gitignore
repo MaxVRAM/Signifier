@@ -132,3 +132,4 @@ dmypy.json
 # Custom
 audio/
 old_audio/
+arduino_examples/

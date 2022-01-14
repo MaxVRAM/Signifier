@@ -41,7 +41,8 @@ class ClipManager:
     def init_library(self):
         """Initialises the library with collections of Clips from the base path's subdirectories."""
         logger.debug(f'Initialising library from base path {self.config["base_path"]}...')
-        titles = [d for d in os.listdir(self.config['base_path']) if os.path.isdir(os.path.join(self.config['base_path'], d))]
+        titles = [d for d in os.listdir(self.config['base_path']) \
+            if os.path.isdir(os.path.join(self.config['base_path'], d))]
         for title in sorted(titles):
             path = os.path.join(self.config['base_path'], title)
             names = []
@@ -51,7 +52,8 @@ class ClipManager:
             if len(names) != 0:
                 self.collections[title] = {'path':path, 'names':names}
                 logger.debug(f'"{title}" added to library with "{len(names)}" audio files.')
-        logger.info(f'Audio clip library initialised with ({len(self.collections)}) collection{plural(self.collections)}.')
+        logger.info(f'Audio clip library initialised with ({len(self.collections)}) '
+                    f'collection{plural(self.collections)}.')
 
     def select_collection(self, name=None, num_clips=12):
         """Selects a collection from the library, prepares clips and playback pools.\n
@@ -72,7 +74,7 @@ class ClipManager:
         if (pool := get_distributed(self.clips, num_clips, self.config['strict_distribution'])) is not None:
             self.inactive_pool = pool
             self.channels = self.get_channels(self.inactive_pool)
-            failed = init_sounds(self.inactive_pool, self.channels) # TODO Keeping failed returns in case they're useful
+            failed = init_sounds(self.inactive_pool, self.channels) # TODO Keeping failed in case they're useful
             return self.current_collection
         else:
             logger.error(f'Failed to retrieve a collection "{name}"! Audio files might be corrupted.')
@@ -114,7 +116,8 @@ class ClipManager:
             logger.debug(f'MOVED: {clip.name} | inactive >>> ACTIVE.')
 
     def check_finished(self) -> set:
-        """Checks active pool for lingering Clips finished playback, and moves them to the inactive pool."""
+        """Checks active pool for lingering Clips finished playback, and moves them to the inactive pool.
+        Returns a set containing any clips moved."""
         finished = set()
         for clip in self.active_pool:
             if not clip.channel.get_busy():
@@ -150,8 +153,9 @@ class ClipManager:
 
     def modulate_volumes(self, speed, weight):
         """Randomly modulate the Channel volumes for all Clip(s) in the active pool.\n 
-        - "speed=(int)" is the maximum volume jump per tick as a percentage of the total volume. 1 is slow, 10 is very quick.\n 
-        - "weight=(float)" is a signed normalised float (-1.0 to 1.0) that weighs the random steps towards either direction."""
+        - "speed=(int)" is the maximum volume jump per tick as a percentage of the total 
+        volume. 1 is slow, 10 is very quick.\n - "weight=(float)" is a signed normalised 
+        float (-1.0 to 1.0) that weighs the random steps towards either direction."""
         speed = speed / 100
         weight = weight * speed
         new_volumes = []
@@ -165,4 +169,10 @@ class ClipManager:
             logger.debug(f'Channel volumes updated: {new_volumes})')
 
     def clips_playing(self) -> int:
+        """Return number of active clips."""
         return len(self.active_pool)
+
+    def clear_events(self):
+        """Clears the end event callbacks from all clips in the active pool."""
+        for clip in self.active_pool:
+            clip.channel.set_endevent()
