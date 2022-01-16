@@ -1,18 +1,22 @@
 {
-    "leds":
+    "arduino":
     {
-        "enabled":true,
-        "arduino_delay":5,
+        "enabled":false,
+        "start_delay":5,
         "max_brightness":255,
-        "default_hue":""
+        "default_hue":"",
+        "send_period":20
     },
     "audio":
     {
-        "enabled":false,
-        "device":"bcm2835 Headphones, bcm2835 Headphones",
+        "enabled":true,
+        "playback_device":"Loopback, Loopback PCM",
+        "loopback_device":"Loopback: PCM (hw:3,1)",
+        "output_device":"bcm2835 Headphones: - (hw:0,0)",
         "sample_rate":44100,
         "bit_size":-16,
-        "buffer":2048
+        "buffer":2048,
+        "latency":500
     },
     "clip_manager":
     {

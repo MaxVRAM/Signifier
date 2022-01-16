@@ -67,11 +67,12 @@ BONUS ROUND:
 
 - It's unfortunate the amp doesn't have a 3.5mm jack input, as this would provide more options should there be issues with USB communication.
 
-Currently using these:
-- `python3 -m pip install sounddevice`
+Currently using these packages:
+- ~~`python3 -m pip install sounddevice`~~
+- ~~`sudo apt install libportaudio2`~~
 - `python3 -m pip install alsa-utils`
-- `sudo apt install libportaudio2`
-
+- `sudo apt install libasound2-dev`
+- `sudo modprobe snd-aloop`
 
 ### Temperature sensor
 [Digital Temp Sensor](https://www.altronics.com.au/p/z6386-stainless-steel-housing-waterproof-ds18b20-temperature-probe/)
@@ -96,9 +97,18 @@ Currently using these:
 
 ## Dependencies
 
+Audio directly through audio jack:
+
+- "device":["bcm2835 Headphones", "bcm2835 Headphones"]
+
+Audio through Loopback system:
+
+- "device":["Loopback", "Loopback PCM"]
+
+
 Audio loopback with ALSA:
 - `sudo modprobe snd-aloop`
-- `sudo  cat /proc/asound/version`
+- `sudo cat /proc/asound/version`
 // Advanced Linux Sound Architecture Driver Version k5.10.63-v8+.
 
 ### Python modules

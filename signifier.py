@@ -1,60 +1,62 @@
 
-#    _________.__              .__       .__    .__
-#   /   _____/|__| ____   ____ |__|_____ |  |__ |__| ___________
-#   \_____  \ |  |/ ___\ /    \|  \____ \|  |  \|  |/ __ \_  __ \
-#   /        \|  / /_/  >   |  \  |  |_> >   φ  \  \  ___/|  | \/
-#  /_______  /|__\___  /|___|  /__|   __/|___|  /__|\___  >__|
-#          \/   /_____/      \/   |__|        \/        \/
+#    _________.__              .__  _____       
+#   /   _____/|__| ____   ____ |__|/ ____\__.__.
+#   \_____  \ |  |/ ___\ /    \|  \   __<   |  |
+#   /        \|  / /_/  >   |  \  ||  |  \___  |
+#  /_______  /|__\___  /|___|  /__||__|  / ____|
+#          \/   /_____/      \/          \/     
+#
 
-import logging
+"""
+Audio System Information:
+
+To run Signify with LEDs modulated by the Signify audio
+
+An audio loopback device needs to be instantiated on
+before this script: `sudo modprobe snd-aloop`. This will
+create a device called 'Loopback, Loopback PCM', and
+should be the device name set in config.json.
+
+The audio sent to the loopback device then needs to be
+manually routed through the RPi's physical audio output
+jack. This can be done with the `alsa-utils` CLI tool
+`alsaloop`, and should run prior to the Signifier.
+
+`alsaloop -C hw:3,1 -P hw:0,0 -t 5000 -c 1 -f S16_LE`
+
+Note, that these audio device numbers are system specific.
+They may need to be changed to reflect you system config.
+
+"""
+
+
 import os
-import signal
 import sys
 import time
-import schedule
 import json
-import math
-import sounddevice as sd
+import signal
+import logging
+import schedule
+from threading import Thread
 
-import alsaaudio as asla
-
-from datetime import datetime as dt
-from ctypes import c_wchar
-from pySerialTransfer import pySerialTransfer as txfer
 import pygame as pg
 
-from signify.clip_manager import ClipManager
+from signify.siguino import Siguino
+import signify.passthrough as passthrough
+from signify.clipManager import ClipManager
+
+CLIP_EVENT = pg.USEREVENT + 1
+CONFIG_FILE = 'config.json'
 
 os.environ["SDL_VIDEODRIVER"] = "dummy"
-
+config = None
 active_jobs = {}
 audio_active = False
-arduino_active = False
-
+audio_stream: Thread
+clip_manager: ClipManager
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-CONFIG_FILE = 'config.json'
-with open(CONFIG_FILE) as c:
-    config = json.load(c)
-
-CLIP_EVENT = pg.USEREVENT+1
-clip_manager: ClipManager
-
-arduino = None
-arduino_callbacks = None
-arduino_send_time = time.time_ns() // 1_000_000
-arduino_send_period = 20
-brightness_value = 0
-
-
-class arduinoStruct(object):
-    command = ''
-    value = 0
-    duration = 0
-
-
-arduino_return = arduinoStruct
 
 
 #  _________ .__  .__
@@ -89,7 +91,7 @@ def stop_all_clips(fade_time=None, disable_events=False):
                 pg.mixer.fadeout(fade_time)
 
 
-def cleanup_audio_events():
+def manage_audio_events():
     """Check for audio playback completion events,
     call the clip manager to clean them up."""
     if audio_active:
@@ -201,15 +203,6 @@ def stop_job(*args):
         schedule.cancel_job(active_jobs.pop(job))
 
 
-"""Dictionary object to convert job strings from the config file to
-their associated function calls"""
-jobs_dict = {
-    'collection': get_collection,
-    'composition': automate_composition,
-    'volume': modulate_volumes
-}
-
-
 #    _________       __
 #   /   _____/ _____/  |_ __ ________
 #   \_____  \_/ __ \   __\  |  \____ \
@@ -229,10 +222,31 @@ def init_clip_manager():
         clip_manager.init_library()
 
 
-def audio_device_check() -> str:
+# def check_audio_device(custom_device=None) -> str:
+#     """Return valid audio device if it exists on the host. 'custom_device'\
+#     must be a list of two strings defining the audio card and device names."""
+#     # TODO Create functional mechanism to find and test audio devices
+#     device = custom_device if custom_device is not None\
+#         else config['audio']['device']
+#     device_tuple = (device[0], device[1])
+#     devices = [alsa.card_name(r) for r in range(len(alsa.card_indexes()))]
+#     if device_tuple not in devices:
+#         logger.warning(f'Audio device {device_tuple} not detected by ALSA.')
+#         return None
+#     logger.info(f'"{device_tuple}" is valid audio device.')
+#     return f'{device[0]}, {device[1]}'
+
+
+def passthrough_callback(values):
+    if values is None:
+        print('Audio values are none.')
+    else:
+        print(values)
+
+def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
-    default_device = config['audio']['device']
+    default_device = config['audio']['playback_device']
     import pygame._sdl2 as sdl2
     pg.init()
     is_capture = 0
@@ -262,7 +276,7 @@ def audio_device_check() -> str:
 
 def set_audio_engine(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    global audio_active
+    global audio_active, passthrough, audio_stream
     if config['audio']['enabled'] is True:
         if audio_active:
             if 'force' in args:
@@ -273,7 +287,12 @@ def set_audio_engine(*args):
                              'Ignoring request to start audio.')
                 return None
         # Begin initialisation
-        device = audio_device_check()
+        device = check_audio_device()
+        if device is None:
+            logger.error(f'Audio device could not be detected.\
+                Disabling audio system.')
+            return None
+        print(device)
         pg.mixer.pre_init(
             frequency=config['audio']['sample_rate'],
             size=config['audio']['bit_size'],
@@ -283,8 +302,12 @@ def set_audio_engine(*args):
         pg.mixer.init()
         pg.init()
         audio_active = True
-        logger.debug(f'Audio mixer successfully configured with device: '
+        logger.debug(f'Audio output configured with: '
                      f'"{device} {pg.mixer.get_init()}".')
+        #passthrough = Passthrough(config['audio'])
+        audio_stream = Thread(target=passthrough.stream, args=(config['audio'], passthrough_callback), daemon=True)
+        audio_stream.start()
+        print(f'Audio stream is alive: {audio_stream.is_alive()}')
     else:
         if audio_active:
             close_audio_system()
@@ -293,108 +316,6 @@ def set_audio_engine(*args):
                          'Ingnoring request to disable audio system.')
     logger.info(f'Audio system active: {audio_active}')
     print()
-
-
-#     _____            .___    .__
-#    /  _  \_______  __| _/_ __|__| ____   ____
-#   /  /_\  \_  __ \/ __ |  |  \  |/    \ /  _ \
-#  /    |    \  | \/ /_/ |  |  /  |   |  (  <_> )
-#  \____|__  /__|  \____ |____/|__|___|  /\____/
-#          \/           \/             \/
-
-def arduino_command(command: c_wchar, value: int, duration: int) -> bool:
-    """Send the Arduino a command via serial, including a value,\
-    and duration for the command to run for."""
-    # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
-    if arduino_active:
-        sendSize = 0
-        value = int(value)
-        sendSize = arduino.tx_obj(command, start_pos=sendSize)
-        sendSize = arduino.tx_obj(value, start_pos=sendSize)
-        sendSize = arduino.tx_obj(duration, start_pos=sendSize)
-        success = arduino.send(sendSize)
-        return success
-
-
-def arduino_callback():
-    """Called when `arduino.tick()` receives a serial message from the\
-    Arduino, automatically parsing the serial packets for processing (i.e.\
-    using the `arduino.rx_obj()` function).\n Depending on the message\
-    received, this function may or may not execute additional commands."""
-    if arduino_active:
-        recSize = 0
-        arduino_return.command = arduino.rx_obj(
-            obj_type='c', start_pos=recSize)
-        arduino_return.command = arduino_return.command.decode("utf-8")
-        recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
-        arduino_return.value = arduino.rx_obj(
-            obj_type='l', start_pos=recSize)
-        recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-        arduino_return.duration = arduino.rx_obj(
-            obj_type='l', start_pos=recSize)
-        recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-
-        if arduino_return.command == 'r':
-            global arduino_send_time, brightness_value
-            # Test message for checking Arduino Tx/Rx and LED control
-            if (current_ms := time.time_ns() // 1_000_000)\
-                    > arduino_send_time + arduino_send_period:
-                arduino_send_time = current_ms
-
-                dur = int(arduino_send_period)
-
-                # Flash
-                # if brightness_value == 0:
-                #     brightness_value = 1
-                # else:
-                #     brightness_value = 0
-                #
-                # Random
-                # brightness_value = random.triangular(0.0, 1.0, 0.5)
-                #
-                # Slow sine pulse
-                brightness_value = int(((
-                    math.sin(time.time()*3) + 1) / 2) * 255)
-                arduino_command('B', brightness_value, dur)
-                print(f'{dt.now()}    SEND TO ARDUINO: "B" '
-                      f'{brightness_value} {dur}')
-
-
-def wait_for_arduino(start_delay=None):
-    """Sleep after initialisation to make sure Arduino and\
-    RPi start at the same time."""
-    # TODO: Replace with a serial message callback for Arduino ready.
-    if config['leds']['enabled'] is True:
-        print()
-        start_delay = config["leds"]["arduino_delay"]\
-            if start_delay is None else start_delay
-        logger.info(f'Signifier ready! Delaying start to make sure Arduino '
-                    f'is ready. Starting in ({start_delay}) seconds...')
-        time.sleep(1)
-        for i in range(1, start_delay):
-            print(f'...{start_delay-i}')
-            time.sleep(1)
-        print()
-
-
-def open_arduino():
-    """TODO will populate with checks and timeouts for Arduino serial\
-    connection.\n If reaches timeout before connection, will disable\
-    Arduino/LED portion of the Signifier code."""
-    global arduino_active
-    if config['leds']['enabled'] is True:
-        global arduino
-        arduino = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
-        arduino.set_callbacks(arduino_callbacks)
-        logger.debug(f'({len(arduino.callbacks)}) Arduino callback(s) set.')
-        arduino.open()
-        wait_for_arduino()
-        arduino_active = True
-    logger.info(f'LED system active: {arduino_active}')
-    print()
-
-
-arduino_callbacks = [arduino_callback]
 
 
 #    _________.__            __      .___
@@ -409,17 +330,12 @@ def stop_scheduler():
     schedule.clear()
 
 
-def close_arduino():
-    global arduino_active
-    # TODO: Check if Arduino is connected
-    # TODO: Tell it to stop / go into idle state
-    arduino.close()
-    arduino_active = False
-
-
 def close_audio_system():
     global audio_active
     logger.info('Closing audio system...')
+    if audio_stream is not None:
+        passthrough.active = False
+        audio_stream.join()
     if pg.get_init() is True and pg.mixer.get_init() is not None:
         stop_all_clips()
         while pg.mixer.get_busy():
@@ -441,11 +357,18 @@ class ExitHandler:
         self.exiting = True
         logger.info('Shutdown sequence started.')
         stop_scheduler()
-        close_arduino()
+        arduino.close_serial()
         close_audio_system()
         logger.info("Signifier shutdown complete.")
         print()
         sys.exit()
+
+
+jobs_dict = {
+    'collection': get_collection,
+    'composition': automate_composition,
+    'volume': modulate_volumes
+}
 
 
 #     _____         .__
@@ -459,17 +382,24 @@ if __name__ == '__main__':
     print()
     logger.info('Prepare to be Signified!!')
     print()
+    
+    with open(CONFIG_FILE) as c:
+        config = json.load(c)
 
     exit_handler = ExitHandler()
+    time.sleep(1)
+    
+    arduino = Siguino(config['arduino'])
+    arduino.open_serial()
+    
     set_audio_engine()
     init_clip_manager()
     get_collection(restart_jobs=False)
-    open_arduino()
 
     start_job('collection', 'composition', 'volume')
     automate_composition()
 
     while True:
-        arduino.tick()
+        arduino.callback_tick()
         schedule.run_pending()
-        cleanup_audio_events()
+        manage_audio_events()

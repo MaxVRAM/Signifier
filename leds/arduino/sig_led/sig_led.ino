@@ -115,7 +115,7 @@ void loop()
   }
 }
 
-// Output the supplied COMMAND scrut to the RPi via serial. Currently used only for debugging.
+// Output the supplied COMMAND stcrut to the RPi via serial. Currently used only for debugging.
 void sendCommand(COMMAND output)
 {
   unsigned int sendSize = 0;

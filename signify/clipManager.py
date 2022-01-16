@@ -11,9 +11,9 @@
 import logging, os, random
 import pygame.mixer as Mixer
 
-from signify.sig_utils import plural
-from signify.clip_utils import *
-from signify.clip import Clip
+from signify.utils import plural
+from signify.clipUtils import *
+from signify.audioClip import Clip
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

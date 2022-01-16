@@ -9,7 +9,7 @@
 """Abstracted static functions to help manage audio clip sets."""
 
 import logging, random
-from signify.sig_utils import plural
+from signify.utils import plural
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
