@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 
 #  __________                         __  .__                              .__     
 #  \______   \_____    ______ _______/  |_|  |_________  ____  __ __  ____ |  |__  
@@ -24,9 +25,18 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 q = queue.Queue()
+active = False
+loopback: str
+output: str
+sample_rate: int
+bit_size: str
+buffer: int
+latency: float
+sig_callback: None
+thread = threading.Thread
 
 
-def callback(indata, outdata, frames, time, status):
+def parse_samples(indata, outdata, frames, time, status):
     if status:
         print(f'Passthrough audio device status: {status}')
     rando = random.randint(0, 100)
@@ -35,42 +45,54 @@ def callback(indata, outdata, frames, time, status):
     outdata[:] = indata
 
 
-class Passthrough:
-    def __init__(self, config, sig_callback) -> None:
-        if config is None:
-            config = {
-                "enabled":True,
-                "loopback_device":"Loopback: PCM (hw:3,1)",
-                "output_device":"bcm2835 Headphones: - (hw:0,0)",
-                "sample_rate":44100,
-                "bit_size":-16,
-                "buffer":2048,
-                "latency":500}
-        self.active = True
-        self.loopback = config['loopback_device']
-        self.output = config['output_device']
-        self.sample_rate = config['sample_rate']
-        self.bit_size = config['bit_size']
-        self.buffer = config['buffer']
-        self.latency = config['latency']
-        self.sig_callback = sig_callback
-        self.thread = threading.Thread
+def init(config=None, callback=None):
+    global active, loopback, output, sample_rate, bit_size,\
+        buffer, latency, sig_callback
+    if config is None:
+        config = {
+            "enabled":True,
+            "loopback_device":"Loopback: PCM (hw:3,1)",
+            "output_device":"bcm2835 Headphones: - (hw:0,0)",
+            "sample_rate":44100,
+            "bit_size":-16,
+            "buffer":2048,
+            "latency":0.1}
+    active = True
+    loopback = config['loopback_device']
+    output = config['output_device']
+    sample_rate = config['sample_rate']
+    bit_size = config['bit_size']
+    buffer = config['buffer']
+    latency = config['latency']
+    sig_callback = callback
+    logger.debug('Audio passthrough module ready.')
 
 
-    def stream(self):
-        thread = threading.current_thread()
-        while getattr(thread, "keep_going", True):
-            with sd.Stream(device=(self.loopback, self.output),
-                        samplerate=self.sample_rate, blocksize=0,
-                        dtype='float32', channels=1, callback=callback):
-                self.sig_callback(q.get())
+def stream():
+    global thread 
+    thread = threading.current_thread()
+    logger.debug(f'Audio passthrough thread running: {thread}')
+    while getattr(thread, "keep_going", True):
+        with sd.Stream(device=(loopback, output), latency=0.1,
+                    samplerate=sample_rate, blocksize=0,
+                    dtype='int16', channels=1, callback=parse_samples):
+            if sig_callback is None:
+                print(f'Callback: {q.get()}')
+            else:
+                sig_callback(q.get())
 
 
-    def run(self):
-        self.thread = threading.Thread(target=self.stream)
-        self.thread.start()
+def run():
+    global thread
+    if thread is not None:
+        stop()
+        #thread.join()
+    thread = threading.Thread(target=stream)
+    thread.start()
 
 
-    def stop(self):
-        logger.info(f'Stopping audio passthrough thread...')
-        self.thread.keep_going = False
+def stop():
+    global thread
+    if thread is not None:
+        logger.info(f'Stopping audio passthrough thread.')
+        thread.keep_going = False

@@ -51,7 +51,7 @@ class ClipManager:
                     names.append(f)
             if len(names) != 0:
                 self.collections[title] = {'path':path, 'names':names}
-                logger.debug(f'"{title}" added to library with "{len(names)}" audio files.')
+                #logger.debug(f'"{title}" added to library with "{len(names)}" audio files.')
         logger.info(f'Audio clip library initialised with ({len(self.collections)}) '
                     f'collection{plural(self.collections)}.')
 

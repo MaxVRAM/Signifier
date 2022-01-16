@@ -102,7 +102,7 @@ class Clip:
         if not self.sound or not self.channel:
             logger.warn(f'Could not build "{self.name}"!')
             return None
-        logger.debug(f'Loaded clip: {self}.')
+        #logger.debug(f'Loaded clip: {self}.')
         return self
 
     def determine_category(self, categories:dict):

@@ -16,7 +16,7 @@
         "sample_rate":44100,
         "bit_size":-16,
         "buffer":2048,
-        "latency":500
+        "latency":0.1
     },
     "clip_manager":
     {

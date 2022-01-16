@@ -37,12 +37,12 @@ import json
 import signal
 import logging
 import schedule
-from threading import Thread
 
 import pygame as pg
+import pygame._sdl2 as sdl2
 
 from signify.siguino import Siguino
-from signify.passthrough import Passthrough
+import signify.passthrough as passthrough
 from signify.clipManager import ClipManager
 
 CLIP_EVENT = pg.USEREVENT + 1
@@ -52,7 +52,6 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 config = None
 active_jobs = {}
 audio_active = False
-passthrough: Passthrough
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -80,12 +79,11 @@ def stop_all_clips(fade_time=None, disable_events=False):
     value from the config.json will be used.\n Use 'disable_events=True'\
     to prevent misfiring audio jobs that use clip end events to launch more."""
     if audio_active:
-        fade_time = config['clip_manager']['fade_out'] if fade_time is None \
+        fade_time = config['clip_manager']['fade_out'] if fade_time is None\
             else fade_time
         if pg.mixer.get_init():
             if pg.mixer.get_busy():
-                logger.info(f'Stopping audio clips,\
-                    with {fade_time}ms fade...')
+                logger.info(f'Stopping audio clips: {fade_time}ms fade...')
                 if disable_events is True:
                     clip_manager.clear_events()
                 pg.mixer.fadeout(fade_time)
@@ -247,7 +245,6 @@ def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
     default_device = config['audio']['playback_device']
-    import pygame._sdl2 as sdl2
     pg.init()
     is_capture = 0
     num_devices = sdl2.get_num_audio_devices(is_capture)
@@ -259,7 +256,7 @@ def check_audio_device() -> str:
         logger.warning(f'No audio devices detected by sdl2. Attempting '
                        f'to force default: "{default_device}"...')
         return default_device
-    logger.debug(f'SDL2 detected: {device_names}')
+    logger.debug(f'SDL2 detected: {len(device_names)} audio devices.')
     device = None
     for d in device_names:
         if default_device in d:
@@ -292,7 +289,6 @@ def set_audio_engine(*args):
             logger.error(f'Audio device could not be detected.\
                 Disabling audio system.')
             return None
-        print(device)
         pg.mixer.pre_init(
             frequency=config['audio']['sample_rate'],
             size=config['audio']['bit_size'],
@@ -302,12 +298,16 @@ def set_audio_engine(*args):
         pg.mixer.init()
         pg.init()
         audio_active = True
-        logger.debug(f'Audio output configured with: '
-                     f'"{device} {pg.mixer.get_init()}".')
-        passthrough = Passthrough(config['audio'], passthrough_callback)
-        passthrough.run()
+        logger.debug(f'Audio output device: "{device} {pg.mixer.get_init()}"')
+        #passthrough = Passthrough(config['audio'], passthrough_callback)
+        #passthrough.run()
         #audio_stream = Thread(target=passthrough.stream, args=(config['audio'], passthrough_callback), daemon=True)
         #audio_stream.start()
+        print()
+        passthrough.init(config['audio'], passthrough_callback)
+        passthrough.run()
+        print()
+        
         #print(f'Audio stream is alive: {audio_stream.is_alive()}')
     else:
         if audio_active:
@@ -333,7 +333,7 @@ def stop_scheduler():
 
 def close_audio_system():
     global audio_active
-    logger.info('Closing audio system...')
+    logger.info('Closing audio system.')
     passthrough.stop()
     if pg.get_init() is True and pg.mixer.get_init() is not None:
         stop_all_clips()
