@@ -31,6 +31,7 @@ class serialPacket(object):
 
 class Siguino:   
     def __init__(self, config:dict) -> None:
+        self.enabled = config['enabled']
         self.active = False
         self.link = None
         self.start_delay = config['start_delay']
@@ -122,7 +123,7 @@ class Siguino:
         """TODO will populate with checks and timeouts for Arduino serial\
         connection.\n If reaches timeout before connection, will disable\
         Arduino/LED portion of the Signifier code."""
-        if self.active is not True:
+        if self.enabled is True:
             self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
             self.callback_list = [self.receive_packet]
             self.link.set_callbacks(self.callback_list)

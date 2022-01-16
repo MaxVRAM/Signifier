@@ -42,7 +42,7 @@ from threading import Thread
 import pygame as pg
 
 from signify.siguino import Siguino
-import signify.passthrough as passthrough
+from signify.passthrough import Passthrough
 from signify.clipManager import ClipManager
 
 CLIP_EVENT = pg.USEREVENT + 1
@@ -52,7 +52,7 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 config = None
 active_jobs = {}
 audio_active = False
-audio_stream: Thread
+passthrough: Passthrough
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -241,7 +241,7 @@ def passthrough_callback(values):
     if values is None:
         print('Audio values are none.')
     else:
-        print(values)
+        print(f'Passthrough values: {values}')
 
 def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
@@ -276,7 +276,7 @@ def check_audio_device() -> str:
 
 def set_audio_engine(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    global audio_active, passthrough, audio_stream
+    global audio_active, passthrough
     if config['audio']['enabled'] is True:
         if audio_active:
             if 'force' in args:
@@ -304,10 +304,11 @@ def set_audio_engine(*args):
         audio_active = True
         logger.debug(f'Audio output configured with: '
                      f'"{device} {pg.mixer.get_init()}".')
-        #passthrough = Passthrough(config['audio'])
-        audio_stream = Thread(target=passthrough.stream, args=(config['audio'], passthrough_callback), daemon=True)
-        audio_stream.start()
-        print(f'Audio stream is alive: {audio_stream.is_alive()}')
+        passthrough = Passthrough(config['audio'], passthrough_callback)
+        passthrough.run()
+        #audio_stream = Thread(target=passthrough.stream, args=(config['audio'], passthrough_callback), daemon=True)
+        #audio_stream.start()
+        #print(f'Audio stream is alive: {audio_stream.is_alive()}')
     else:
         if audio_active:
             close_audio_system()
@@ -333,9 +334,7 @@ def stop_scheduler():
 def close_audio_system():
     global audio_active
     logger.info('Closing audio system...')
-    if audio_stream is not None:
-        passthrough.active = False
-        audio_stream.join()
+    passthrough.stop()
     if pg.get_init() is True and pg.mixer.get_init() is not None:
         stop_all_clips()
         while pg.mixer.get_busy():
