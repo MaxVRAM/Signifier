@@ -1,7 +1,7 @@
 {
     "arduino":
     {
-        "enabled":false,
+        "enabled":true,
         "start_delay":5,
         "max_brightness":255,
         "default_hue":"",
@@ -10,9 +10,10 @@
     "audio":
     {
         "enabled":true,
-        "playback_device":"Loopback, Loopback PCM",
-        "loopback_device":"Loopback: PCM (hw:3,1)",
-        "output_device":"bcm2835 Headphones: - (hw:0,0)",
+        "loopback_output":"Loopback, Loopback PCM",
+        "lookback_return":"Loopback: PCM (hw:3,1)",
+        "hw_direct_output":"bcm2835 Headphones, bcm2835 Headphones",
+        "hw_loop_output":"bcm2835 Headphones: - (hw:0,0)",
         "sample_rate":44100,
         "bit_size":-16,
         "buffer":2048,
@@ -30,8 +31,8 @@
         "max_playtime":60,
         "categories":
         {
-            "oneshot":{"threshold":0, "is_loop":false, "loop_range":[0,0]},
-            "short":{"threshold":5, "is_loop":false, "loop_range":[2,6]},
+            "oneshot":{"threshold":0, "is_loop":false, "loop_range":[8,16]},
+            "short":{"threshold":5, "is_loop":false, "loop_range":[4,8]},
             "medium":{"threshold":10, "is_loop":true, "loop_range":[0,0]},
             "loop":{"threshold":30, "is_loop":true, "loop_range":[0,0]}
         }
@@ -42,15 +43,15 @@
         {
             "enabled":true,
             "service":"audio",
-            "timer":96,
-            "parameters": {"pool_size":12}
+            "timer":16,
+            "parameters": {"pool_size":12, "start_clips":1}
         },
         "composition":
         {
             "enabled":true,
             "service":"audio",
-            "timer":16,
-            "parameters": {"quiet_level":3, "busy_level":6}
+            "timer":8,
+            "parameters": {"quiet_level":3, "busy_level":8}
         },
         "volume":
         {

@@ -23,76 +23,111 @@ import sounddevice as sd
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
 q = queue.Queue()
-active = False
-loopback: str
-output: str
-sample_rate: int
-bit_size: str
-buffer: int
-latency: float
-sig_callback: None
-thread = threading.Thread
+
+RHISTORY = 2
 
 
-def parse_samples(indata, outdata, frames, time, status):
-    if status:
-        print(f'Passthrough audio device status: {status}')
-    rando = random.randint(0, 100)
-    rms = np.sqrt(np.mean(indata**2))
-    q.put(rms)
-    outdata[:] = indata
+class Stream():
+    def __init__(self, config=None, callback=None):
+        if config is None:
+            config = {
+                "enabled":True,
+                "lookback_return":"Loopback: PCM (hw:3,1)",
+                "hw_loop_output":"bcm2835 Headphones: - (hw:0,0)",
+                "sample_rate":44100,
+                "buffer":2048}
+        self.active = True
+        self.loopback = config['lookback_return']
+        self.output = config['hw_loop_output']
+        self.sample_rate = config['sample_rate']
+        self.buffer = config['buffer']
+        self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
+        self.sig_callback = callback
+        self.amplitude = 0
+        logger.debug('Audio passthrough module ready.')
 
 
-def init(config=None, callback=None):
-    global active, loopback, output, sample_rate, bit_size,\
-        buffer, latency, sig_callback
-    if config is None:
-        config = {
-            "enabled":True,
-            "loopback_device":"Loopback: PCM (hw:3,1)",
-            "output_device":"bcm2835 Headphones: - (hw:0,0)",
-            "sample_rate":44100,
-            "bit_size":-16,
-            "buffer":2048,
-            "latency":0.1}
-    active = True
-    loopback = config['loopback_device']
-    output = config['output_device']
-    sample_rate = config['sample_rate']
-    bit_size = config['bit_size']
-    buffer = config['buffer']
-    latency = config['latency']
-    sig_callback = callback
-    logger.debug('Audio passthrough module ready.')
+    def parse_samples(self, indata, outdata, frames, time, status):
+        if status:
+            print(status)
+        outdata[:] = indata
+        if indata is not None:
+            self.y_roll[:-1] = self.y_roll[1:]
+            self.y_roll[-1, :] = np.copy(indata[0])
+            y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
+            amp = np.max(np.abs(y_data))
+            q.put(amp)
 
 
-def stream():
-    global thread 
-    thread = threading.current_thread()
-    logger.debug(f'Audio passthrough thread running: {thread}')
-    while getattr(thread, "keep_going", True):
-        with sd.Stream(device=(loopback, output), latency=0.1,
-                    samplerate=sample_rate, blocksize=0,
-                    dtype='int16', channels=1, callback=parse_samples):
-            if sig_callback is None:
-                print(f'Callback: {q.get()}')
-            else:
-                sig_callback(q.get())
+    def stream(self):
+        this_thread = threading.current_thread()
+        logger.debug(f'Audio passthrough thread running: {this_thread}')
+        while getattr(this_thread, "keep_going", True):
+            with sd.Stream(device=(self.loopback, self.output),
+                            samplerate=self.sample_rate,
+                            channels=1, callback=self.parse_samples):
+                pass
 
 
-def run():
-    global thread
-    if thread is not None:
-        stop()
-        #thread.join()
-    thread = threading.Thread(target=stream)
-    thread.start()
+    def run(self):
+        self.thread = threading.Thread(target=self.stream)
+        self.thread.start()
 
 
-def stop():
-    global thread
-    if thread is not None:
-        logger.info(f'Stopping audio passthrough thread.')
-        thread.keep_going = False
+    def stop(self):
+        if self.thread is not None:
+            logger.info(f'Stopping audio passthrough thread.')
+            self.thread.keep_going = False
+        
+
+    def get_descriptors(self) -> dict:
+        try:
+            self.amplitude = q.get_nowait()
+        except:
+            pass
+        return {"amplitude":self.amplitude}
+        
+        
+        
+        
+        
+# #!/usr/bin/env python3
+# """Pass input directly to output.
+
+# https://app.assembla.com/spaces/portaudio/git/source/master/test/patest_wire.c
+
+# """
+# import sounddevice as sd
+# import numpy as np  # Make sure NumPy is loaded before it is used in the callback
+
+# import queue
+
+# q = queue.Queue()
+
+# samples_per_frame = int(44100 / 20)
+# RHISTORY = 2
+# y_roll = np.random.rand(RHISTORY, samples_per_frame) / 1e16
+
+# def callback(indata, outdata, frames, time, status):
+#     if status:
+#         print(status)
+#     outdata[:] = indata
+#     if indata is not None:
+#         y_roll[:-1] = y_roll[1:]
+#         y_roll[-1, :] = np.copy(indata[0])
+#         y_data = np.concatenate(y_roll, axis=0).astype(np.float32)
+#         vol = np.max(np.abs(y_data))
+#         q.put(vol)
+
+# try:
+#     with sd.Stream(device=('Loopback: PCM (hw:3,1)', "bcm2835 Headphones: - (hw:0,0)"),
+#                    channels=1, callback=callback):
+#         print('#' * 80)
+#         print('press Return to quit')
+#         print('#' * 80)
+#         while True:
+#             print(q.get())
+#         input()
+# except Exception as e:
+#     pass

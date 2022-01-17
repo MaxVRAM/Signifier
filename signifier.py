@@ -41,17 +41,20 @@ import schedule
 import pygame as pg
 import pygame._sdl2 as sdl2
 
-from signify.siguino import Siguino
-import signify.passthrough as passthrough
+from signify.siguino import Siguino, ArduinoState
 from signify.clipManager import ClipManager
+from signify.passthrough import Stream
 
 CLIP_EVENT = pg.USEREVENT + 1
 CONFIG_FILE = 'config.json'
 
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 config = None
+arduino = None
 active_jobs = {}
 audio_active = False
+audio_stream: Stream
+audio_amplitude = 0
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -71,7 +74,7 @@ def stop_random_clip():
         clip_manager.stop_clip()
 
 
-def stop_all_clips(fade_time=None, disable_events=False):
+def stop_all_clips(fade_time=None, disable_events=True):
     """Tell all active clips to stop playing, emptying the mixer of\
     active channels.\n `fade_time=(int)` the number of milliseconds active\
     clips should take to fade their volumes before stopping playback.\
@@ -116,12 +119,15 @@ def get_collection(pool_size=None, restart_jobs=True):
     new collection has been loaded. If set to False, they will need
     to be manually triggered using the `set_jobs()` function."""
     if audio_active:
-        pool_size = config['jobs']['collection']['parameters']['pool_size']\
+        job_params = config['jobs']['collection']['parameters']
+        pool_size = job_params['pool_size']\
             if pool_size is None else pool_size
         print()
         if restart_jobs is True:
             stop_job('composition', 'volume')
-        stop_all_clips(disable_events=True)
+        arduino.set_state(ArduinoState.pause)
+        stop_all_clips()
+        print()
         while pg.mixer.get_busy():
             time.sleep(0.1)
         while clip_manager.select_collection() is None:
@@ -130,14 +136,16 @@ def get_collection(pool_size=None, restart_jobs=True):
             time.sleep(config["clip_manager"]["fail_retry_delay"])
             get_collection()
         logger.info('NEW COLLECTION JOB DONE.')
+        arduino.set_state(ArduinoState.run)
         print()
         if restart_jobs is True:
             time.sleep(1)
-            automate_composition()
+            automate_composition(
+                start_num=job_params['start_clips'])
             start_job('composition', 'volume')
 
 
-def automate_composition(quiet_level=None, busy_level=None):
+def automate_composition(quiet_level=None, busy_level=None, start_num=1):
     """Ensure the clip manager is playing an appropriate number of clips,\
     and move any finished clips still lingering in the active pool to
     the inactive pool.\n - `quiet_level=(int)` the lowest number of
@@ -154,7 +162,7 @@ def automate_composition(quiet_level=None, busy_level=None):
         changed = set()
         changed = clip_manager.check_finished()
         if clip_manager.clips_playing() < quiet_level:
-            changed.update(clip_manager.play_clip())
+            changed.update(clip_manager.play_clip(num_clips=start_num))
         elif clip_manager.clips_playing() > busy_level:
             changed.update(clip_manager.stop_clip())
         # Stop a random clip after a certain amount of time?
@@ -189,7 +197,7 @@ def start_job(*args):
     for job in jobs:
         active_jobs[job] = schedule.every(config['jobs'][job]['timer'])\
                             .seconds.do(jobs_dict[job])
-    print(f'Jobs active: {active_jobs}')
+    print(f'({len(active_jobs)}) jobs active.')
 
 
 def stop_job(*args):
@@ -244,7 +252,8 @@ def passthrough_callback(values):
 def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
-    default_device = config['audio']['playback_device']
+    default_device = config['audio']['loopback_output']
+    #default_device = config['audio']['hw_direct_output']
     pg.init()
     is_capture = 0
     num_devices = sdl2.get_num_audio_devices(is_capture)
@@ -273,7 +282,7 @@ def check_audio_device() -> str:
 
 def set_audio_engine(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    global audio_active, passthrough
+    global audio_active, audio_stream
     if config['audio']['enabled'] is True:
         if audio_active:
             if 'force' in args:
@@ -299,16 +308,10 @@ def set_audio_engine(*args):
         pg.init()
         audio_active = True
         logger.debug(f'Audio output device: "{device} {pg.mixer.get_init()}"')
-        #passthrough = Passthrough(config['audio'], passthrough_callback)
-        #passthrough.run()
-        #audio_stream = Thread(target=passthrough.stream, args=(config['audio'], passthrough_callback), daemon=True)
-        #audio_stream.start()
-        print()
-        passthrough.init(config['audio'], passthrough_callback)
-        passthrough.run()
-        print()
         
-        #print(f'Audio stream is alive: {audio_stream.is_alive()}')
+        # audio_stream = Stream(config['audio'], passthrough_callback)
+        # audio_stream.run()
+        
     else:
         if audio_active:
             close_audio_system()
@@ -332,9 +335,9 @@ def stop_scheduler():
 
 
 def close_audio_system():
-    global audio_active
+    global audio_active, audio_stream
     logger.info('Closing audio system.')
-    passthrough.stop()
+    audio_stream.stop()
     if pg.get_init() is True and pg.mixer.get_init() is not None:
         stop_all_clips()
         while pg.mixer.get_busy():
@@ -356,7 +359,7 @@ class ExitHandler:
         self.exiting = True
         logger.info('Shutdown sequence started.')
         stop_scheduler()
-        arduino.close_serial()
+        arduino.set_state(ArduinoState.close)
         close_audio_system()
         logger.info("Signifier shutdown complete.")
         print()
@@ -387,7 +390,7 @@ if __name__ == '__main__':
 
     exit_handler = ExitHandler()
     time.sleep(1)
-    
+
     arduino = Siguino(config['arduino'])
     arduino.open_serial()
     
@@ -396,9 +399,10 @@ if __name__ == '__main__':
     get_collection(restart_jobs=False)
 
     start_job('collection', 'composition', 'volume')
-    automate_composition()
+    automate_composition(start_num=config['jobs']['collection']['parameters']['start_clips'])
 
     while True:
         arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
+        #audio_amplitude = audio_stream.get_descriptors()

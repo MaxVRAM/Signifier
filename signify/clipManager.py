@@ -164,9 +164,9 @@ class ClipManager:
             vol *= random.triangular(1-speed,1+speed,1+weight)
             vol = max(min(vol,0.999),0.1)
             clip.channel.set_volume(vol)
-            new_volumes.append(f'({clip.index}) "{clip.name}" @ {clip.channel.get_volume():.2f}')
-        if len(new_volumes) > 0:
-            logger.debug(f'Channel volumes updated: {new_volumes})')
+            new_volumes.append(f'({clip.index}) @ {clip.channel.get_volume():.2f}')
+        # if len(new_volumes) > 0:
+        #     logger.debug(f'Volumes updated: {new_volumes})')
 
     def clips_playing(self) -> int:
         """Return number of active clips."""
