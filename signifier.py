@@ -39,7 +39,7 @@ import logging
 import schedule
 
 import pygame as pg
-import pygame._sdl2 as sdl2
+#import pygame._sdl2 as sdl2
 
 from signify.siguino import Siguino, ArduinoState
 from signify.clipManager import ClipManager
@@ -53,7 +53,7 @@ config = None
 arduino = None
 active_jobs = {}
 audio_active = False
-audio_stream: Stream
+audio_stream: None
 audio_amplitude = 0
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
@@ -252,37 +252,36 @@ def passthrough_callback(values):
 def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
-    default_device = config['audio']['loopback_output']
-    #default_device = config['audio']['hw_direct_output']
-    pg.init()
-    is_capture = 0
-    num_devices = sdl2.get_num_audio_devices(is_capture)
-    device_names = [str(sdl2.get_audio_device_name(i, is_capture),
-                    encoding="utf-8") for i in range(num_devices)]
-    pg.mixer.quit()
-    pg.quit()
-    if device_names is None or len(device_names) == 0:
-        logger.warning(f'No audio devices detected by sdl2. Attempting '
-                       f'to force default: "{default_device}"...')
-        return default_device
-    logger.debug(f'SDL2 detected: {len(device_names)} audio devices.')
-    device = None
-    for d in device_names:
-        if default_device in d:
-            device = d
-            break
-    if device is None:
-        logger.warning(f'Expected audio device "{default_device}" not '
-                       f'detected by sdl2. Attempting to force driver...')
-        return default_device
-    logger.info(f'"{device}" found on host and '
-                f'will be used for audio playback.')
+    default_device = config['audio']['hw_direct_output']
+    # pg.init()
+    # is_capture = 0
+    # num_devices = sdl2.get_num_audio_devices(is_capture)
+    # device_names = [str(sdl2.get_audio_device_name(i, is_capture),
+    #                 encoding="utf-8") for i in range(num_devices)]
+    # pg.mixer.quit()
+    # pg.quit()
+    # if device_names is None or len(device_names) == 0:
+    #     logger.warning(f'No audio devices detected by sdl2. Attempting '
+    #                    f'to force default: "{default_device}"...')
+    #     return default_device
+    # logger.debug(f'SDL2 detected: {len(device_names)} audio devices.')
+    # device = None
+    # for d in device_names:
+    #     if default_device in d:
+    #         device = d
+    #         break
+    # if device is None:
+    #     logger.warning(f'Expected audio device "{default_device}" not '
+    #                    f'detected by sdl2. Attempting to force driver...')
+    #     return default_device
+    # logger.info(f'"{device}" found on host and '
+    #             f'will be used for audio playback.')
     return default_device
 
 
 def set_audio_engine(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    global audio_active, audio_stream
+    global audio_active
     if config['audio']['enabled'] is True:
         if audio_active:
             if 'force' in args:
@@ -295,7 +294,7 @@ def set_audio_engine(*args):
         # Begin initialisation
         device = check_audio_device()
         if device is None:
-            logger.error(f'Audio device could not be detected.\
+            logger.error('Audio device could not be detected.\
                 Disabling audio system.')
             return None
         pg.mixer.pre_init(
@@ -335,15 +334,17 @@ def stop_scheduler():
 
 
 def close_audio_system():
-    global audio_active, audio_stream
+    global audio_active
     logger.info('Closing audio system.')
-    audio_stream.stop()
-    if pg.get_init() is True and pg.mixer.get_init() is not None:
-        stop_all_clips()
-        while pg.mixer.get_busy():
-            time.sleep(0.1)
-        pg.quit()
-    audio_active = False
+    if audio_active:
+        # if audio_stream is not None:
+        #     audio_stream.stop()
+        if pg.get_init() is True and pg.mixer.get_init() is not None:
+            stop_all_clips()
+            while pg.mixer.get_busy():
+                time.sleep(0.1)
+            pg.quit()
+        audio_active = False
 
 
 class ExitHandler:
@@ -384,7 +385,7 @@ if __name__ == '__main__':
     print()
     logger.info('Prepare to be Signified!!')
     print()
-    
+
     with open(CONFIG_FILE) as c:
         config = json.load(c)
 
@@ -393,7 +394,7 @@ if __name__ == '__main__':
 
     arduino = Siguino(config['arduino'])
     arduino.open_serial()
-    
+
     set_audio_engine()
     init_clip_manager()
     get_collection(restart_jobs=False)

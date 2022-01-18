@@ -77,7 +77,7 @@ class Stream():
 
     def stop(self):
         if self.thread is not None:
-            logger.info(f'Stopping audio passthrough thread.')
+            logger.info('Stopping audio passthrough thread.')
             self.thread.keep_going = False
         
 

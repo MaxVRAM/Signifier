@@ -24,7 +24,7 @@ Python scripts designed for Raspberry Pi 4B to manage sensor inputs, output modu
         - [x] Tested 
         - [x] Integrated
     - [ ] Audio analysis
-        - [ ] Tested 
+        - [x] Tested 
         - [ ] Integrated
     - [ ] Interactive LED manager
         - [x] Tested 
@@ -67,13 +67,6 @@ BONUS ROUND:
 
 - It's unfortunate the amp doesn't have a 3.5mm jack input, as this would provide more options should there be issues with USB communication.
 
-Currently using these packages:
-- ~~`python3 -m pip install sounddevice`~~
-- ~~`sudo apt install libportaudio2`~~
-- `python3 -m pip install alsa-utils`
-- `sudo apt install libasound2-dev`
-- `sudo modprobe snd-aloop`
-
 ### Temperature sensor
 [Digital Temp Sensor](https://www.altronics.com.au/p/z6386-stainless-steel-housing-waterproof-ds18b20-temperature-probe/)
 
@@ -91,30 +84,47 @@ Currently using these packages:
 
 ## Signifier software
 - OS: Raspberry Pi OS Bulleye 64-bit (arm64) - superior performance and far better compatibility with software packages - [link](https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2021-11-08/)
-- Python 3.8 - primary language for Signifier functionality.
+- Python 3.9
+
+Monitoring/management:
+
 - Docker/Portainer - local and remote management of additional packages.
 - Prometheus - time-series database for local database recording of sensor data.
 
 ## Dependencies
 
-Audio directly through audio jack:
+### System packages
 
-- "device":["bcm2835 Headphones", "bcm2835 Headphones"]
+```bash
+sudo apt install libportaudio2
+sudo apt install alsa-utils
+```
 
-Audio through Loopback system:
-
-- "device":["Loopback", "Loopback PCM"]
-
+### Development commands
 
 Audio loopback with ALSA:
-- `sudo modprobe snd-aloop`
-- `sudo cat /proc/asound/version`
-// Advanced Linux Sound Architecture Driver Version k5.10.63-v8+.
+
+```bash
+sudo modprobe snd-aloop
+```
 
 ### Python modules
-- [PyGame]
-- [PySerial](https://pypi.org/project/pyserial/)
-- [sounddevices](https://python-sounddevice.readthedocs.io/en/0.4.3/)
+
+#### Core
+
+- [schedule]
+
+#### Audio
+
+- [PyGame](https://www.pygame.org)
+- [sounddevice](https://python-sounddevice.readthedocs.io/en/0.4.4/)
+
+#### Arduino
+
+- [pySerialTransfer](https://github.com/PowerBroker2/pySerialTransfer)
+
+#### Server
+
 - [Prometheus Python Client](https://pypi.org/project/prometheus-client/0.0.9/)
 
 
@@ -123,10 +133,10 @@ Audio loopback with ALSA:
 
 Basic playback:
   1. ~~Create proper exit function and audio clip playback length limiting~~
-  2. add function to move newly played clip from inactive_pool to active_pool
+  2. ~~add function to move newly played clip from inactive_pool to active_pool~~
   3. ~~differentiate various clip types (short, med, long, loop, etc)~~
-  4. replate original Signifier audio playback
-  5. use noise to modulate channel volumes
+  4. ~~replate original Signifier audio playback~~
+  5. ~~use noise to modulate channel volumes~~
 
 Modulated playback:
 
@@ -137,7 +147,7 @@ Modulated playback:
 LED reactivity:
 
   9. Add function to analyise channel output amplitudes
-  10. Test pyserial to Arduino functionality
+  10. ~~Test pyserial to Arduino functionality~~
   11. Create simple LED brightness reactivity based on audio output
   
 
