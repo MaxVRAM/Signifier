@@ -46,86 +46,103 @@ BONUS ROUND:
 
 ## Hardware
 
-### Computation
+- [Raspberry Pi 4B](https://au.rs-online.com/web/p/raspberry-pi/1822096)
+- [Arduino Nano Every](https://au.rs-online.com/web/p/arduino/1927590)
+- 4m x [RGB LED strips - WS2812B 120p/m](https://www.jaycar.com.au/2m-rgb-led-strip-with-120-x-addressable-w2812b-rgb-leds-arduino-mcu-compatible-5v/p/XC4390)
+  - Basic guide for controlling WS212B with Arduino - [link](https://randomnerdtutorials.com/guide-for-ws2812b-addressable-rgb-led-strip-with-arduino/)
+  - Why WS2812B LEDs were not a good choice - [link](https://tutorials-raspberrypi.com/connect-control-raspberry-pi-ws2812-rgb-led-strips/)
+  - For this reason, instead of driving the LEDs directly from the RPi, we're sending serial commands to an Arduino, connected via USB, with the Arduino library `fastled`.
+- [Audio amplifier - 50 watt Bluetooth](https://core-electronics.com.au/digital-bluetooth-power-amplifier-50w-2.html)
+  - It's unfortunate the amp doesn't have a 3.5mm jack input, as this would provide more options should there be issues with USB communication.
+  - If there are complications with driving so many USB devices off the RPi, we may replace these amps for one with a 3.5mm input.
+- [Digital Temp Sensor](https://www.altronics.com.au/p/z6386-stainless-steel-housing-waterproof-ds18b20-temperature-probe/)
+- [Mini USB Microphone](https://core-electronics.com.au/mini-usb-microphone.html)
+- [NB-IoT Raspberry Pi HAT](https://core-electronics.com.au/nb-iot-emtc-edge-gprs-gnss-hat-for-raspberry-pi.html)
+  - Guide on the specific SIM chip - [link](https://support.hologram.io/hc/en-us/articles/360036559494-SIMCOM-SIM7000)
+  - Guide on different version, but might still be relavent - [link](https://www.switchdoc.com/2021/05/tutorial-using-cellular-modems-with-the-raspberry-pi-4b/)
+  - NOTE: These will likely not make it into the final build, as serial communication conflicts have been observed when running the other devices.
 
-[Raspberry Pi 4B](https://au.rs-online.com/web/p/raspberry-pi/1822096)
+## Software software
 
-[Arduino Nano Every](https://au.rs-online.com/web/p/arduino/1927590)
+### Core functionality
 
-- Basic information on Raspberry Pi -> Arduino interfacing using PySerial - [link](https://create.arduino.cc/projecthub/ansh2919/serial-communication-between-python-and-arduino-e7cce0)
-- Instructable guide on PySerial - [link](https://www.instructables.com/Interface-Python-and-Arduino-with-pySerial/)
-
-### LEDs
-[RGB LED strips - WS2812B 120p/m](https://www.jaycar.com.au/2m-rgb-led-strip-with-120-x-addressable-w2812b-rgb-leds-arduino-mcu-compatible-5v/p/XC4390)
-
-- Basic guide for controlling WS212B with Arduino - [link](https://randomnerdtutorials.com/guide-for-ws2812b-addressable-rgb-led-strip-with-arduino/)
-- Why WS2812B LEDs were not a good choice - [link](https://tutorials-raspberrypi.com/connect-control-raspberry-pi-ws2812-rgb-led-strips/)
-
-
-### Audio
-[Audio amplifier - 50 watt Bluetooth](https://core-electronics.com.au/digital-bluetooth-power-amplifier-50w-2.html)
-
-- It's unfortunate the amp doesn't have a 3.5mm jack input, as this would provide more options should there be issues with USB communication.
-
-### Temperature sensor
-[Digital Temp Sensor](https://www.altronics.com.au/p/z6386-stainless-steel-housing-waterproof-ds18b20-temperature-probe/)
-
-
-### Microphone
-[Mini USB Microphone](https://core-electronics.com.au/mini-usb-microphone.html)
-
-
-### Networking
-[NB-IoT Raspberry Pi HAT](https://core-electronics.com.au/nb-iot-emtc-edge-gprs-gnss-hat-for-raspberry-pi.html)
-
-- Guide on the specific SIM chip - [link](https://support.hologram.io/hc/en-us/articles/360036559494-SIMCOM-SIM7000)
-- Guide on different version, but might still be relavent - [link](https://www.switchdoc.com/2021/05/tutorial-using-cellular-modems-with-the-raspberry-pi-4b/)
-
-
-## Signifier software
-- OS: Raspberry Pi OS Bulleye 64-bit (arm64) - superior performance and far better compatibility with software packages - [link](https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2021-11-08/)
+- OS: Raspberry Pi OS Bulleye 64-bit (arm64) - [link](https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2021-11-08/)
 - Python 3.9
 
-Monitoring/management:
+### Monitoring/management:
 
 - Docker/Portainer - local and remote management of additional packages.
 - Prometheus - time-series database for local database recording of sensor data.
 
-## Dependencies
 
-### System packages
+---
+
+# Deployment guide
+
+**EITHER**
+
+Deploy the Signifier using the supplied script with: `sudo ./install.sh`
+
+**OR**
+
+Follow ALL the steps this guide:
+
+## Configure audio environment
+
+1. Create and install an overlay to disable HDMI audio devices:
 
 ```bash
-sudo apt install libportaudio2
-sudo apt install alsa-utils
+cat << '_EOF_' > disable_hdmi_audio.dts
+/dts-v1/;
+/plugin/;
+/ {
+	compatible = "brcm,bcm2835";
+	fragment@0 {
+		target = <&audio>;
+		__overlay__ {
+			brcm,disable-hdmi = <1>;
+		};
+	};
+};
+_EOF_
+dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo disable_hdmi_audio.dts
+echo 'dtoverlay=disable_hdmi_audio' >> /boot/config.txt
+```
+Source: <https://forums.raspberrypi.com/viewtopic.php?t=293672>
+
+2. Install audio packages:
+
+```bash
+sudo apt install libportaudio2  # PortAudio, required for LED audio-reactivity
+sudo apt install alsa-utils     # Utilities for inspecting/debugging audio system.
 ```
 
-### Development commands
+## Python modules
 
-Audio loopback with ALSA:
+All required Python modules can be installed using the supplied `requirements.txt` file:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+If for some reason only specific modules are required, the can be installed individually:
+
+```bash
+pyhton -m pip install schedule          # Required for scheduling "jobs" to automate the Signifier
+pyhton -m pip install pygame            # Back-end framework for audio clip playback
+pyhton -m pip install sounddevice       # Wrapper for PortAudio, required for audio loopback/analysis
+pyhton -m pip install PySerialTransfer  # Arduino communication framework
+pyhton -m pip install prometheus-client # Required if using Prometheus/Grafana to monitor Signifiers
+```
+
+## Development commands
+
+Manually creating an audio loopback device with ALSA:
 
 ```bash
 sudo modprobe snd-aloop
 ```
 
-### Python modules
-
-#### Core
-
-- [schedule]
-
-#### Audio
-
-- [PyGame](https://www.pygame.org)
-- [sounddevice](https://python-sounddevice.readthedocs.io/en/0.4.4/)
-
-#### Arduino
-
-- [pySerialTransfer](https://github.com/PowerBroker2/pySerialTransfer)
-
-#### Server
-
-- [Prometheus Python Client](https://pypi.org/project/prometheus-client/0.0.9/)
 
 
 
@@ -152,10 +169,9 @@ LED reactivity:
   
 
 
+# Debugging
 
-## Debugging
-
-### Pygame 2 audio device not detected
+## Pygame 2 audio device not detected
 <https://stackoverflow.com/questions/68529262/init-sounddevice-in-pygame2-on-raspberry>
 
 
