@@ -153,6 +153,44 @@ arecord -l
 echo "snd_aloop" | sudo tee -a /etc/modules-load.d/modules.conf
 ```
 
+> Source: <https://help.hcltechsw.com/sametime/11.0.2/admin/configure_virtual_devices.html>
+
+5. A system reboot is required to enable these changes: `sudo reboot`
+
+6. The output of `aplay -l` should now show the loopback devices added on system start:
+
+```bash
+aplay -l
+**** List of PLAYBACK Hardware Devices ****
+card 0: Loopback [Loopback], device 0: Loopback PCM [Loopback PCM]
+  Subdevices: 8/8
+  Subdevice #0: subdevice #0
+  Subdevice #1: subdevice #1
+  Subdevice #2: subdevice #2
+...
+...
+card 0: Loopback [Loopback], device 1: Loopback PCM [Loopback PCM]
+  Subdevices: 8/8
+  Subdevice #0: subdevice #0
+  Subdevice #1: subdevice #1
+  Subdevice #2: subdevice #2
+...
+...
+card 1: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+  Subdevices: 8/8
+  Subdevice #0: subdevice #0
+  Subdevice #1: subdevice #1
+  Subdevice #2: subdevice #2
+...
+...
+```
+
+7. The card/device numbers may differ from system to system, and this can cause issues with configuring fixed audio device assignments in our software. To ensure our devices are allocated a specific number, execute the following command:
+
+```bash
+something
+```
+
 ## Python modules
 
 All required Python modules can be installed using the supplied `requirements.txt` file:
@@ -312,3 +350,15 @@ snd_timer              36864  1 snd_pcm
 snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_compress,snd_soc_core,snd_pcm
 ```
 
+
+
+
+### Pulse Audio
+
+https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/User/PerfectSetup/
+
+There's an explainaton in the link above, but basically using PortAudio on our Raspberry Pi's Ubuntu means we need to remove our user from the audio group.
+
+```bash
+ls -l /dev/snd
+```
