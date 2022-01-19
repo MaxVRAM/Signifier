@@ -89,7 +89,7 @@ Follow ALL the steps this guide:
 
 ## Configure audio environment
 
-1. Create and install an overlay to disable HDMI audio devices:
+1. Create a Device Tree Overlay that disables the default HDMI audio devices, as they're not needed:
 
 ```bash
 cat << '_EOF_' > disable_hdmi_audio.dts
@@ -105,10 +105,16 @@ cat << '_EOF_' > disable_hdmi_audio.dts
 	};
 };
 _EOF_
-dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo disable_hdmi_audio.dts
-echo 'dtoverlay=disable_hdmi_audio' >> /boot/config.txt
 ```
-Source: <https://forums.raspberrypi.com/viewtopic.php?t=293672>
+
+2. Compile the overlay and add it to the Pi's `/boot/config.txt` file, making it apply every boot:
+
+```bash
+sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo disable_hdmi_audio.dts
+echo "dtoverlay=disable_hdmi_audio" | sudo tee -a /boot/config.txt
+```
+
+> Source: <https://forums.raspberrypi.com/viewtopic.php?t=293672>
 
 2. Install audio packages:
 
