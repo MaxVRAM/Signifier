@@ -116,11 +116,35 @@ echo "dtoverlay=disable_hdmi_audio" | sudo tee -a /boot/config.txt
 
 > Source: <https://forums.raspberrypi.com/viewtopic.php?t=293672>
 
-2. Install audio packages:
+3. Install audio packages:
 
 ```bash
 sudo apt install libportaudio2  # PortAudio, required for LED audio-reactivity
 sudo apt install alsa-utils     # Utilities for inspecting/debugging audio system.
+```
+
+You can now easily display the available audio output devices. If you've followed the steps so far it should have one card with 8 sub-devices:
+
+```bash 
+aplay -l
+# **** List of PLAYBACK Hardware Devices ****
+# card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+#   Subdevices: 8/8
+#   Subdevice #0: subdevice #0
+#   Subdevice #1: subdevice #1
+#   Subdevice #2: subdevice #2
+#   Subdevice #3: subdevice #3
+#   Subdevice #4: subdevice #4
+#   Subdevice #5: subdevice #5
+#   Subdevice #6: subdevice #6
+#   Subdevice #7: subdevice #7
+```
+
+And the recording devices should report as empty:
+
+```bash
+arecord -l
+# **** List of CAPTURE Hardware Devices ****
 ```
 
 ## Python modules
