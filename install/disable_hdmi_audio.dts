@@ -1,0 +1,11 @@
+/dts-v1/;
+/plugin/;
+/ {
+	compatible = "brcm,bcm2835";
+	fragment@0 {
+		target = <&audio>;
+		__overlay__ {
+			brcm,disable-hdmi = <1>;
+		};
+	};
+};

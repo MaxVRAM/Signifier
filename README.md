@@ -77,83 +77,344 @@ BONUS ROUND:
 
 ---
 
-# Deployment guide
+# Deployment: SD card duplication
 
-**EITHER**
+Use an application like BalenaEtcher to write the supplied Signifier image on to a fresh SD card. This is by far the easiest and quickest method to deploy a new Signifier.
 
-Deploy the Signifier using the supplied script with: `sudo ./install.sh`
+(will add steps later)
 
-**OR**
+# Deployment: Install script
 
-Follow ALL the steps this guide:
+If you'd like to build the Signifier environment on a fresh OS environment, you can use the install script supplied in this repo.
 
-## Configure audio environment
+1. Download the zip file of **Raspberry Pi OS Bulleye 64-bit (arm64)** from [here](https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2021-11-08/)
+2. Write the OS to the SD card with something like BalenaEtcher, insert the SD card into the Signifier and go through the default OS setup on the new image.
+3. Clone this repo:
+    ```bash
+    git clone https://github.com/MaxVRAM/Signifier.git
+    cd Signifier
+    ```
+4. Execute the install script with super user privileges and follow any prompts:
+    ```bash
+    sudo ./Signifier/install.sh
+    ```
 
-1. Create a Device Tree Overlay that disables the default HDMI audio devices, as they're not needed:
+# Deployment: Manual installation
 
+Follow **ALL** the steps this guide.
+
+## Audio environment
+
+For the Signifier to run as autonomously as possible, we are going to customise the OS audio environment. Here's a quick breakdown:
+
+1. Install `PortAudio` and `ALSA Utils` system packages to extend our audio super-powers.
+2. Disable the pesky and unnessessary HDMI audio devices to keep the environment clean.
+3. Create an audio *loopback device* for routing audio between Signifier services.
+4. Ensure our audio devices load reliably on system boot with fixed card/device numbers.
+
+Let's go!
+
+### 1. Install audio packages
+
+There's only two packages we need at the moment:
 ```bash
-cat << '_EOF_' > disable_hdmi_audio.dts
-/dts-v1/;
-/plugin/;
-/ {
-	compatible = "brcm,bcm2835";
-	fragment@0 {
-		target = <&audio>;
-		__overlay__ {
-			brcm,disable-hdmi = <1>;
-		};
-	};
-};
-_EOF_
+sudo apt install libportaudio2  # PortAudio, required for LED audio-reactivity.
+sudo apt install alsa-utils     # Provides loopback and additional debugging tools.
 ```
 
-2. Compile the overlay and add it to the Pi's `/boot/config.txt` file, making it apply every boot:
+### 2. Disable HDMI audio devices
 
-```bash
-sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo disable_hdmi_audio.dts
-echo "dtoverlay=disable_hdmi_audio" | sudo tee -a /boot/config.txt
-```
+> More information: <https://forums.raspberrypi.com/viewtopic.php?t=293672>
 
-> Source: <https://forums.raspberrypi.com/viewtopic.php?t=293672>
+Signifiers only need access to the default **Headphones** device (Raspberry Pi's hardware 3.5mm output). But there are two additional audio devices for HDMI audio, **vc4hdmi0** and **vc4hdmi1**, so let's get rid of them.
 
-3. Install audio packages:
+1. Before we disable anything, let's check out the current state of our system audio devices:
+    ```bash
+    aplay -l
+    ```
+    This is the output you should get:
+    ```yaml
+    **** List of PLAYBACK Hardware Devices ****
+    card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+      Subdevice #2: subdevice #2
+      Subdevice #3: subdevice #3
+      Subdevice #4: subdevice #4
+      Subdevice #5: subdevice #5
+      Subdevice #6: subdevice #6
+      Subdevice #7: subdevice #7
+    card 1: vc4hdmi0 [vc4-hdmi-0], device 0: MAI PCM i2s-hifi-0 [MAI PCM i2s-hifi-0]
+      Subdevices: 1/1
+      Subdevice #0: subdevice #0
+    card 2: vc4hdmi1 [vc4-hdmi-1], device 0: MAI PCM i2s-hifi-0 [MAI PCM i2s-hifi-0]
+      Subdevices: 1/1
+      Subdevice #0: subdevice #0
+    ```
 
-```bash
-sudo apt install libportaudio2  # PortAudio, required for LED audio-reactivity
-sudo apt install alsa-utils     # Utilities for inspecting/debugging audio system.
-```
+2. Let's quickly test the audio output. Plug the Siginfier audio cable (or a pair of headphones) into the Pi's audio output socket and run the ALSA-Utils `speaker-test` utility:
+    ```bash
+    speaker-test -D Headphones -t wav -c 2
+    ```
+    - `-D Headphones` defines the PLAYBACK device to test
+    - `-t wav` changes the default noise test sound to a voice saying "left channel", "right channel".
+    - `-c 2` enables the test over both the left and right channels.
+    - **NOTE:** One of the channels might not be heard on the Signifier, since it's a mono speaker. Everything is fine as along as one channel is audiable.
+3. Aftering confirming that we have sound, we'll now create a *Device Tree Overlay* to disable the HDMI audio devices, they're not needed:
+    ```dts
+    cat << '_EOF_' > disable_hdmi_audio.dts
+    /dts-v1/;
+    /plugin/;
+    / {
+      compatible = "brcm,bcm2835";
+      fragment@0 {
+        target = <&audio>;
+        __overlay__ {
+          brcm,disable-hdmi = <1>;
+        };
+      };
+    };
+    _EOF_
+    ```
+4. Compile the overlay:
+    ```bash
+    sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo disable_hdmi_audio.dts
+    ```
+5. Then add it to the Pi's `/boot/config.txt` file so it's apply every boot:
+    ```bash
+    echo "dtoverlay=disable_hdmi_audio" | sudo tee -a /boot/config.txt
+    ```
+6. Reboot the system:
+    ```bash
+    sudo reboot
+    ```
+7. Now let's have a look at the current state of our audio devices:
+    ```bash
+    aplay -l
+    ```
+    ```yaml 
+    **** List of PLAYBACK Hardware Devices ****
+    card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+      Subdevice #2: subdevice #2
+      Subdevice #3: subdevice #3
+      Subdevice #4: subdevice #4
+      Subdevice #5: subdevice #5
+      Subdevice #6: subdevice #6
+      Subdevice #7: subdevice #7
+    ```
+    ```bash
+    arecord -l
+    ```
+    ```yaml
+    **** List of CAPTURE Hardware Devices ****
+    ```
+    A very tidy audio environment to start with!
 
-You can now easily display the available audio output devices. If you've followed the steps so far it should have one card with 8 sub-devices:
+### 3. Create loopback devices
 
-```bash 
-aplay -l
-# **** List of PLAYBACK Hardware Devices ****
-# card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
-#   Subdevices: 8/8
-#   Subdevice #0: subdevice #0
-#   Subdevice #1: subdevice #1
-#   Subdevice #2: subdevice #2
-#   Subdevice #3: subdevice #3
-#   Subdevice #4: subdevice #4
-#   Subdevice #5: subdevice #5
-#   Subdevice #6: subdevice #6
-#   Subdevice #7: subdevice #7
-```
+For audio-reactive LEDs, we need to create a **loopback** device to internally pipe the sound produced by the Signifier's clip manager to the PortAudio Stream module. This module will first analyse the audio stream, then pass it to the Raspberry Pi's hardware **Headphones** audio output device.
 
-And the recording devices should report as empty:
+1. First, let's check that the loopback utility does what we want it to by creating the loopback device manually:
+    ```bash
+    sudo modprobe snd-aloop
+    ```
+2. We should now have PLAYBACK and CAPTURE loopback devices:
 
-```bash
-arecord -l
-# **** List of CAPTURE Hardware Devices ****
-```
+    **NOTE:** I've truncated all but 2 subdevices on each device, but there should be 8 for each)
 
-4. We can now add an audio loopback device to the Signifier boot sequence. This lets us pipe the audio generated by the Signifier back into our Python script so we can analyse the audio stream before it outputs to the speaker. The data produced by the audio analysis enables the audio-reactive aspect to the Signifier LED system. 
+    ```bash
+    aplay -l
+    ```
+    ```yaml
+    **** List of PLAYBACK Hardware Devices ****
+    card 0: Loopback [Loopback], device 0: Loopback PCM [Loopback PCM]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    card 0: Loopback [Loopback], device 1: Loopback PCM [Loopback PCM]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    card 1: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    ```
+    ```bash
+    arecord -l
+    ```
+    ```yaml
+    **** List of CAPTURE Hardware Devices ****
+    card 0: Loopback [Loopback], device 0: Loopback PCM [Loopback PCM]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    card 0: Loopback [Loopback], device 1: Loopback PCM [Loopback PCM]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    ```
 
-```bash
-echo "snd_aloop" | sudo tee -a /etc/modules-load.d/modules.conf
-```
+3. This change is NOT persistent between restarts, so we need to add this to our system `modules` file:
+    ```bash
+    echo "snd_aloop" | sudo tee -a /etc/modules-load.d/modules.conf
+    ```
+4. Now let's check the file contents to make sure the module has been added:
+    ```bash
+    cat /etc/modules-load.d/modules.conf
+    ```
+    This should output something like this, the import bit to see is `snd_aloop`:
+    ```yaml
+    # /etc/modules: kernel modules to load at boot time.
+    #
+    # This file contains the names of kernel modules that should be loaded
+    # at boot time, one per line. Lines beginning with "#" are ignored.
 
-## Python modules
+    i2c-dev
+    snd_aloop
+    ```
+5. Restart the system and check the audio devices again:
+    ```bash
+    sudo reboot
+    ```
+    ```bash
+    aplay -l
+    ```
+    ```yaml
+    **** List of PLAYBACK Hardware Devices ****
+    card 0: Loopback [Loopback], device 0: Loopback PCM [Loopback PCM]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    card 0: Loopback [Loopback], device 1: Loopback PCM [Loopback PCM]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    card 1: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    ```
+    ```bash
+    arecord -l
+    ```
+    ```yaml
+    **** List of CAPTURE Hardware Devices ****
+    card 0: Loopback [Loopback], device 0: Loopback PCM [Loopback PCM]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    card 0: Loopback [Loopback], device 1: Loopback PCM [Loopback PCM]
+      Subdevices: 8/8
+      Subdevice #0: subdevice #0
+      Subdevice #1: subdevice #1
+    ...
+    ```
+    **NOTE:** There's one problem here, notice how the **PLAYBACK card number** of the **Headphones** device has changed to **card 1**, when it was originally **card 0**. We don't want to risk any numbers changing, since most of the audio services reference audio device by their card numbers. The next step is to stop that happening...
+
+### 4. Enforce fixed card numbers
+
+> More information: <https://wiki.archlinux.org/title/Advanced_Linux_Sound_Architecture#Configuring_the_index_order_via_kernel_module_options>
+
+1. Print out the audio OS **module** names and their current card numbers:
+    ```bash
+    cat /proc/asound/modules
+    ```
+    ```yaml
+    0 snd_aloop
+    1 snd_bcm2835
+    ```
+    Ah huh! The `snd_aloop` loopback module has been set to the first module.
+2. We can enforce specific card numbers on system boot by creating a config file in `/etc/modprobe.d`, let's call it `alsa-base.conf` and swap the order of those card modules:
+    ```bash
+    echo "options snd_bcm2835 index=0" | sudo tee -a /etc/modprobe.d/alsa-base.conf
+    echo "options snd_aloop index=1" | sudo tee -a /etc/modprobe.d/alsa-base.conf
+    ```
+3. Double check the contents of our new config file:
+    ```bash
+    cat /etc/modprobe.d/alsa-base.conf
+    ```
+    ```conf
+    options snd_bcm2835 index=0
+    options snd_aloop index=1
+    ```
+4. Reboot the system, then run a couple of commands to check the order is persistent:
+    - First the system modules:
+        ```bash
+        cat /proc/asound/modules
+        ```
+        ```yaml
+        0 snd_bcm2835
+        1 snd_aloop
+        ```
+    - Heck yeah! What about the ALSA output?
+        ```bash
+        aplay -l
+        ```
+        ```yaml
+        **** List of PLAYBACK Hardware Devices ****
+        card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+          Subdevices: 8/8
+          Subdevice #0: subdevice #0
+          Subdevice #1: subdevice #1
+        ...
+        card 1: Loopback [Loopback], device 0: Loopback PCM [Loopback PCM]
+          Subdevices: 8/8
+          Subdevice #0: subdevice #0
+          Subdevice #1: subdevice #1
+        ...
+        card 1: Loopback [Loopback], device 1: Loopback PCM [Loopback PCM]
+          Subdevices: 8/8
+          Subdevice #0: subdevice #0
+          Subdevice #1: subdevice #1
+        ...
+        ```
+        Looking good!
+
+5. To add extra redundancy to our audio environment, the Signifier application automatically attempts to use the `default` audio device in the case the one defined in `config.json` is invalid. This can be done by setting the `Headphones` device as ALSA's defaults using environment variables:
+    ```bash
+    printf '%s\n' 'export ALSA_CARD=Headphones' 'export ALSA_CTL_CARD=Headphones' 'export ALSA_PCM_CARD=Headphones' >> ~/.bashrc
+    ```
+6. Reload the environment and check that the variables have stuck:
+    ```bash
+    source ~/.bashrc
+    echo $ALSA_CARD $ALSA_CTL_CARD $ALSA_PCM_CARD
+    ```
+    Which should output:
+    ```bash
+    Headphones Headphones Headphones
+    ```
+
+We've now completed the audio environment configuration. To recap what we've done:
+
+
+[x] Install `PortAudio` and `ALSA Utils` system packages.
+
+[x] Disable HDMI audio devices.
+
+[x] Create an audio *loopback device*.
+
+[x] Ensure everything runs on boot with fixed card numbers.
+
+
+---
+
+## Python environment
+
+The OS image we're using comes with `Python 3.9` by default, with Python 3 aliased to both the `python` and `python3` shell commands. You can double check this with `python -V` and `python3 -V`. The Signifier application has only been tested on Python version 3.9.
 
 All required Python modules can be installed using the supplied `requirements.txt` file:
 
@@ -171,41 +432,57 @@ pyhton -m pip install PySerialTransfer  # Arduino communication framework
 pyhton -m pip install prometheus-client # Required if using Prometheus/Grafana to monitor Signifiers
 ```
 
-## Development commands
+## Enable Signifier boot script
 
-Manually creating an audio loopback device with ALSA:
-
-```bash
-sudo modprobe snd-aloop
-```
+TODO
 
 
+The environment is ready to roll!
 
+## Connect devices
 
-## Todos
+1. Power-off the Raspberry Pi, and unplug it's USB-C power cable once it's finished shutting down:
+    ```bash
+    sudo poweroff
+    ```
+2. Connect all the Signifier devices:
+    - 3.5mm audio cable
+    - Arduino USB cable
+    - ...
+3. Reconnect the USB-C power cable to the Raspberry Pi.
 
-Basic playback:
-  1. ~~Create proper exit function and audio clip playback length limiting~~
-  2. ~~add function to move newly played clip from inactive_pool to active_pool~~
-  3. ~~differentiate various clip types (short, med, long, loop, etc)~~
-  4. ~~replate original Signifier audio playback~~
-  5. ~~use noise to modulate channel volumes~~
+The Signifier should now run as expected!
 
-Modulated playback:
-
-  6. Create server of some kind. Accepting JSON would be ideal, for key/value control. (Flask server?)
-  7. Affix server responses to functions
-  8. Create documentation for server commands
-
-LED reactivity:
-
-  9. Add function to analyise channel output amplitudes
-  10. ~~Test pyserial to Arduino functionality~~
-  11. Create simple LED brightness reactivity based on audio output
-  
-
+---
 
 # Debugging
+
+## Audio debugging CLI commands
+
+### Various outputs of the available audio devices
+
+```bash
+cat /proc/asound/modules
+# 0 snd_aloop
+# 1 snd_bcm2835
+```
+
+```bash
+cat /proc/asound/cards
+ 0 [Loopback       ]: Loopback - Loopback
+                      Loopback 1
+ 1 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones
+                      bcm2835 Headphones
+```
+
+### Audio configuration
+
+A pretty terminal GUI for inspecting and making changes to the audio device volumes. 
+
+```bash
+alsamixer
+```
+
 
 ## Pygame 2 audio device not detected
 <https://stackoverflow.com/questions/68529262/init-sounddevice-in-pygame2-on-raspberry>

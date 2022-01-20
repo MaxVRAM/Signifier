@@ -157,8 +157,7 @@ class Siguino:
             self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
             self.callback_list = [self.receive_packet]
             self.link.set_callbacks(self.callback_list)
-            logger.debug(f'({len(self.link.callbacks)})\
-                Arduino callback(s) set.')
+            logger.debug(f'({len(self.link.callbacks)}) Arduino callback(s).')
             self.link.open()
             self.wait_for_ready()
             self.active = True

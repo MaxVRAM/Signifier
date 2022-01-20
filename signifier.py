@@ -252,7 +252,7 @@ def passthrough_callback(values):
 def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
-    default_device = config['audio']['hw_direct_output']
+    default_device = config['audio']['loopback_output']
     # pg.init()
     # is_capture = 0
     # num_devices = sdl2.get_num_audio_devices(is_capture)
@@ -297,6 +297,10 @@ def set_audio_engine(*args):
             logger.error('Audio device could not be detected.\
                 Disabling audio system.')
             return None
+        # NOTE: It seems that the pg.mixer initialisation doesn't check
+        # for a valid audio device. This may be good, but might be bad.
+        # Will do some tests to check what happens with and without
+        # an audio loopback device active.
         pg.mixer.pre_init(
             frequency=config['audio']['sample_rate'],
             size=config['audio']['bit_size'],
@@ -306,7 +310,7 @@ def set_audio_engine(*args):
         pg.mixer.init()
         pg.init()
         audio_active = True
-        logger.debug(f'Audio output device: "{device} {pg.mixer.get_init()}"')
+        logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
         
         # audio_stream = Stream(config['audio'], passthrough_callback)
         # audio_stream.run()
