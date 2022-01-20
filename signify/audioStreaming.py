@@ -36,11 +36,13 @@ DEFAULT_CONF = {
 sd.default.device = (2,0)
 sd.default.samplerate = 44100
 sd.default.channels = 1
+y_roll = np.random.rand(RHISTORY, DEFAULT_CONF['buffer']) / 1e16
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 q = queue.Queue()
 q.maxsize = 10
+
 
 class Stream(threading.Thread):
     """A PulseAudio loopback stream to analyse the audio\
@@ -61,7 +63,9 @@ class Stream(threading.Thread):
         self.amplitude = 0
         self.event: threading.Event
         self.stream: Stream
+        self.streaming = True
         self.prev_amp = 0
+        self.time = 0
         sd.default.channels = 1
         sd.default.device = (self.input, self.output)
         sd.default.samplerate = self.sample_rate
@@ -77,11 +81,24 @@ class Stream(threading.Thread):
         with sd.Stream(device=(self.input, self.output),
                    samplerate=self.sample_rate, channels=1,
                    callback=self.callback) as self.stream:
-            self.event.wait()
+            while self.streaming:
+                self.time = time.time()
+                try:
+                    self.amplitude = q.get(timeout=1)
+                except queue.Empty:
+                    pass
+                if not self.event.is_set():
+                    sd.sleep(1)
+                else:
+                    self.streaming = False
+            #self.event.wait()
             try:
                 sd.Stream.abort(self)
+                print("ABORTED STREAM!")
             except AttributeError:
                 sd.CallbackAbort()
+                print("ABORTED CALLBACK!")
+                self.streaming = False
 
 
     def terminate(self):
@@ -89,24 +106,29 @@ class Stream(threading.Thread):
         and provides an `event.set()` call to terminate the thread."""
         print()
         logger.info(f'Stopping audio streaming thread...')
+        self.streaming = False
         self.event.set()
+        sd.sleep(10)
         self.stream.abort()
 
 
     def callback(self, indata, outdata, frames, time, status):
-        if status:
-            print(status)
-        if indata is not None:
+        """The primary function called by the Streaming thread. This function\
+        calculates the amplitude of the input signal, then streams it to the\
+        output audio device."""
+        if self.streaming:
+            cat = np.concatenate(indata)
+            if status:
+                print(status)
             self.y_roll[:-1] = self.y_roll[1:]
             self.y_roll[-1, :] = np.copy(indata[0])
             y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
             amp = np.max(np.abs(y_data))
             try:
                 q.put_nowait(amp)
-                q.put(amp)
             except queue.Full:
                 pass
-        outdata[:] = indata
+            outdata[:] = indata
 
 
     def get_descriptors(self) -> dict:
@@ -119,116 +141,3 @@ class Stream(threading.Thread):
             self.amplitude = new_amp
             print(self.amplitude)
         return {"amplitude":self.amplitude}
-
-
-    # def callback(indata, outdata, frames, time, status):
-    #     global y_roll
-    #     if status:
-    #         print(status)
-    #     if indata is not None:
-    #         y_roll[:-1] = y_roll[1:]
-    #         y_roll[-1, :] = np.copy(indata[0])
-    #         y_data = np.concatenate(y_roll, axis=0).astype(np.float32)
-    #         amp = np.max(np.abs(y_data))
-    #         q.put(amp)
-    #     outdata[:] = indata
-
-
-    # def stream():
-    #     """Threaded routine that starts a PortAudio stream for piping Signifier\
-    #     audio to the hardware audio output.\n
-    #     Also executes audio analysis during the callback and updates audio\
-    #     descriptors available from `get_descriptors()` function."""
-    #     this_thread = threading.current_thread()
-    #     # with sd.Stream(
-    #     #         device=(0,2),
-    #     #         samplerate=48000,
-    #     #         channels=1,
-    #     #         callback=callback) as stream:
-    #     with sd.Stream(callback=callback) as stream:
-    #         threading.Event.wait()
-    #         # while getattr(this_thread, "keep_going", True):
-    #         #     sd.sleep(10)
-    #         # stream.abort()
-
-
-    # def run(config=None):
-    #     """Start the PulseAudio loopback stream to analyse the audio\
-    #     and route it to the hardware output device.\n
-    #     Supply the audio portion of `config.json`, i.e. `config['audio']`."""
-    #     global runtime_config, y_roll, thread
-    #     logging.debug(f'Streaming module detected the following devices:\n{sd.query_devices()}')
-    #     if thread is None:
-    #         print()
-    #         logger.debug('Starting audio streaming thread...')
-    #         if config is None:
-    #             logger.warning('Audio streaming thread did not receive a configuration to use. Using default values.')
-    #         else:
-    #             runtime_config = config
-    #         sd.default.device = (2,0)
-    #         sd.default.samplerate = runtime_config['sample_rate']
-    #         sd.default.channels = 1
-    #         y_roll = np.random.rand(RHISTORY, runtime_config['buffer']) / 1e16
-    #         thread = threading.Thread(target=stream, daemon=True)
-    #         thread.setName('Audio Streaming')
-    #         thread.start()
-    #         logger.debug(f'({threading.enumerate()}) thread(s) now running.')
-    #         print()
-
-
-    # def stop():
-    #     """Sets the streaming thread's `keep_going` attribute to `False`, which\
-    #     should end the thread once the current buffer is done."""
-    #     global thread
-    #     if thread is not None:
-    #         print()
-    #         logger.info(f'Stopping "{thread.getName()}" ...')
-    #         thread.keep_going = False
-    #         logger.info(f'"{thread.getName()}" finished.')
-    #         print()
-    #         thread = None
-
-                
-        
-        
-        
-        
-# #!/usr/bin/env python3
-# """Pass input directly to output.
-
-# https://app.assembla.com/spaces/portaudio/git/source/master/test/patest_wire.c
-
-# """
-# import sounddevice as sd
-# import numpy as np  # Make sure NumPy is loaded before it is used in the callback
-
-# import queue
-
-# q = queue.Queue()
-
-# samples_per_frame = int(44100 / 20)
-# RHISTORY = 2
-# y_roll = np.random.rand(RHISTORY, samples_per_frame) / 1e16
-
-# def callback(indata, outdata, frames, time, status):
-#     if status:
-#         print(status)
-#     outdata[:] = indata
-#     if indata is not None:
-#         y_roll[:-1] = y_roll[1:]
-#         y_roll[-1, :] = np.copy(indata[0])
-#         y_data = np.concatenate(y_roll, axis=0).astype(np.float32)
-#         vol = np.max(np.abs(y_data))
-#         q.put(vol)
-
-# try:
-#     with sd.Stream(device=('Loopback: PCM (hw:3,1)', "bcm2835 Headphones: - (hw:0,0)"),
-#                    channels=1, callback=callback):
-#         print('#' * 80)
-#         print('press Return to quit')
-#         print('#' * 80)
-#         while True:
-#             print(q.get())
-#         input()
-# except Exception as e:
-#     pass

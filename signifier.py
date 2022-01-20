@@ -415,4 +415,4 @@ if __name__ == '__main__':
         arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
-        audio_amplitude = audio_stream.get_descriptors()
+        # audio_amplitude = audio_stream.get_descriptors()
