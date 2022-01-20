@@ -589,3 +589,15 @@ snd_timer              36864  1 snd_pcm
 snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_compress,snd_soc_core,snd_pcm
 ```
 
+
+
+
+### Pulse Audio
+
+https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/User/PerfectSetup/
+
+There's an explainaton in the link above, but basically using PortAudio on our Raspberry Pi's Ubuntu means we need to remove our user from the audio group.
+
+```bash
+ls -l /dev/snd
+```
