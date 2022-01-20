@@ -43,7 +43,7 @@
         {
             "enabled":true,
             "service":"audio",
-            "timer":16,
+            "timer":128,
             "parameters": {"pool_size":12, "start_clips":1}
         },
         "composition":

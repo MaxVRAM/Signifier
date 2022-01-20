@@ -15,6 +15,7 @@ stream, which can be sent to the arduino to modulate the LEDs."""
 # - https://stackoverflow.com/questions/66964597/python-gui-freezing-problem-of-thread-using-tkinter-and-sounddevice
 
 
+from multiprocessing import Event
 import time
 import queue
 import random
@@ -39,7 +40,7 @@ sd.default.channels = 1
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 q = queue.Queue()
-q.maxsize = 1
+q.maxsize = 10
 
 class Stream(threading.Thread):
     """A PulseAudio loopback stream to analyse the audio\
@@ -58,21 +59,13 @@ class Stream(threading.Thread):
             self.buffer = config['buffer']
         self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
         self.amplitude = 0
-        self.event = None
-        self.stream = None
+        self.event: threading.Event
+        self.stream: Stream
+        self.prev_amp = 0
         sd.default.channels = 1
         sd.default.device = (self.input, self.output)
         sd.default.samplerate = self.sample_rate
         logger.debug('Audio passthrough module ready.')
-
-
-    def get_descriptors(self) -> dict:
-        """Return a dictionary with audio analysis values returned from thread."""
-        try:
-            self.amplitude = q.get_nowait()
-        except:
-            pass
-        return {"amplitude":self.amplitude}
 
 
     def run(self):
@@ -85,6 +78,10 @@ class Stream(threading.Thread):
                    samplerate=self.sample_rate, channels=1,
                    callback=self.callback) as self.stream:
             self.event.wait()
+            try:
+                sd.Stream.abort(self)
+            except AttributeError:
+                sd.CallbackAbort()
 
 
     def terminate(self):
@@ -93,9 +90,7 @@ class Stream(threading.Thread):
         print()
         logger.info(f'Stopping audio streaming thread...')
         self.event.set()
-        print('event set')
         self.stream.abort()
-        print('stream aborted')
 
 
     def callback(self, indata, outdata, frames, time, status):
@@ -106,10 +101,25 @@ class Stream(threading.Thread):
             self.y_roll[-1, :] = np.copy(indata[0])
             y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
             amp = np.max(np.abs(y_data))
-            q.put(amp)
+            try:
+                q.put_nowait(amp)
+                q.put(amp)
+            except queue.Full:
+                pass
         outdata[:] = indata
 
-...
+
+    def get_descriptors(self) -> dict:
+        """Return a dictionary with audio analysis values returned from thread."""
+        try:
+            new_amp = q.get_nowait()
+        except queue.Empty:
+            return {"amplitude":self.amplitude}
+        if self.amplitude != new_amp:
+            self.amplitude = new_amp
+            print(self.amplitude)
+        return {"amplitude":self.amplitude}
+
 
     # def callback(indata, outdata, frames, time, status):
     #     global y_roll

@@ -348,14 +348,11 @@ def close_audio_system():
             time.sleep(0.1)
         pg.quit()
     if audio_stream is not None:
-        print('audio stream is not none...')
         if audio_stream.is_alive():
-            print('audio stream is alive...')
             audio_stream.terminate()
-            print('audio stream `terminate` called...')
-            audio_stream.join()
-            print('audio stream `joined!`')
+            logger.debug('Audio Stream thread closed.')
     audio_active = False
+    logger.info('Audio system now inactive.')
 
 
 class ExitHandler:
@@ -419,4 +416,3 @@ if __name__ == '__main__':
         schedule.run_pending()
         manage_audio_events()
         audio_amplitude = audio_stream.get_descriptors()
-        print(audio_amplitude)
