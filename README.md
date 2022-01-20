@@ -398,16 +398,12 @@ For audio-reactive LEDs, we need to create a **loopback** device to internally p
     Headphones Headphones Headphones
     ```
 
-We've now completed the audio environment configuration. To recap what we've done:
+**We've now completed the audio environment configuration!** To recap what we've done:
 
-
-[x] Install `PortAudio` and `ALSA Utils` system packages.
-
-[x] Disable HDMI audio devices.
-
-[x] Create an audio *loopback device*.
-
-[x] Ensure everything runs on boot with fixed card numbers.
+- [x] Install `PortAudio` and `ALSA Utils` system packages.
+- [x] Disable HDMI audio devices.
+- [x] Create an audio *loopback device*.
+- [x] Ensure everything runs on boot with fixed card numbers.
 
 
 ---

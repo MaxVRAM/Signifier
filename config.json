@@ -11,9 +11,9 @@
     {
         "enabled":true,
         "loopback_output":"Loopback, Loopback PCM",
-        "lookback_return":"Loopback: PCM (hw:2,1)",
+        "loopback_return":"Loopback: PCM (hw:1,1)",
         "hw_direct_output":"bcm2835 Headphones, bcm2835 Headphones",
-        "hw_loop_output":"bcm2835 Headphones: - (hw:1,0)",
+        "hw_loop_output":"bcm2835 Headphones: - (hw:0,0)",
         "sample_rate":44100,
         "bit_size":-16,
         "buffer":2048,

@@ -5,38 +5,47 @@
 # outputs via serial from the signifier.py module.
 # 
 
+# https://python-sounddevice.readthedocs.io/en/0.3.15/examples.html#input-to-output-pass-through
 
+import os
 import time
 import queue
 import random
 import logging
-import numpy
-assert numpy
+import numpy as np
+assert np
 import sounddevice as sd
 
+
+RHISTORY = 2
+done = False
 q = queue.Queue()
+buffer = 2048
+y_roll = np.random.rand(RHISTORY, buffer) / 1e16
 
 
-def parse_samples(indata, frames, time, status):
+q.maxsize = 1
+
+def callback(indata, outdata, frames, time, status):
     if status:
-        print(f'Passthrough audio device status: {status}')
-    # rando = random.randint(0, 100)
-    # rms = np.sqrt(np.mean(indata**2))
-    # q.put(rms)
-    average = numpy.average(indata)
-    max = numpy.amax(indata)
-    q.put(max)
-    #q.put(indata[::10])
+        print(status)
+    if indata is not None:
+        y_roll[:-1] = y_roll[1:]
+        y_roll[-1, :] = np.copy(indata[0])
+        y_data = np.concatenate(y_roll, axis=0).astype(np.float32)
+        amp = np.max(np.abs(y_data))
+        q.put(amp)
+    outdata[:] = indata
 
 
-while True:
-    with sd.InputStream(device="Loopback: PCM (hw:3,1)",
-                   samplerate=44100, blocksize=0, dtype='float32',
-                   channels=1, callback=parse_samples):
-        pass
-        print(f'Callback: {q.get()}')
-        
-        
-        
-        #"Loopback, Loopback PCM"
-        #"bcm2835 Headphones, bcm2835 Headphones"
+try:
+    with sd.Stream(device=("Loopback: PCM (hw:1,1)", "bcm2835 Headphones: - (hw:0,0)"),
+                   channels=1, callback=callback):
+        print('#' * 80)
+        print('press Return to quit')
+        print('#' * 80)
+        while True:
+#            print(f'{q.qsize()}')
+            print(f'Callback size: {q.qsize()}      Callback value: {q.get()}')
+except Exception as e:
+    print(f'{e}')

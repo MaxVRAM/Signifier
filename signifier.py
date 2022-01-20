@@ -43,7 +43,8 @@ import pygame as pg
 
 from signify.siguino import Siguino, ArduinoState
 from signify.clipManager import ClipManager
-from signify.passthrough import Stream
+import signify.audioStreaming as AudioStream
+
 
 CLIP_EVENT = pg.USEREVENT + 1
 CONFIG_FILE = 'config.json'
@@ -252,6 +253,7 @@ def passthrough_callback(values):
 def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
+    # Possibly bash command `aplay -l`, or sounddevice.query_devices()
     default_device = config['audio']['loopback_output']
     # pg.init()
     # is_capture = 0
@@ -281,7 +283,7 @@ def check_audio_device() -> str:
 
 def set_audio_engine(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    global audio_active
+    global audio_active, audio_stream
     if config['audio']['enabled'] is True:
         if audio_active:
             if 'force' in args:
@@ -311,10 +313,9 @@ def set_audio_engine(*args):
         pg.init()
         audio_active = True
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
-        
-        # audio_stream = Stream(config['audio'], passthrough_callback)
-        # audio_stream.run()
-        
+
+        AudioStream.run(config['audio'])
+        time.sleep(1)
     else:
         if audio_active:
             close_audio_system()
@@ -338,11 +339,10 @@ def stop_scheduler():
 
 
 def close_audio_system():
-    global audio_active
-    logger.info('Closing audio system.')
+    global audio_active, audio_stream
+    logger.info('Closing audio system...')
     if audio_active:
-        # if audio_stream is not None:
-        #     audio_stream.stop()
+        AudioStream.stop()
         if pg.get_init() is True and pg.mixer.get_init() is not None:
             stop_all_clips()
             while pg.mixer.get_busy():
@@ -396,10 +396,11 @@ if __name__ == '__main__':
     exit_handler = ExitHandler()
     time.sleep(1)
 
+    set_audio_engine()
+
     arduino = Siguino(config['arduino'])
     arduino.open_serial()
 
-    set_audio_engine()
     init_clip_manager()
     get_collection(restart_jobs=False)
 
