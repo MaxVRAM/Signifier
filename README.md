@@ -120,6 +120,7 @@ There's only two packages we need at the moment:
 ```bash
 sudo apt install libportaudio2  # PortAudio, required for LED audio-reactivity.
 sudo apt install alsa-utils     # Provides loopback and additional debugging tools.
+sudo apt install libasound2-dev # Downloads ALSA C-libraries for Python library compilation.
 ```
 
 ### 2. Disable HDMI audio devices
@@ -400,10 +401,10 @@ For audio-reactive LEDs, we need to create a **loopback** device to internally p
 
 **We've now completed the audio environment configuration!** To recap what we've done:
 
-- [x] Install `PortAudio` and `ALSA Utils` system packages.
+- [x] Install required system packages.
 - [x] Disable HDMI audio devices.
-- [x] Create an audio *loopback device*.
-- [x] Ensure everything runs on boot with fixed card numbers.
+- [x] Create audio loopback device.
+- [x] Assign audio device boot configurations.
 
 
 ---
@@ -423,6 +424,7 @@ If for some reason only specific modules are required, the can be installed indi
 ```bash
 pyhton -m pip install schedule          # Required for scheduling "jobs" to automate the Signifier
 pyhton -m pip install pygame            # Back-end framework for audio clip playback
+python -m pip install python3-pyaudio   # Provides the Python ALSA <> PortAudio integration
 pyhton -m pip install sounddevice       # Wrapper for PortAudio, required for audio loopback/analysis
 pyhton -m pip install PySerialTransfer  # Arduino communication framework
 pyhton -m pip install prometheus-client # Required if using Prometheus/Grafana to monitor Signifiers
@@ -592,8 +594,26 @@ snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_com
 
 https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/User/PerfectSetup/
 
-There's an explainaton in the link above, but basically using PortAudio on our Raspberry Pi's Ubuntu means we need to remove our user from the audio group.
+Remove user from `audio` group??
 
 ```bash
 ls -l /dev/snd
 ```
+
+
+Installing PyAudio (PulseAudio Python module)
+
+``bash
+sudo apt install python3-pyaudio
+```
+
+
+# Dead-ends
+
+## PyAlsaAudio Python Module
+
+https://github.com/larsimmisch/pyalsaaudio
+
+This module is far less comprehensive than the PulseAudio module `sounddevice`. I attempted this module because `sounddevice` produced some strange errors in certain scenarios (running Stream in a thread, for instance).
+
+PyAlsaAudio is very bare-bones in functionality. Futhermore, not only is it poorly documented, for some reason the module refused to import into my VC Code Intellisense. So I had to have a second terminal open running things like `dir(alsaaudio)` into `dir(alsaaudio.pcms())` and web browsers constantly searching on forums and the like.

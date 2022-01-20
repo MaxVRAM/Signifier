@@ -43,7 +43,7 @@ import pygame as pg
 
 from signify.siguino import Siguino, ArduinoState
 from signify.clipManager import ClipManager
-import signify.audioStreaming as AudioStream
+from signify.audioStreaming import Stream
 
 
 CLIP_EVENT = pg.USEREVENT + 1
@@ -54,7 +54,7 @@ config = None
 arduino = None
 active_jobs = {}
 audio_active = False
-audio_stream: None
+audio_stream: Stream
 audio_amplitude = 0
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
@@ -313,8 +313,9 @@ def set_audio_engine(*args):
         pg.init()
         audio_active = True
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
-
-        AudioStream.run(config['audio'])
+        audio_stream = Stream(config['audio'])
+        audio_stream.setDaemon(True)
+        audio_stream.start()
         time.sleep(1)
     else:
         if audio_active:
@@ -339,16 +340,22 @@ def stop_scheduler():
 
 
 def close_audio_system():
-    global audio_active, audio_stream
+    global audio_active
     logger.info('Closing audio system...')
-    if audio_active:
-        AudioStream.stop()
-        if pg.get_init() is True and pg.mixer.get_init() is not None:
-            stop_all_clips()
-            while pg.mixer.get_busy():
-                time.sleep(0.1)
-            pg.quit()
-        audio_active = False
+    if pg.get_init() is True and pg.mixer.get_init() is not None:
+        stop_all_clips()
+        while pg.mixer.get_busy():
+            time.sleep(0.1)
+        pg.quit()
+    if audio_stream is not None:
+        print('audio stream is not none...')
+        if audio_stream.is_alive():
+            print('audio stream is alive...')
+            audio_stream.terminate()
+            print('audio stream `terminate` called...')
+            audio_stream.join()
+            print('audio stream `joined!`')
+    audio_active = False
 
 
 class ExitHandler:
@@ -411,4 +418,5 @@ if __name__ == '__main__':
         arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
-        #audio_amplitude = audio_stream.get_descriptors()
+        audio_amplitude = audio_stream.get_descriptors()
+        print(audio_amplitude)
