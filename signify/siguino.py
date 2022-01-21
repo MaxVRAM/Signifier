@@ -121,7 +121,7 @@ class Siguino:
                 elif self.state == ArduinoState.pause:
                     print()
                     print()
-                    logger.debug(f'Arduino gave ready message, and has state: {self.state}')
+                    logger.debug(f'Arduino gave ready message, and is "{self.state.name}".')
                     print()
                     print()
                     self.send_packet('B', 0, 500)
@@ -131,7 +131,7 @@ class Siguino:
 
 
     def set_state(self, state:ArduinoState):
-        logger.debug(f'Arduino state set to {state}')
+        logger.debug(f'Arduino state set to "{state.name}"')
         self.state = state
 
 
@@ -157,7 +157,7 @@ class Siguino:
             self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
             self.callback_list = [self.receive_packet]
             self.link.set_callbacks(self.callback_list)
-            logger.debug(f'({len(self.link.callbacks)}) Arduino callback(s).')
+            logger.debug(f'({len(self.link.callbacks)}) Arduino callback(s) ready.')
             self.link.open()
             self.wait_for_ready()
             self.active = True

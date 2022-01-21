@@ -118,9 +118,10 @@ Let's go!
 
 There's only two packages we need at the moment:
 ```bash
-sudo apt install libportaudio2  # PortAudio, required for LED audio-reactivity.
-sudo apt install alsa-utils     # Provides loopback and additional debugging tools.
-sudo apt install libasound2-dev # Downloads ALSA C-libraries for Python library compilation.
+sudo apt install libportaudio2    # PortAudio, required for LED audio-reactivity.
+sudo apt install alsa-utils       # Provides loopback and additional debugging tools.
+sudo apt install libasound2-dev   # Downloads ALSA C-libraries for Python library compilation.
+sudo apt install python3-pyaudio  # Provides the Python ALSA <> PortAudio integration
 ```
 
 ### 2. Disable HDMI audio devices
@@ -159,7 +160,7 @@ Signifiers only need access to the default **Headphones** device (Raspberry Pi's
     speaker-test -D Headphones -t wav -c 2
     ```
     - `-D Headphones` defines the PLAYBACK device to test
-    - `-t wav` changes the default noise test sound to a voice saying "left channel", "right channel".
+    - `-t wav` changes the default noise test sound to a voice saying something like "left channel", "right channel".
     - `-c 2` enables the test over both the left and right channels.
     - **NOTE:** One of the channels might not be heard on the Signifier, since it's a mono speaker. Everything is fine as along as one channel is audiable.
 3. Aftering confirming that we have sound, we'll now create a *Device Tree Overlay* to disable the HDMI audio devices, they're not needed:
@@ -361,7 +362,7 @@ For audio-reactive LEDs, we need to create a **loopback** device to internally p
         0 snd_bcm2835
         1 snd_aloop
         ```
-    - Heck yeah! What about the ALSA output?
+    - Nice one! What about the ALSA output?
         ```bash
         aplay -l
         ```
@@ -383,7 +384,100 @@ For audio-reactive LEDs, we need to create a **loopback** device to internally p
           Subdevice #1: subdevice #1
         ...
         ```
-        Looking good!
+        Heck yeah! Now when we need to use audio card/device numbers, we can depend on the following:
+        - "Headphone" output card/device is (0, 0)
+        - "Loopback" virtual card/devices are on (1, 0) and (1, 1)
+
+5. Finally, we'll make a custom ALSA configuration that creates a new audio device called `SpeakerAndLoop`. This will duplicate its audio stream to both the hardware output and loopback device, and sets it as ALSA's default PLAYBACK device. The configuration will also set the second loopback device as the default RECORD device.
+
+
+    > More information:
+       - <https://itectec.com/unixlinux/send-sound-output-to-application-and-speaker/>
+       - <https://alsa.opensrc.org/Asoundrc>
+
+    ```bash
+    pcm.!default {
+      type asym
+      playback.pcm "SpeakerAndLoop"
+      capture.pcm "hw:1,1"
+    }
+
+    ctl.!default {
+      type hw
+      card 0
+    }
+
+    # PLAYBACK and LOOPBACK interface
+    pcm.SpeakerAndLoop {
+      type plug
+      slave.pcm MultiCh
+      route_policy "duplicate"
+    }
+
+    # Virtual multichannel device:
+    # 2 x Headphones channels, 2 x Loopback channels
+    pcm.MultiCh {
+      type multi
+      slaves.a.pcm pcm.MixerHeadphones
+      slaves.a.channels 2
+      slaves.b.pcm pcm.MixerLoopback
+      slaves.b.channels 2
+      bindings.0.slave a
+      bindings.0.channel 0
+      bindings.1.slave a
+      bindings.1.channel 1
+      bindings.2.slave b
+      bindings.2.channel 0
+      bindings.3.slave b
+      bindings.3.channel 1
+    }
+
+    # Headphones device mixer
+    pcm.MixerHeadphones {
+      type dmix
+      ipc_key 1024
+      slave {
+        pcm "hw:0,0"
+        rate 48000
+        periods 128
+        period_time 0
+        period_size 1024
+        buffer_size 4096
+      }
+    }
+
+    # Loopback device mixer
+    pcm.MixerLoopback {
+      type dmix
+      ipc_key 1025
+      slave {
+        pcm "hw:1,0"
+        rate 48000
+        periods 128
+        period_time 0
+        period_size 1024
+        buffer_size 4096
+      }
+    }
+    ```
+
+6. Now reboot, and use `speaker-test` to check that the new device is working:
+
+    ```bash
+    speaker-test -D SpeakerAndLoop -t wav -c 2
+    ```
+
+    If you're hearing sound from the headphones output, you've successfully created an audio device that sends its audio to other devices: one to the speaker, and one internally for the Signifier's audio analysis module.
+
+
+
+5. The Signifier audio playback engine uses PyGame's mixer module, which relies on SDL for interfacing with the OS' audio systems. We need to set environment variables to tell PyGame which audio device to output from.
+
+    > More information: <https://raspberrypi.stackexchange.com/questions/68127/how-to-change-audio-output-device-for-python>
+
+    ```bash
+
+    ```
 
 5. To add extra redundancy to our audio environment, the Signifier application automatically attempts to use the `default` audio device in the case the one defined in `config.json` is invalid. This can be done by setting the `Headphones` device as ALSA's defaults using environment variables:
     ```bash
@@ -424,7 +518,6 @@ If for some reason only specific modules are required, the can be installed indi
 ```bash
 pyhton -m pip install schedule          # Required for scheduling "jobs" to automate the Signifier
 pyhton -m pip install pygame            # Back-end framework for audio clip playback
-python -m pip install python3-pyaudio   # Provides the Python ALSA <> PortAudio integration
 pyhton -m pip install sounddevice       # Wrapper for PortAudio, required for audio loopback/analysis
 pyhton -m pip install PySerialTransfer  # Arduino communication framework
 pyhton -m pip install prometheus-client # Required if using Prometheus/Grafana to monitor Signifiers
@@ -452,6 +545,11 @@ The environment is ready to roll!
 The Signifier should now run as expected!
 
 ---
+
+# Questons to respond to on StackOverflow
+
+<https://stackoverflow.com/questions/57099246/set-output-device-for-pygame-mixer>
+
 
 # Debugging
 
@@ -589,23 +687,108 @@ snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_com
 
 
 
+### Debugging ALSA
+
+Runnign speaker output test through loopback....
+```bash
+speaker-test -c 2 -t wav -D hw:1,0
+
+speaker-test 1.2.4
+
+Playback device is hw:1,0
+Stream parameters are 48000Hz, S16_LE, 2 channels
+WAV file(s)
+Rate set to 48000Hz (requested 48000Hz)
+Buffer size range from 16 to 524288
+Period size range from 16 to 262144
+Using max buffer size 524288
+Periods = 4
+was set period_size = 131072
+was set buffer_size = 524288
+ 0 - Front Left
+ 1 - Front Right
+Time per period = 5.637673
+ 0 - Front Left
+ 1 - Front Right
+Time per period = 5.631830
+ 0 - Front Left
+^C 1 - Front Right
+Transfer failed: Bad address
+```
+
+Works fine, then try to use sd_loopback_stream.py to internally pipe the audio and get this error message:
+
+```bash
+python tests/sd_loopback_stream.py
+Input and output device must have the same samplerate
+```
+
+If I start the processes the other way around, the Python script runs fine, but speaker-test responds with:
+```bash
+speaker-test -c 2 -t wav -D hw:1,0
+
+speaker-test 1.2.4
+
+Playback device is hw:1,0
+Stream parameters are 48000Hz, S16_LE, 2 channels
+WAV file(s)
+Sample format not available for playback: Invalid argument
+Setting of hwparams failed: Invalid argument
+```
+
 
 ### Pulse Audio
 
-https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/User/PerfectSetup/
 
-Remove user from `audio` group??
+- Apparently `pi` user should be removed from `audio` group? Not sure if needed:
+  > More information: https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/User/PerfectSetup/
+- Python module `sounddevice` was returning errors when utilising `Stream` class. Apparently depends on PyAudio module:
+  ```bash
+  sudo apt install python3-pyaudio
+  ```
+- No sound after installing PulseAudio install -> NOTE! I belive masking this socket prevents PulseAudio from loading automatically, need to check:
+> More information: https://retropie.org.uk/forum/topic/28910/making-sound-back-after-december-update-broke-pixel-desktop/3
+  ```bash
+  systemctl --user mask pulseaudio.socket
+  ```
+- Menu bar disappears after installing PulseAudio:
+> More information: https://retropie.org.uk/forum/topic/28910/making-sound-back-after-december-update-broke-pixel-desktop/3
+  ```bash
+  sudo apt remove lxplug-volumepulse
+  ```
+- Create PulseAudio devices to feed two audio output devices:
+```bash
+
+
+```
+- Check if the PulseAudio service is running for the Pi user:
+```bash
+systemctl --user status pulseaudio
+```
+
+
+
+SUUUUUPER High CPU usage when using the PulseAudio combined-sink devices. It comepletely maxes out a core.
+
+
+### Pipe-wire ---- no, just stop
+
+Attempting to swap over the `pipe-wire`
+
+> More information: <https://askubuntu.com/questions/1333404/how-to-replace-pulseaudio-with-pipewire-on-ubuntu-21-04>
 
 ```bash
-ls -l /dev/snd
+sudo apt install pipewire-audio-client-libraries
 ```
 
 
-Installing PyAudio (PulseAudio Python module)
 
-``bash
-sudo apt install python3-pyaudio
-```
+
+  ```bash
+  ls -l /dev/snd
+  ```
+
+
 
 
 # Dead-ends

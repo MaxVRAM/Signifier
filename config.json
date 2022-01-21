@@ -1,7 +1,7 @@
 {
     "arduino":
     {
-        "enabled":true,
+        "enabled":false,
         "start_delay":5,
         "max_brightness":255,
         "default_hue":"",
@@ -10,13 +10,15 @@
     "audio":
     {
         "enabled":true,
+        "analysis":true,
+        "output_device":"pulse",
         "loopback_output":"Loopback, Loopback PCM",
         "loopback_return":"Loopback: PCM (hw:1,1)",
         "hw_direct_output":"bcm2835 Headphones, bcm2835 Headphones",
         "hw_loop_output":"bcm2835 Headphones: - (hw:0,0)",
         "sample_rate":44100,
         "bit_size":-16,
-        "buffer":2048,
+        "buffer":4096,
         "latency":0.1
     },
     "clip_manager":

@@ -43,18 +43,25 @@ import pygame as pg
 
 from signify.siguino import Siguino, ArduinoState
 from signify.clipManager import ClipManager
-from signify.audioStreaming import Stream
+from signify.audioAnalysis import Stream
 
 
 CLIP_EVENT = pg.USEREVENT + 1
 CONFIG_FILE = 'config.json'
 
-os.environ["SDL_VIDEODRIVER"] = "dummy"
+os.environ['SDL_VIDEODRIVER'] = 'dummy'
+os.environ['ALSA_CARD'] = 'Loopback'
+os.environ['ALSA_CTL_CARD'] = 'Loopback'
+os.environ['ALSA_PCM_CARD'] = 'Loopback'
+
+
+
+
 config = None
 arduino = None
 active_jobs = {}
 audio_active = False
-audio_stream: Stream
+audio_stream = None
 audio_amplitude = 0
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
@@ -254,7 +261,10 @@ def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
     # Possibly bash command `aplay -l`, or sounddevice.query_devices()
-    default_device = config['audio']['loopback_output']
+    #default_device = config['audio']['hw_loop_output']
+    #default_device = config['audio']['loopback_output']
+    #default_device = config['audio']['hw_direct_output']
+    #default_device = config['audio']['hw_direct_output']
     # pg.init()
     # is_capture = 0
     # num_devices = sdl2.get_num_audio_devices(is_capture)
@@ -278,13 +288,14 @@ def check_audio_device() -> str:
     #     return default_device
     # logger.info(f'"{device}" found on host and '
     #             f'will be used for audio playback.')
+    default_device = 'default'
     return default_device
 
 
 def set_audio_engine(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
     global audio_active, audio_stream
-    if config['audio']['enabled'] is True:
+    if config['audio']['enabled']:
         if audio_active:
             if 'force' in args:
                 close_audio_system()
@@ -303,19 +314,26 @@ def set_audio_engine(*args):
         # for a valid audio device. This may be good, but might be bad.
         # Will do some tests to check what happens with and without
         # an audio loopback device active.
+        # pg.mixer.pre_init(
+        #     frequency=config['audio']['sample_rate'],
+        #     size=config['audio']['bit_size'],
+        #     channels=1,
+        #     buffer=config['audio']['buffer'],
+        #     devicename=device)
         pg.mixer.pre_init(
             frequency=config['audio']['sample_rate'],
             size=config['audio']['bit_size'],
             channels=1,
-            buffer=config['audio']['buffer'],
-            devicename=device)
+            buffer=config['audio']['buffer'])
         pg.mixer.init()
         pg.init()
         audio_active = True
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
-        audio_stream = Stream(config['audio'])
-        audio_stream.setDaemon(True)
-        audio_stream.start()
+        if config['audio']['analysis']:
+            logger.debug('Audio analysis stream active.')
+            audio_stream = Stream(config['audio'])
+            audio_stream.setDaemon(True)
+            audio_stream.start()
         time.sleep(1)
     else:
         if audio_active:
@@ -340,7 +358,7 @@ def stop_scheduler():
 
 
 def close_audio_system():
-    global audio_active
+    global audio_active, audio_stream
     logger.info('Closing audio system...')
     if pg.get_init() is True and pg.mixer.get_init() is not None:
         stop_all_clips()
@@ -415,4 +433,5 @@ if __name__ == '__main__':
         arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
+        time.sleep(0.01)
         # audio_amplitude = audio_stream.get_descriptors()

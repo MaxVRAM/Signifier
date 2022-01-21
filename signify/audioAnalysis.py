@@ -24,24 +24,20 @@ import threading
 import numpy as np
 import sounddevice as sd
 
-
 RHISTORY = 2
 DEFAULT_CONF = {
     "enabled":True,
     "loopback_return":1,
     "hw_loop_output":0,
-    "sample_rate":44100,
-    "buffer":2048 }
+    "sample_rate":48000,
+    "buffer":4096 }
 
-sd.default.device = (2,0)
-sd.default.samplerate = 44100
-sd.default.channels = 1
-y_roll = np.random.rand(RHISTORY, DEFAULT_CONF['buffer']) / 1e16
+sd.default.device = (1,0)
+sd.default.channels = (1,1)
+sd.default.samplerate = DEFAULT_CONF['sample_rate']
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-q = queue.Queue()
-q.maxsize = 10
 
 
 class Stream(threading.Thread):
@@ -50,7 +46,7 @@ class Stream(threading.Thread):
     Supply the audio portion of `config.json`, i.e. `config['audio']`."""
     def __init__(self, config=None):
         super().__init__()
-        logging.debug(f'Streaming module detected the following devices:\n{sd.query_devices()}')
+        logger.debug(f'Streaming module detected the following devices:\n{sd.query_devices()}')
         if config is None:
             config = DEFAULT_CONF
         else:
@@ -59,17 +55,18 @@ class Stream(threading.Thread):
             self.output = config['hw_loop_output']
             self.sample_rate = config['sample_rate']
             self.buffer = config['buffer']
-        self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
-        self.amplitude = 0
-        self.event: threading.Event
-        self.stream: Stream
-        self.streaming = True
-        self.prev_amp = 0
-        self.time = 0
         sd.default.channels = 1
         sd.default.device = (self.input, self.output)
         sd.default.samplerate = self.sample_rate
-        logger.debug('Audio passthrough module ready.')
+        self.event = None
+        self.stream = None
+        self.streaming = True
+        self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
+        self.amp = 0
+        self.amp_q = queue.Queue(maxsize=1)
+        self.peak = 0
+        self.peak_q = queue.Queue(maxsize=1)
+        logger.debug('Audio passthrough module initialised.')
 
 
     def run(self):
@@ -77,21 +74,15 @@ class Stream(threading.Thread):
         audio to the hardware audio output.\n
         Also executes audio analysis during the callback and updates audio\
         descriptors available from `get_descriptors()` function."""
+        logger.debug('Starting loopback stream and analysis thread...')
+        if self.stream is not None:
+            self.stream.close()
         self.event = threading.Event()
         with sd.Stream(device=(self.input, self.output),
                    samplerate=self.sample_rate, channels=1,
                    callback=self.callback) as self.stream:
-            while self.streaming:
-                self.time = time.time()
-                try:
-                    self.amplitude = q.get(timeout=1)
-                except queue.Empty:
-                    pass
-                if not self.event.is_set():
-                    sd.sleep(1)
-                else:
-                    self.streaming = False
-            #self.event.wait()
+        # with sd.Stream(callback=self.callback) as self.stream:
+        #     self.event.wait()
             try:
                 sd.Stream.abort(self)
                 print("ABORTED STREAM!")
@@ -117,27 +108,36 @@ class Stream(threading.Thread):
         calculates the amplitude of the input signal, then streams it to the\
         output audio device."""
         if self.streaming:
-            cat = np.concatenate(indata)
             if status:
-                print(status)
+                logger.debug(status)
+            outdata[:] = indata
+            self.cat = np.concatenate(indata)
             self.y_roll[:-1] = self.y_roll[1:]
             self.y_roll[-1, :] = np.copy(indata[0])
-            y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
-            amp = np.max(np.abs(y_data))
+            self.y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
+            self.amp = np.max(np.abs(self.y_data))
+            self.peak = max(self.peak, np.max(np.abs(indata)))
             try:
-                q.put_nowait(amp)
+                self.amp_q.put_nowait(self.amp)
             except queue.Full:
                 pass
-            outdata[:] = indata
+            try:
+                self.peak_q.put_nowait(self.peak)
+            except queue.Full:
+                pass
 
 
     def get_descriptors(self) -> dict:
         """Return a dictionary with audio analysis values returned from thread."""
         try:
-            new_amp = q.get_nowait()
+            self.amp = self.amp_q.get_nowait()
         except queue.Empty:
-            return {"amplitude":self.amplitude}
-        if self.amplitude != new_amp:
-            self.amplitude = new_amp
-            print(self.amplitude)
-        return {"amplitude":self.amplitude}
+            pass
+        try:
+            self.peak = self.peak_q.get_nowait()
+        except queue.Empty:
+            pass
+
+        output = {"amplitude":self.amp, "peak":self.peak}
+        print(output)
+        return output

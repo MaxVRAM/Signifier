@@ -29,23 +29,31 @@ q.maxsize = 1
 def callback(indata, outdata, frames, time, status):
     if status:
         print(status)
+    outdata[:] = indata
     if indata is not None:
         y_roll[:-1] = y_roll[1:]
         y_roll[-1, :] = np.copy(indata[0])
         y_data = np.concatenate(y_roll, axis=0).astype(np.float32)
         amp = np.max(np.abs(y_data))
-        q.put(amp)
-    outdata[:] = indata
+        try:
+            q.put_nowait(amp)
+        except queue.Full:
+            pass
 
 
 try:
     with sd.Stream(device=("Loopback: PCM (hw:1,1)", "bcm2835 Headphones: - (hw:0,0)"),
                    channels=1, callback=callback):
+    # with sd.Stream(device="pulse", channels=1, callback=callback):
         print('#' * 80)
         print('press Return to quit')
         print('#' * 80)
         while True:
-#            print(f'{q.qsize()}')
-            print(f'Callback size: {q.qsize()}      Callback value: {q.get()}')
+            try:
+                amp_out = q.get_nowait()
+                print(amp_out)
+            except queue.Empty:
+                pass
+            sd.sleep(20)
 except Exception as e:
     print(f'{e}')
