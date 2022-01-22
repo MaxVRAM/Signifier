@@ -15,16 +15,14 @@ stream, which can be sent to the arduino to modulate the LEDs."""
 # - https://stackoverflow.com/questions/66964597/python-gui-freezing-problem-of-thread-using-tkinter-and-sounddevice
 
 
-from multiprocessing import Event
-import time
 import queue
-import random
 import logging
 import threading
 import numpy as np
 import sounddevice as sd
 
-RHISTORY = 2
+from signify.utils import ExpFilter as Filter
+
 DEFAULT_CONF = {
     "enabled":True,
     "loopback_return":1,
@@ -61,10 +59,7 @@ class Analyser(threading.Thread):
         self.event = None
         self.stream = None
         self.streaming = True
-        # self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
-        # self.amp = 0
-        # self.amp_q = queue.Queue(maxsize=1)
-        self.dBa = 0
+        self.rms = Filter(0, alpha_decay=0.02, alpha_rise=0.02)
         self.peak = 0
         self.analysis_data = {}
         self.analysis_q = analysis_q
@@ -79,6 +74,7 @@ class Analyser(threading.Thread):
         logger.debug('Starting loopback stream and analysis thread...')
         if self.stream is not None:
             self.stream.close()
+
         self.event = threading.Event()
         self.stream = sd.InputStream(device='pulse', channels=1,
             callback=self.process_audio, finished_callback=event.set)
@@ -86,19 +82,26 @@ class Analyser(threading.Thread):
             event.wait()
         self.streaming = False
 
-        # try:
-        #     analysis_data = self.analysis_q.get_nowait()
-        #     print(analysis_data)
-        #     print(self.signifier_return)
-        #     self.signifier_return(analysis_data)
-        # except queue.Empty:
-        #     pass
 
-            # try:
-            #     sd.Stream.abort(self)
-            # except AttributeError:
-            #     sd.CallbackAbort()
-            # print("ABORTED STREAM!")
+    def process_audio(self, indata, frames, time, status):
+        """The primary function called by the Streaming thread. This function\
+        calculates the amplitude of the input signal, then streams it to the\
+        output audio device."""
+        if self.streaming:
+            if status:
+                logger.debug(status)
+            self.peak = np.max(np.abs(indata))
+            with np.errstate(divide='ignore'):
+                rms = 20 * np.log10(rms_flat(indata) / 2e-5)
+                rms = rms if np.isfinite(rms) else 0
+            rms = self.rms.update(rms)
+            try:
+                data = {"peak":self.peak, "dba":rms}
+                self.analysis_q.put_nowait(data)
+            except queue.Full:
+                pass
+        else:
+            self.event.set()
 
 
     def terminate(self):
@@ -111,41 +114,6 @@ class Analyser(threading.Thread):
         sd.sleep(100)
         self.stream.abort()
 
-
-    def process_audio(self, indata, frames, time, status):
-        """The primary function called by the Streaming thread. This function\
-        calculates the amplitude of the input signal, then streams it to the\
-        output audio device."""
-        if self.streaming:
-            if status:
-                logger.debug(status)
-            boosted_indata = indata * 2
-            self.peak = np.max(np.abs(boosted_indata))
-            with np.errstate(divide='ignore'):
-                self.dBa = 20 * np.log10(rms_flat(boosted_indata) / 2e-5)
-                self.dBa = self.dBa if np.isfinite(self.dBa) else 0
-            try:
-                data = {"peak":self.peak, "dba":self.dBa}
-                self.analysis_q.put_nowait(data)
-            except queue.Full:
-                pass
-        else:
-            self.event.set()
-
-
-    def get_descriptors(self) -> dict:
-        """Return a dictionary with audio analysis values returned from thread."""
-        # try:
-        #     self.amp = self.amp_q.get_nowait()
-        # except queue.Empty:
-        #     pass
-        # try:
-        #     self.peak = self.peak_q.get_nowait()
-        # except queue.Empty:
-        #     pass
-
-        output = {"peak":self.peak, "dba":self.dBa}
-        return output
 
 
 def rms_flat(a):

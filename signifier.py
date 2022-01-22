@@ -432,7 +432,7 @@ if __name__ == '__main__':
     set_audio_engine()
 
     arduino = Siguino(config['arduino'])
-    arduino.open_serial()
+    arduino.open_connection()
 
     init_clip_manager()
     get_collection(restart_jobs=False)

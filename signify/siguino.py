@@ -11,13 +11,10 @@ connected Arduino Nano Every."""
 
 from __future__ import annotations
 import time
-import math
 import enum
-import queue
 import logging
 
 from ctypes import c_wchar
-from datetime import datetime as dt
 
 from pySerialTransfer import pySerialTransfer as txfer
 
@@ -59,12 +56,15 @@ class LedValue:
         self.tx_time = time.time_ns() // 1_000_000
         self.updated = False
         self.packet = None
+        self.is_listening = True
 
 
-    def set_value(self, value):
-        value = int(scale(value, (0, 1), (self.min, self.max), 'clamp'))
-        self.packet = SendPacket(self.cmd, value, self.duration)
-        self.updated = True
+    def set_value(self, value, *args, duration=None):
+        if 'force' in args or self.is_listening:
+            dur = duration if duration is not None else self.duration
+            value = int(scale(value, (0, 1), (self.min, self.max), 'clamp'))
+            self.packet = SendPacket(self.cmd, value, dur)
+            self.updated = True
 
 
     def get_packet(self) -> SendPacket:
@@ -119,37 +119,6 @@ class Siguino:
             return self.rx_packet
 
 
-    def send_packet(self, cmd:str, val:int, dur:int):
-        """Send the Arduino a command via serial, including a value,\
-        and duration for the command to run for."""
-        # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
-        sendSize = 0
-        sendSize = self.link.tx_obj(cmd, start_pos=sendSize)
-        sendSize = self.link.tx_obj(val, start_pos=sendSize)
-        sendSize = self.link.tx_obj(dur, start_pos=sendSize)
-        success = self.link.send(sendSize)
-        if not success:
-            logger.warn(f'Ardiuno did not accept my packet "{cmd}" with value ({val}) over ({dur})ms.')
-        return None
-    
-
-    
-    def wave(self):
-        """Simple sine wave modulation over all LED brightness."""
-        # Flash
-        # if brightness_value == 0:
-        #     brightness_value = 1
-        # else:
-        #     brightness_value = 0
-        #
-        # Random
-        # brightness_value = random.triangular(0.0, 1.0, 0.5)
-        #
-        # Slow sine pulse
-        #self.brightness = (math.sin(time.time()*2) + 1) / 2
-        return None
-
-
     def receive_packet(self):
         """Called when `arduino.tick()` receives a serial message from the\
         Arduino, automatically parsing the serial packets for processing (i.e.\
@@ -169,30 +138,64 @@ class Siguino:
                 obj_type='l', start_pos=recSize)
             recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
             
+            # We can send packets once we get a `r` "ready" message.
+            # The LEDs require precise timing, so inturrupting a write
+            # sequence would cause issues with the LED output.
             if self.rx_packet.command == 'r':
                 if self.state == ArduinoState.run:
-                    # Get new packets if there's been any updates
-                    # Send them to the Arduino
                     bright = self.bright.get_packet()
                     if bright is not None:
-                        self.send_packet(bright.command,bright.value,bright.duration)
-
+                        self.send_packet(bright)
                 elif self.state == ArduinoState.pause:
-                    print()
-                    print()
-                    logger.debug(f'Arduino gave ready message, and is "{self.state.name}".')
-                    print()
-                    print()
-                    self.send_packet('B', 0, 500)
-                    self.state = ArduinoState.paused
+                    self.send_packet(self.bright.get_packet())
+                    self.set_state(ArduinoState.paused)
                 elif self.state == ArduinoState.close:
-                    self.close_serial()
+                    self.send_packet(self.bright.get_packet())
+                    time.sleep(1)
+                    self.set_state(ArduinoState.closed)
+                    self.link.close()
+                    self.active = False
             self.rx_packet = None
+
+
+    def send_packet(self, packet:SendPacket):
+        """Send the Arduino a command via serial, including a value,\
+        and duration for the command to run for."""
+        # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
+        sendSize = 0
+        sendSize = self.link.tx_obj(packet.command, start_pos=sendSize)
+        sendSize = self.link.tx_obj(packet.value, start_pos=sendSize)
+        sendSize = self.link.tx_obj(packet.duration, start_pos=sendSize)
+        success = self.link.send(sendSize)
+        if not success:
+            logger.warn(f'Arduino refused packet: {packet}.')
+        return None
 
 
     def set_state(self, state:ArduinoState):
         logger.debug(f'Arduino state set to "{state.name}"')
         self.state = state
+        if self.state is ArduinoState.run:
+            self.bright.is_listening = True
+        else:
+            self.bright.is_listening = False
+
+
+    def resume(self):
+        logger.debug('Arduino resuming...')
+        self.set_state(ArduinoState.run)
+
+
+    def pause(self, duration=500):
+        logger.debug('Pausing Arduino activity...')
+        self.set_state(ArduinoState.pause)
+        self.bright.set_value(0, 'force', duration=duration)
+
+
+    def shutdown(self, duration=1000):
+        logger.debug('Shutting down Arduino connection...')
+        self.set_state(ArduinoState.close)
+        self.bright.set_value(0, 'force', duration=duration)
 
 
     def wait_for_ready(self):
@@ -209,7 +212,7 @@ class Siguino:
         print()
 
         
-    def open_serial(self) -> bool:
+    def open_connection(self) -> bool:
         """TODO will populate with checks and timeouts for Arduino serial\
         connection.\n If reaches timeout before connection, will disable\
         Arduino/LED portion of the Signifier code."""
@@ -221,15 +224,22 @@ class Siguino:
             self.link.open()
             self.wait_for_ready()
             self.active = True
+            self.set_state(ArduinoState.run)
         logger.info(f'Arduino connection active: {self.active}')
         print()
 
 
-    def close_serial(self):
-        if self.active:
-            logger.debug('Closing Arduino serial connection...')
-            self.state = ArduinoState.closed
-            self.send_packet('B', 0, 900)
-            time.sleep(1)
-            self.link.close()
-            self.active = False
+    def wave(self):
+        """Simple sine wave modulation over all LED brightness."""
+        # Flash
+        # if brightness_value == 0:
+        #     brightness_value = 1
+        # else:
+        #     brightness_value = 0
+        #
+        # Random
+        # brightness_value = random.triangular(0.0, 1.0, 0.5)
+        #
+        # Slow sine pulse
+        #self.brightness = (math.sin(time.time()*2) + 1) / 2
+        return None
