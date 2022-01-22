@@ -59,7 +59,7 @@ arduino = None
 active_jobs = {}
 audio_active = False
 audio_analysis = None
-audio_amplitude = 0
+descriptors = {}
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -430,5 +430,6 @@ if __name__ == '__main__':
         arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
-        audio_amplitude = audio_analysis.get_descriptors()
+        descriptors = audio_analysis.get_descriptors()
+        arduino.set_brightness_norm(descriptors['peak'] * 2)
         time.sleep(0.01)

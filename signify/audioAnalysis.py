@@ -108,8 +108,6 @@ class Analyser(threading.Thread):
         if self.streaming:
             if status:
                 logger.debug(status)
-            self.cat = np.concatenate(indata)
-            #print(self.cat)
             # self.y_roll[:-1] = self.y_roll[1:]
             # self.y_roll[-1, :] = np.copy(indata[0])
             # self.y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
@@ -118,8 +116,7 @@ class Analyser(threading.Thread):
             #     self.amp_q.put_nowait(self.amp)
             # except queue.Full:
             #     pass
-            self.peak = max(self.peak, np.max(np.abs(indata)))
-            #self.peak = np.max(np.abs(indata))
+            self.peak = np.max(np.abs(indata))
             try:
                 self.peak_q.put_nowait(self.peak)
             except queue.Full:

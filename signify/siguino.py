@@ -46,7 +46,7 @@ class Siguino:
         self.link = None
         self.start_delay = config['start_delay']
         self.tx_time = time.time_ns() // 1_000_000
-        self.tx_period = config['send_period'] = 20
+        self.tx_period = config['send_period']
         self.rx_packet = SerialPacket
         self.brightness = 0
         self.callback_list = None
@@ -73,7 +73,7 @@ class Siguino:
     
     
     def brightness_wave(self):
-        # Test message for checking Arduino Tx/Rx and LED control
+        """Simple sine wave modulation over all LED brightness."""
         if (current_ms := time.time_ns() // 1_000_000)\
                 > self.tx_time + self.tx_period:
             self.tx_time = current_ms
@@ -89,11 +89,30 @@ class Siguino:
             # brightness_value = random.triangular(0.0, 1.0, 0.5)
             #
             # Slow sine pulse
-            brightness_value = int(((
+            self.brightness = int(((
                 math.sin(time.time()*2) + 1) / 2) * 255)
-            self.send_packet('B', brightness_value, dur)
-            # print(f'{dt.now()}    SEND TO ARDUINO: "B" '
-            #     f'{brightness_value} {dur}')
+            self.send_packet('B', self.brightness, dur)
+
+
+    def send_brightness(self, bright=None, duration=None):
+        """Extremely simple modulation of all LED brightness.\n
+        Sends when receiving the following 'ready' message from\
+        the Arduino once it has been `tx_limit:(ms)` after the
+        last brightness tx."""
+        if (current_ms := time.time_ns() // 1_000_000)\
+                > self.tx_time + self.tx_period:
+            self.tx_time = current_ms
+            self.brightness = bright if bright is not None else self.brightness
+            dur = duration if duration is not None else int(self.tx_period)
+            self.send_packet('B', self.brightness, dur)
+            print(f'{dt.now()}    SEND TO ARDUINO: "B" '
+                f'{self.brightness} {dur}')
+
+
+    def set_brightness_norm(self, bright:float):
+        """Simply scales the supplied bright argument from 0-1 to 0-255
+        and sets the value to the Arduino object's self.brightness."""
+        self.brightness = int(max(0, min(255, bright * 255)))
 
 
     def receive_packet(self):
@@ -117,7 +136,7 @@ class Siguino:
             
             if self.rx_packet.command == 'r':
                 if self.state == ArduinoState.run:
-                    self.brightness_wave()
+                    self.send_brightness()
                 elif self.state == ArduinoState.pause:
                     print()
                     print()

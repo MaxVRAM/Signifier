@@ -1,11 +1,11 @@
 {
     "arduino":
     {
-        "enabled":false,
+        "enabled":true,
         "start_delay":5,
         "max_brightness":255,
         "default_hue":"",
-        "send_period":20
+        "send_period":100
     },
     "audio":
     {
