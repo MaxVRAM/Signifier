@@ -548,10 +548,17 @@ The Signifier should now run as expected!
 
 # Questons to respond to on StackOverflow
 
-<https://stackoverflow.com/questions/57099246/set-output-device-for-pygame-mixer>
+- Excellent application!!!!
+  <https://stackoverflow.com/questions/57099246/set-output-device-for-pygame-mixer>
 
 
 # Debugging
+
+
+## Realtime audio streaming
+
+
+<https://codeberg.org/rtcqs/rtcqs>
 
 ## Audio debugging CLI commands
 

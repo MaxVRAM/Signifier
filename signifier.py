@@ -39,29 +39,26 @@ import logging
 import schedule
 
 import pygame as pg
-#import pygame._sdl2 as sdl2
 
 from signify.siguino import Siguino, ArduinoState
 from signify.clipManager import ClipManager
-from signify.audioAnalysis import Stream
+from signify.audioAnalysis import Analyser
 
 
 CLIP_EVENT = pg.USEREVENT + 1
 CONFIG_FILE = 'config.json'
 
 os.environ['SDL_VIDEODRIVER'] = 'dummy'
-os.environ['ALSA_CARD'] = 'Loopback'
-os.environ['ALSA_CTL_CARD'] = 'Loopback'
-os.environ['ALSA_PCM_CARD'] = 'Loopback'
-
-
+# os.environ['ALSA_CARD'] = 'Loopback'
+# os.environ['ALSA_CTL_CARD'] = 'Loopback'
+# os.environ['ALSA_PCM_CARD'] = 'Loopback'
 
 
 config = None
 arduino = None
 active_jobs = {}
 audio_active = False
-audio_stream = None
+audio_analysis = None
 audio_amplitude = 0
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
@@ -294,7 +291,7 @@ def check_audio_device() -> str:
 
 def set_audio_engine(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    global audio_active, audio_stream
+    global audio_active, audio_analysis
     if config['audio']['enabled']:
         if audio_active:
             if 'force' in args:
@@ -331,9 +328,9 @@ def set_audio_engine(*args):
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
         if config['audio']['analysis']:
             logger.debug('Audio analysis stream active.')
-            audio_stream = Stream(config['audio'])
-            audio_stream.setDaemon(True)
-            audio_stream.start()
+            audio_analysis = Analyser(config['audio'])
+            audio_analysis.setDaemon(True)
+            audio_analysis.start()
         time.sleep(1)
     else:
         if audio_active:
@@ -358,16 +355,16 @@ def stop_scheduler():
 
 
 def close_audio_system():
-    global audio_active, audio_stream
+    global audio_active, audio_analysis
     logger.info('Closing audio system...')
     if pg.get_init() is True and pg.mixer.get_init() is not None:
         stop_all_clips()
         while pg.mixer.get_busy():
             time.sleep(0.1)
         pg.quit()
-    if audio_stream is not None:
-        if audio_stream.is_alive():
-            audio_stream.terminate()
+    if audio_analysis is not None:
+        if audio_analysis.is_alive():
+            audio_analysis.terminate()
             logger.debug('Audio Stream thread closed.')
     audio_active = False
     logger.info('Audio system now inactive.')
@@ -433,5 +430,5 @@ if __name__ == '__main__':
         arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
-        time.sleep(0.01)
-        # audio_amplitude = audio_stream.get_descriptors()
+        audio_amplitude = audio_analysis.get_descriptors()
+        time.sleep(0.1)

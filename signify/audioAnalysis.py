@@ -29,7 +29,7 @@ DEFAULT_CONF = {
     "enabled":True,
     "loopback_return":1,
     "hw_loop_output":0,
-    "sample_rate":48000,
+    "sample_rate":44100,
     "buffer":4096 }
 
 sd.default.device = (1,0)
@@ -40,13 +40,13 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-class Stream(threading.Thread):
-    """A PulseAudio loopback stream to analyse the audio\
-    and output to the hardware device.\n
+class Analyser(threading.Thread):
+    """A PulseAudio input stream to analyse the audio.\n
     Supply the audio portion of `config.json`, i.e. `config['audio']`."""
     def __init__(self, config=None):
         super().__init__()
-        logger.debug(f'Streaming module detected the following devices:\n{sd.query_devices()}')
+        logger.debug(f'Analysis module detected the following devices:\n{sd.query_devices()}')
+        logger.debug(f'Default loopback capture device is {sd.default.device}')
         if config is None:
             config = DEFAULT_CONF
         else:
@@ -78,10 +78,7 @@ class Stream(threading.Thread):
         if self.stream is not None:
             self.stream.close()
         self.event = threading.Event()
-        with sd.Stream(device=(self.input, self.output),
-                   samplerate=self.sample_rate, channels=1,
-                   callback=self.callback) as self.stream:
-        # with sd.Stream(callback=self.callback) as self.stream:
+        with sd.InputStream(channels=1, callback=self.callback) as self.stream:
             self.event.wait()
             try:
                 sd.Stream.abort(self)
@@ -103,15 +100,15 @@ class Stream(threading.Thread):
         self.stream.abort()
 
 
-    def callback(self, indata, outdata, frames, time, status):
+    def callback(self, indata, frames, time, status):
         """The primary function called by the Streaming thread. This function\
         calculates the amplitude of the input signal, then streams it to the\
         output audio device."""
         if self.streaming:
             if status:
                 logger.debug(status)
-            outdata[:] = indata
-            # self.cat = np.concatenate(indata)
+            self.cat = np.concatenate(indata)
+            #print(self.cat)
             # self.y_roll[:-1] = self.y_roll[1:]
             # self.y_roll[-1, :] = np.copy(indata[0])
             # self.y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
@@ -120,8 +117,8 @@ class Stream(threading.Thread):
             #     self.amp_q.put_nowait(self.amp)
             # except queue.Full:
             #     pass
-            #self.peak = max(self.peak, np.max(np.abs(indata)))
-            self.peak = np.max(np.abs(indata))
+            self.peak = max(self.peak, np.max(np.abs(indata)))
+            #self.peak = np.max(np.abs(indata))
             try:
                 self.peak_q.put_nowait(self.peak)
             except queue.Full:
@@ -134,11 +131,11 @@ class Stream(threading.Thread):
         #     self.amp = self.amp_q.get_nowait()
         # except queue.Empty:
         #     pass
-        try:
-            self.peak = self.peak_q.get_nowait()
-        except queue.Empty:
-            pass
+        # try:
+        #     self.peak = self.peak_q.get_nowait()
+        # except queue.Empty:
+        #     pass
 
         output = {"peak":self.peak}
-        print(output)
+        print(f'Analysis data: {output}')
         return output
