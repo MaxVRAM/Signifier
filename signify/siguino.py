@@ -14,9 +14,9 @@ import time
 import enum
 import logging
 
-from ctypes import c_wchar
-
 from pySerialTransfer import pySerialTransfer as txfer
+
+from signify.utils import scale as scale
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -60,6 +60,8 @@ class LedValue:
 
 
     def set_value(self, value, *args, duration=None):
+        if 'force' in args:
+            print(f'sending fadeout message to arduino: {value} / {duration}')
         if 'force' in args or self.is_listening:
             dur = duration if duration is not None else self.duration
             value = int(scale(value, (0, 1), (self.min, self.max), 'clamp'))
@@ -67,32 +69,17 @@ class LedValue:
             self.updated = True
 
 
-    def get_packet(self) -> SendPacket:
-        if self.packet is not None:
-            if self.updated and (
-                current_ms := time.time_ns() // 1_000_000)\
-                    > self.tx_time + self.tx_period:
+    def send(self, send_packet) -> bool:
+        if self.packet is None:
+            return False
+        if self.updated and (
+            current_ms := time.time_ns() // 1_000_000)\
+                > self.tx_time + self.tx_period:
+            if send_packet(self.packet) is not None:
                 self.tx_time = current_ms
                 self.updated = False
-                return self.packet
-            else:
-                return None
-        else:
-            return None
-
-
-
-def scale(value, source_range, dest_range, *args):
-        """
-        Scale the given value from the scale of src to the scale of dst.\
-        Send argument `clamp` to limit output to destination range as well.
-        """
-        s_range = source_range[1] - source_range[0]
-        d_range = dest_range[1] - dest_range[0]
-        scaled_value = ((value - source_range[0]) / s_range) * d_range + dest_range[0]
-        if 'clamp' in args:
-            return max(dest_range[0], min(dest_range[1], scaled_value))
-        return scaled_value
+                return True
+        return False
 
 
 class Siguino:   
@@ -143,24 +130,24 @@ class Siguino:
             # sequence would cause issues with the LED output.
             if self.rx_packet.command == 'r':
                 if self.state == ArduinoState.run:
-                    bright = self.bright.get_packet()
-                    if bright is not None:
-                        self.send_packet(bright)
+                    self.bright.send(self.send_packet)
                 elif self.state == ArduinoState.pause:
-                    self.send_packet(self.bright.get_packet())
-                    self.set_state(ArduinoState.paused)
+                    if self.bright.send(self.send_packet) is True:
+                        self.set_state(ArduinoState.paused)
+                        logger.debug(f'Arduino connection now {self.state.name}')
                 elif self.state == ArduinoState.close:
-                    self.send_packet(self.bright.get_packet())
-                    time.sleep(1)
-                    self.set_state(ArduinoState.closed)
-                    self.link.close()
-                    self.active = False
+                    if self.bright.send(self.send_packet) is True:
+                        self.set_state(ArduinoState.closed)
+                        self.link.close()
+                        self.active = False
+                        logger.debug(f'Arduino connection now {self.state.name}')
             self.rx_packet = None
 
 
-    def send_packet(self, packet:SendPacket):
+    def send_packet(self, packet:SendPacket) -> SendPacket:
         """Send the Arduino a command via serial, including a value,\
-        and duration for the command to run for."""
+        and duration for the command to run for. Returns the attempted\
+        serial packet should the send fail."""
         # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
         sendSize = 0
         sendSize = self.link.tx_obj(packet.command, start_pos=sendSize)
@@ -169,6 +156,7 @@ class Siguino:
         success = self.link.send(sendSize)
         if not success:
             logger.warn(f'Arduino refused packet: {packet}.')
+            return SendPacket
         return None
 
 

@@ -52,15 +52,15 @@
         {
             "enabled":true,
             "service":"audio",
-            "timer":8,
+            "timer":16,
             "parameters": {"quiet_level":3, "busy_level":8}
         },
         "volume":
         {
             "enabled":true,
             "service":"audio",
-            "timer":2,
-            "parameters": {"speed":5, "weight":0}
+            "timer":1,
+            "parameters": {"speed":10, "weight":0}
         }
     }
 }

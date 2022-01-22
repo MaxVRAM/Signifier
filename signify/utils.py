@@ -22,6 +22,18 @@ def plural(value) -> str:
     return "" if num == 1 else "s"
 
 
+def scale(value, source_range, dest_range, *args):
+        """
+        Scale the given value from the scale of src to the scale of dst.\
+        Send argument `clamp` to limit output to destination range as well.
+        """
+        s_range = source_range[1] - source_range[0]
+        d_range = dest_range[1] - dest_range[0]
+        scaled_value = ((value - source_range[0]) / s_range) * d_range + dest_range[0]
+        if 'clamp' in args:
+            return max(dest_range[0], min(dest_range[1], scaled_value))
+        return scaled_value
+
 class ExpFilter:
     """Simple exponential smoothing filter"""
     def __init__(self, val=0.0, alpha_decay=0.5, alpha_rise=0.5):

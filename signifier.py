@@ -60,7 +60,8 @@ arduino = None
 active_jobs = {}
 audio_active = False
 audio_analysis = None
-audio_analysis_q = queue.Queue(maxsize=1)
+analysis_return_q = queue.Queue(maxsize=1)
+analysis_control_q = queue.Queue()
 descriptors = {}
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
@@ -324,7 +325,10 @@ def set_audio_engine(*args):
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
         if config['audio']['analysis']:
             logger.debug('Audio analysis stream active.')
-            audio_analysis = Analyser(config['audio'], analysis_q=audio_analysis_q)
+            audio_analysis = Analyser(
+                                return_q=analysis_return_q,
+                                control_q=analysis_control_q,
+                                config=config['audio'])
             audio_analysis.setDaemon(True)
         time.sleep(1)
     else:
@@ -349,20 +353,28 @@ def stop_scheduler():
     schedule.clear()
 
 
+def close_arduino_connection():
+    global arduino
+    if arduino is not None and arduino.active:
+        arduino.shutdown()
+        logger.info('Waiting for Arduino connection to close...')
+        timeout = 2
+        timeout_start = time.time()
+        while time.time() < timeout_start + timeout:
+            if arduino.state == ArduinoState.closed:
+                break
+            time.sleep(0.1)
+
+
 def close_audio_system():
     global audio_active, audio_analysis
     logger.info('Closing audio system...')
-    if pg.get_init() is True and pg.mixer.get_init() is not None:
-        stop_all_clips()
-        while pg.mixer.get_busy():
-            time.sleep(0.1)
-        pg.quit()
-    if audio_analysis is not None:
-        if audio_analysis.is_alive():
-            audio_analysis.terminate()
-            logger.debug('Audio Stream thread closed.')
-    audio_active = False
-    logger.info('Audio system now inactive.')
+    if audio_active:
+        if audio_analysis is not None:
+            if audio_analysis.is_alive():
+                analysis_control_q.put('close')
+        if pg.get_init() is True and pg.mixer.get_init() is not None:
+            stop_all_clips()
 
 
 class ExitHandler:
@@ -378,9 +390,14 @@ class ExitHandler:
         self.exiting = True
         logger.info('Shutdown sequence started.')
         stop_scheduler()
-        arduino.set_state(ArduinoState.close)
         close_audio_system()
-        logger.info("Signifier shutdown complete.")
+        close_arduino_connection()
+        while pg.mixer.get_busy():
+            time.sleep(0.1)
+        pg.quit()
+        audio_active = False
+        logger.info('Audio system now inactive.')
+        logger.info('Signifier shutdown complete.')
         print()
         sys.exit()
 
@@ -403,12 +420,10 @@ jobs_dict = {
 def analysis_values():
     if arduino.active:
         try:
-            values = audio_analysis_q.get_nowait()
+            values = analysis_return_q.get_nowait()
+            arduino.bright.set_value(values['dba'] * 0.01)
         except queue.Empty:
             pass
-        else:
-            arduino.bright.set_value(values['dba'] * 0.01)
-            # print(f'Analysis values: {values}')
 
 
 #     _____         .__

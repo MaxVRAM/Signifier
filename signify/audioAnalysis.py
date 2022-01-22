@@ -41,78 +41,72 @@ event = threading.Event()
 
 
 class Analyser(threading.Thread):
-    """A PulseAudio input stream to analyse the audio.\n
-    Supply the audio portion of `config.json`, i.e. `config['audio']`."""
-    def __init__(self, config=None, analysis_q=None):
+    """Perform audio analysis on the default PulseAudio input device.\n
+    Supply the audio portion of `config.json`, ie `config=config['audio']`."""
+    def __init__(self, return_q:queue.Queue, control_q:queue.Queue, config=None):
         super().__init__()
         if config is None:
             config = DEFAULT_CONF
         else:
             self.active = True
-            self.input = config['loopback_return']
-            self.output = config['hw_loop_output']
             self.sample_rate = config['sample_rate']
             self.buffer = config['buffer']
         sd.default.channels = 1
-        sd.default.device = (self.input, self.output)
         sd.default.samplerate = self.sample_rate
-        self.event = None
-        self.stream = None
+        self.event = threading.Event()
         self.streaming = True
         self.rms = Filter(0, alpha_decay=0.02, alpha_rise=0.02)
         self.peak = 0
         self.analysis_data = {}
-        self.analysis_q = analysis_q
+        self.analysis_q = return_q
+        self.control_q = control_q
         logger.debug('Audio passthrough module initialised.')
 
 
     def run(self):
-        """Threaded routine that starts a PortAudio stream for piping Signifier\
-        audio to the hardware audio output.\n
-        Also executes audio analysis during the callback and updates audio\
-        descriptors available from `get_descriptors()` function."""
-        logger.debug('Starting loopback stream and analysis thread...')
-        if self.stream is not None:
-            self.stream.close()
-
-        self.event = threading.Event()
-        self.stream = sd.InputStream(device='pulse', channels=1,
-            callback=self.process_audio, finished_callback=event.set)
-        with self.stream:
-            event.wait()
+        """Begin executing Analyser thread to produce audio descriptors.\
+        These are returned to the `analysis_return_q` in the main thread."""
+        logger.debug('Starting audio analysis thread...')
+        self.event.clear()
+        with sd.InputStream(device='pulse', channels=1,
+                callback=self.process_audio, finished_callback=event.set):
+            while not self.event.is_set():
+                try:
+                    if self.control_q.get_nowait() == 'close':
+                        self.event.set()
+                except queue.Empty:
+                    pass
         self.streaming = False
+        logger.debug('Audio analysis thread closed.')
 
 
     def process_audio(self, indata, frames, time, status):
         """The primary function called by the Streaming thread. This function\
         calculates the amplitude of the input signal, then streams it to the\
         output audio device."""
-        if self.streaming:
-            if status:
-                logger.debug(status)
-            self.peak = np.max(np.abs(indata))
-            with np.errstate(divide='ignore'):
-                rms = 20 * np.log10(rms_flat(indata) / 2e-5)
-                rms = rms if np.isfinite(rms) else 0
-            rms = self.rms.update(rms)
-            try:
-                data = {"peak":self.peak, "dba":rms}
-                self.analysis_q.put_nowait(data)
-            except queue.Full:
-                pass
-        else:
-            self.event.set()
+        if status:
+            logger.debug(status)
+        self.peak = np.max(np.abs(indata))
+        with np.errstate(divide='ignore'):
+            rms = 20 * np.log10(rms_flat(indata) / 2e-5)
+            rms = rms if np.isfinite(rms) else 0
+        rms = self.rms.update(rms)
+        try:
+            data = {"peak":self.peak, "dba":rms}
+            self.analysis_q.put_nowait(data)
+        except queue.Full:
+            pass
 
 
-    def terminate(self):
-        """Requests that the Stream thread aborts current buffer processing\
-        and provides an `event.set()` call to terminate the thread."""
-        print()
-        logger.info(f'Stopping audio streaming thread...')
-        self.streaming = False
-        self.event.set()
-        sd.sleep(100)
-        self.stream.abort()
+    # def terminate(self):
+    #     """Requests that the Stream thread aborts current buffer processing\
+    #     and provides an `event.set()` call to terminate the thread."""
+    #     print()
+    #     logger.info(f'Stopping audio streaming thread...')
+    #     self.streaming = False
+    #     self.event.set()
+    #     sd.sleep(100)
+    #     self.stream.abort()
 
 
 
