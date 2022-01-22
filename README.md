@@ -771,10 +771,10 @@ Setting of hwparams failed: Invalid argument
     sudo nano /etc/pulse/defaults.pa
     ```
     ```ruby
-    load-module module-alsa-sink device="hw:0,0" sink_name=audio_jack sink_properties="device.description='Audio Jack Output'"
-    load-module module-alsa-sink device="hw:1,0" sink_name=loop_send sink_properties="device.description='Loop Send'"
-    load-module module-alsa-source device="hw:1,1" source_name=loop_return source_properties="device.description='Loop Return'"
-    load-module module-combine-sink sink_name=combined_output slaves=loop_send,audio_jack sink_properties="device.description='Jack And Loop'"
+    load-module module-alsa-sink device="hw:0,0" sink_name=audio_jack channels=1 sink_properties="device.description='Audio Jack Output'"
+    load-module module-alsa-sink device="hw:1,0" sink_name=loop_send channels=1 sink_properties="device.description='Loop Send'"
+    load-module module-alsa-source device="hw:1,1" source_name=loop_return channels=1 source_properties="device.description='Loop Return'"
+    load-module module-combine-sink sink_name=combined_output channels=1 slaves=loop_send,audio_jack sink_properties="device.description='Jack And Loop'"
     ```
   - In the same file, comment out these options to prevent devices changing if things are plugged or unplugged:
     ```ruby

@@ -78,7 +78,8 @@ class Analyser(threading.Thread):
         if self.stream is not None:
             self.stream.close()
         self.event = threading.Event()
-        with sd.InputStream(channels=1, callback=self.callback) as self.stream:
+        with sd.InputStream(device='pulse',
+                channels=1, callback=self.callback) as self.stream:
             self.event.wait()
             try:
                 sd.Stream.abort(self)
@@ -137,5 +138,5 @@ class Analyser(threading.Thread):
         #     pass
 
         output = {"peak":self.peak}
-        print(f'Analysis data: {output}')
+        # print(f'Analysis data: {output}')
         return output

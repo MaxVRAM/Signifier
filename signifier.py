@@ -431,4 +431,4 @@ if __name__ == '__main__':
         schedule.run_pending()
         manage_audio_events()
         audio_amplitude = audio_analysis.get_descriptors()
-        time.sleep(0.1)
+        time.sleep(0.01)
