@@ -61,9 +61,9 @@ class Stream(threading.Thread):
         self.event = None
         self.stream = None
         self.streaming = True
-        self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
-        self.amp = 0
-        self.amp_q = queue.Queue(maxsize=1)
+        # self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
+        # self.amp = 0
+        # self.amp_q = queue.Queue(maxsize=1)
         self.peak = 0
         self.peak_q = queue.Queue(maxsize=1)
         logger.debug('Audio passthrough module initialised.')
@@ -82,7 +82,7 @@ class Stream(threading.Thread):
                    samplerate=self.sample_rate, channels=1,
                    callback=self.callback) as self.stream:
         # with sd.Stream(callback=self.callback) as self.stream:
-        #     self.event.wait()
+            self.event.wait()
             try:
                 sd.Stream.abort(self)
                 print("ABORTED STREAM!")
@@ -111,16 +111,17 @@ class Stream(threading.Thread):
             if status:
                 logger.debug(status)
             outdata[:] = indata
-            self.cat = np.concatenate(indata)
-            self.y_roll[:-1] = self.y_roll[1:]
-            self.y_roll[-1, :] = np.copy(indata[0])
-            self.y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
-            self.amp = np.max(np.abs(self.y_data))
-            self.peak = max(self.peak, np.max(np.abs(indata)))
-            try:
-                self.amp_q.put_nowait(self.amp)
-            except queue.Full:
-                pass
+            # self.cat = np.concatenate(indata)
+            # self.y_roll[:-1] = self.y_roll[1:]
+            # self.y_roll[-1, :] = np.copy(indata[0])
+            # self.y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
+            # self.amp = np.max(np.abs(self.y_data))
+            # try:
+            #     self.amp_q.put_nowait(self.amp)
+            # except queue.Full:
+            #     pass
+            #self.peak = max(self.peak, np.max(np.abs(indata)))
+            self.peak = np.max(np.abs(indata))
             try:
                 self.peak_q.put_nowait(self.peak)
             except queue.Full:
@@ -129,15 +130,15 @@ class Stream(threading.Thread):
 
     def get_descriptors(self) -> dict:
         """Return a dictionary with audio analysis values returned from thread."""
-        try:
-            self.amp = self.amp_q.get_nowait()
-        except queue.Empty:
-            pass
+        # try:
+        #     self.amp = self.amp_q.get_nowait()
+        # except queue.Empty:
+        #     pass
         try:
             self.peak = self.peak_q.get_nowait()
         except queue.Empty:
             pass
 
-        output = {"amplitude":self.amp, "peak":self.peak}
+        output = {"peak":self.peak}
         print(output)
         return output

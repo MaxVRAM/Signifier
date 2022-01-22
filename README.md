@@ -415,21 +415,21 @@ For audio-reactive LEDs, we need to create a **loopback** device to internally p
     }
 
     # Virtual multichannel device:
-    # 2 x Headphones channels, 2 x Loopback channels
+    # 1 x Headphones channels, 1 x Loopback channels
     pcm.MultiCh {
       type multi
       slaves.a.pcm pcm.MixerHeadphones
-      slaves.a.channels 2
+      slaves.a.channels 1
       slaves.b.pcm pcm.MixerLoopback
-      slaves.b.channels 2
+      slaves.b.channels 1
       bindings.0.slave a
       bindings.0.channel 0
-      bindings.1.slave a
-      bindings.1.channel 1
-      bindings.2.slave b
-      bindings.2.channel 0
-      bindings.3.slave b
-      bindings.3.channel 1
+      #bindings.1.slave a
+      #bindings.1.channel 1
+      bindings.1.slave b
+      bindings.1.channel 0
+      #bindings.3.slave b
+      #bindings.3.channel 1
     }
 
     # Headphones device mixer
@@ -747,25 +747,65 @@ Setting of hwparams failed: Invalid argument
   sudo apt install python3-pyaudio
   ```
 - No sound after installing PulseAudio install -> NOTE! I belive masking this socket prevents PulseAudio from loading automatically, need to check:
-> More information: https://retropie.org.uk/forum/topic/28910/making-sound-back-after-december-update-broke-pixel-desktop/3
+  > More information: https://retropie.org.uk/forum/topic/28910/making-sound-back-after-december-update-broke-pixel-desktop/3
   ```bash
   systemctl --user mask pulseaudio.socket
   ```
 - Menu bar disappears after installing PulseAudio:
-> More information: https://retropie.org.uk/forum/topic/28910/making-sound-back-after-december-update-broke-pixel-desktop/3
+  > More information: <https://retropie.org.uk/forum/topic/28910/making-sound-back-after-december-update-broke-pixel-desktop/3>
   ```bash
   sudo apt remove lxplug-volumepulse
   ```
-- Create PulseAudio devices to feed two audio output devices:
-```bash
+- Create PulseAudio device to feed two audio output devices, called `module-combined-sink`:
+  > More information: <https://linuxconfig.org/how-to-enable-multiple-simultaneous-audio-outputs-on-pulseaudio-in-linux>
+  
+  - Edit the PulseAudio default config file to add new devices:
+    ```bash
+    sudo nano /etc/pulse/defaults.pa
+    ```
+    ```ruby
+    load-module module-alsa-sink device="hw:0,0" sink_name=audio_jack sink_properties="device.description='Audio Jack Output'"
+    load-module module-alsa-sink device="hw:1,0" sink_name=loop_send sink_properties="device.description='Loop Send'"
+    load-module module-alsa-source device="hw:1,1" source_name=loop_return source_properties="device.description='Loop Return'"
+    load-module module-combine-sink sink_name=combined_output slaves=loop_send,audio_jack sink_properties="device.description='Jack And Loop'"
+    ```
+  - In the same file, comment out these options to prevent devices changing if things are plugged or unplugged:
+    ```ruby
+    ### Automatically load driver modules depending on the hardware available
+    #.ifexists module-udev-detect.so
+    #load-module module-udev-detect tsched=0
+    #.else
+    ### Use the static hardware detection module (for systems that lack udev support)
+    #load-module module-detect
+    #.endif
 
+    ```
+- Helpful PulseAudio service commands:
+  ```bash
+  systemctl --user status pulseaudio      # Check if the daemon is running for user -- do not run as sudo
+  pulseaudio -k                           # Kill PulseAudio service
+  pulseaudio --start
+  pulseaudio --real-time
+  ```
 
-```
-- Check if the PulseAudio service is running for the Pi user:
-```bash
-systemctl --user status pulseaudio
-```
+- PulseAudio not create correct sinks/sources. 
 
+  Ran commands to produce a verbose log:
+  > More information: <https://wiki.ubuntu.com/PulseAudio/Log>
+  ```bash
+  echo autospawn = no >> ~/.config/pulse/client.conf  #use ~/.pulse/client.conf on Ubuntu <= 12.10
+  killall pulseaudio
+  LANG=C pulseaudio -vvvv --log-time=1 > ~/pulseverbose.log 2>&1
+  ```
+  First few links of PA's log:
+  ```yaml
+  (   0.000|   0.000) I: [pulseaudio] main.c: setrlimit(RLIMIT_NICE, (31, 31)) failed: Operation not permitted
+  (   0.000|   0.000) D: [pulseaudio] core-rtclock.c: Timer slack is set to 50 us.
+  (   0.071|   0.071) I: [pulseaudio] core-util.c: Failed to acquire high-priority scheduling: Permission denied
+  (   0.071|   0.000) I: [pulseaudio] main.c: This is PulseAudio 14.2
+  ```
+
+  > More information: <https://forums.opensuse.org/showthread.php/400774-Pulseaudio-Can-t-get-realtime-or-high-priority-permissions>
 
 
 SUUUUUPER High CPU usage when using the PulseAudio combined-sink devices. It comepletely maxes out a core.
