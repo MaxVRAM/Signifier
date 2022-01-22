@@ -13,6 +13,7 @@ from __future__ import annotations
 import time
 import math
 import enum
+import queue
 import logging
 
 from ctypes import c_wchar
@@ -50,6 +51,7 @@ class Siguino:
         self.rx_packet = SerialPacket
         self.brightness = 0
         self.callback_list = None
+        self.send_q = queue.Queue(maxsize=10)
         
 
     def callback_tick(self) -> SerialPacket:
@@ -136,7 +138,8 @@ class Siguino:
             
             if self.rx_packet.command == 'r':
                 if self.state == ArduinoState.run:
-                    self.send_brightness()
+                    self.brightness_wave()
+                    # self.send_brightness()
                 elif self.state == ArduinoState.pause:
                     print()
                     print()

@@ -43,7 +43,7 @@ logger.setLevel(logging.DEBUG)
 class Analyser(threading.Thread):
     """A PulseAudio input stream to analyse the audio.\n
     Supply the audio portion of `config.json`, i.e. `config['audio']`."""
-    def __init__(self, config=None):
+    def __init__(self, config=None, callback=None):
         super().__init__()
         logger.debug(f'Analysis module detected the following devices:\n{sd.query_devices()}')
         logger.debug(f'Default loopback capture device is {sd.default.device}')
@@ -61,9 +61,12 @@ class Analyser(threading.Thread):
         self.event = None
         self.stream = None
         self.streaming = True
+        self.signifier_return = callback
         # self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
         # self.amp = 0
         # self.amp_q = queue.Queue(maxsize=1)
+        self.dBa = 0
+        self.dBa_q = queue.Queue(maxsize=1)
         self.peak = 0
         self.peak_q = queue.Queue(maxsize=1)
         logger.debug('Audio passthrough module initialised.')
@@ -78,16 +81,15 @@ class Analyser(threading.Thread):
         if self.stream is not None:
             self.stream.close()
         self.event = threading.Event()
-        with sd.InputStream(device='pulse',
-                channels=1, callback=self.callback) as self.stream:
+        with sd.InputStream(
+                device='pulse', channels=1, callback=self.process_audio) as self.stream:
             self.event.wait()
             try:
                 sd.Stream.abort(self)
-                print("ABORTED STREAM!")
             except AttributeError:
                 sd.CallbackAbort()
-                print("ABORTED CALLBACK!")
-                self.streaming = False
+            print("ABORTED STREAM!")
+            self.streaming = False
 
 
     def terminate(self):
@@ -101,7 +103,7 @@ class Analyser(threading.Thread):
         self.stream.abort()
 
 
-    def callback(self, indata, frames, time, status):
+    def process_audio(self, indata, frames, time, status):
         """The primary function called by the Streaming thread. This function\
         calculates the amplitude of the input signal, then streams it to the\
         output audio device."""
@@ -116,11 +118,19 @@ class Analyser(threading.Thread):
             #     self.amp_q.put_nowait(self.amp)
             # except queue.Full:
             #     pass
-            self.peak = np.max(np.abs(indata))
+            boosted_indata = indata * 2
+            self.peak = np.max(np.abs(boosted_indata))
+            self.dBa = 20 * np.log10(rms_flat(boosted_indata) / 2e-5)
             try:
                 self.peak_q.put_nowait(self.peak)
             except queue.Full:
                 pass
+            try:
+                self.dBa_q.put_nowait(self.dBa)
+            except queue.Full:
+                pass
+        else:
+            self.stream.abort()
 
 
     def get_descriptors(self) -> dict:
@@ -134,6 +144,13 @@ class Analyser(threading.Thread):
         # except queue.Empty:
         #     pass
 
-        output = {"peak":self.peak}
-        # print(f'Analysis data: {output}')
+        output = {"peak":self.peak, "dba":self.dBa}
         return output
+
+
+def rms_flat(a):
+    """
+    Return the root mean square of all the elements of *a*, flattened out.
+    From here: https://github.com/SiggiGue/pyfilterbank/issues/17
+    """
+    return np.sqrt(np.mean(np.absolute(a)**2))

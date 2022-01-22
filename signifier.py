@@ -248,11 +248,12 @@ def init_clip_manager():
 #     return f'{device[0]}, {device[1]}'
 
 
-def passthrough_callback(values):
+def analysis_callback(values):
     if values is None:
         print('Audio values are none.')
     else:
-        print(f'Passthrough values: {values}')
+        print(f'Analysis values: {values}')
+
 
 def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
@@ -328,7 +329,7 @@ def set_audio_engine(*args):
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
         if config['audio']['analysis']:
             logger.debug('Audio analysis stream active.')
-            audio_analysis = Analyser(config['audio'])
+            audio_analysis = Analyser(config['audio'], signifier_return=analysis_callback)
             audio_analysis.setDaemon(True)
             audio_analysis.start()
         time.sleep(1)
@@ -430,6 +431,8 @@ if __name__ == '__main__':
         arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
-        descriptors = audio_analysis.get_descriptors()
-        arduino.set_brightness_norm(descriptors['peak'] * 2)
-        time.sleep(0.01)
+        # descriptors = audio_analysis.get_descriptors()
+        # print(descriptors)
+        # arduino.set_brightness_norm(descriptors['peak'] * 2)
+        # arduino.set_brightness_norm(descriptors['dba'] / 90)
+        #time.sleep(0.01)

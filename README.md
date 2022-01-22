@@ -794,10 +794,11 @@ Setting of hwparams failed: Invalid argument
   pulseaudio --start
   pulseaudio --real-time
   ```
+- Excellent example of weighted dB scaling to the sounddevice input stream with Numpy:
+  > More information <https://github.com/SiggiGue/pyfilterbank/issues/17>
 
-- PulseAudio not create correct sinks/sources. 
 
-  Ran commands to produce a verbose log:
+- PulseAudio not create correct sinks/sources. Ran commands to produce a verbose log:
   > More information: <https://wiki.ubuntu.com/PulseAudio/Log>
   ```bash
   echo autospawn = no >> ~/.config/pulse/client.conf  #use ~/.pulse/client.conf on Ubuntu <= 12.10
@@ -816,6 +817,16 @@ Setting of hwparams failed: Invalid argument
 
 
 SUUUUUPER High CPU usage when using the PulseAudio combined-sink devices. It comepletely maxes out a core.
+
+
+
+
+
+
+
+
+
+
 
 
 ### Pipe-wire ---- no, just stop

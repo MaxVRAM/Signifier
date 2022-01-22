@@ -5,7 +5,7 @@
         "start_delay":5,
         "max_brightness":255,
         "default_hue":"",
-        "send_period":100
+        "send_period":50
     },
     "audio":
     {
