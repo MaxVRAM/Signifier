@@ -3,9 +3,9 @@
     {
         "enabled":true,
         "start_delay":5,
-        "max_brightness":255,
+        "brightness":{"cmd":"B", "min":3, "max":255, "smooth":0},
         "default_hue":"",
-        "send_period":50
+        "update_ms":50
     },
     "audio":
     {
@@ -33,10 +33,10 @@
         "max_playtime":60,
         "categories":
         {
-            "oneshot":{"threshold":0, "is_loop":false, "loop_range":[8,16]},
-            "short":{"threshold":5, "is_loop":false, "loop_range":[4,8]},
-            "medium":{"threshold":10, "is_loop":true, "loop_range":[0,0]},
-            "loop":{"threshold":30, "is_loop":true, "loop_range":[0,0]}
+            "oneshot":{"threshold":0, "is_loop":false, "loop_range":[4,8]},
+            "short":{"threshold":5, "is_loop":false, "loop_range":[2,4]},
+            "medium":{"threshold":10, "is_loop":false, "loop_range":[2,4]},
+            "loop":{"threshold":30, "is_loop":false, "loop_range":[0,2]}
         }
     },
     "jobs":
@@ -45,7 +45,7 @@
         {
             "enabled":true,
             "service":"audio",
-            "timer":128,
+            "timer":256,
             "parameters": {"pool_size":12, "start_clips":1}
         },
         "composition":

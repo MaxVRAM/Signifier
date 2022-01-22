@@ -34,6 +34,7 @@ import os
 import sys
 import time
 import json
+import queue
 import signal
 import logging
 import schedule
@@ -59,6 +60,7 @@ arduino = None
 active_jobs = {}
 audio_active = False
 audio_analysis = None
+audio_analysis_q = queue.Queue(maxsize=1)
 descriptors = {}
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
@@ -248,13 +250,6 @@ def init_clip_manager():
 #     return f'{device[0]}, {device[1]}'
 
 
-def analysis_callback(values):
-    if values is None:
-        print('Audio values are none.')
-    else:
-        print(f'Analysis values: {values}')
-
-
 def check_audio_device() -> str:
     """Return valid audio device if it exists on the host."""
     # TODO Create functional mechanism to find and test audio devices
@@ -329,9 +324,8 @@ def set_audio_engine(*args):
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
         if config['audio']['analysis']:
             logger.debug('Audio analysis stream active.')
-            audio_analysis = Analyser(config['audio'], signifier_return=analysis_callback)
+            audio_analysis = Analyser(config['audio'], analysis_q=audio_analysis_q)
             audio_analysis.setDaemon(True)
-            audio_analysis.start()
         time.sleep(1)
     else:
         if audio_active:
@@ -398,6 +392,25 @@ jobs_dict = {
 }
 
 
+
+#  _________        .__  .__ ___.                  __            
+#  \_   ___ \_____  |  | |  |\_ |__ _____    ____ |  | __  ______
+#  /    \  \/\__  \ |  | |  | | __ \\__  \ _/ ___\|  |/ / /  ___/
+#  \     \____/ __ \|  |_|  |_| \_\ \/ __ \\  \___|    <  \___ \ 
+#   \______  (____  /____/____/___  (____  /\___  >__|_ \/____  >
+#          \/     \/              \/     \/     \/     \/     \/ 
+
+def analysis_values():
+    if arduino.active:
+        try:
+            values = audio_analysis_q.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            arduino.bright.set_value(values['dba'] * 0.01)
+            # print(f'Analysis values: {values}')
+
+
 #     _____         .__
 #    /     \ _____  |__| ____
 #   /  \ /  \\__  \ |  |/    \
@@ -427,12 +440,11 @@ if __name__ == '__main__':
     start_job('collection', 'composition', 'volume')
     automate_composition(start_num=config['jobs']['collection']['parameters']['start_clips'])
 
+    audio_analysis.start()
+
     while True:
+        analysis_values()
         arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
-        # descriptors = audio_analysis.get_descriptors()
-        # print(descriptors)
-        # arduino.set_brightness_norm(descriptors['peak'] * 2)
-        # arduino.set_brightness_norm(descriptors['dba'] / 90)
         #time.sleep(0.01)

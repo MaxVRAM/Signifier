@@ -39,14 +39,14 @@ sd.default.samplerate = DEFAULT_CONF['sample_rate']
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+event = threading.Event()
+
 
 class Analyser(threading.Thread):
     """A PulseAudio input stream to analyse the audio.\n
     Supply the audio portion of `config.json`, i.e. `config['audio']`."""
-    def __init__(self, config=None, callback=None):
+    def __init__(self, config=None, analysis_q=None):
         super().__init__()
-        logger.debug(f'Analysis module detected the following devices:\n{sd.query_devices()}')
-        logger.debug(f'Default loopback capture device is {sd.default.device}')
         if config is None:
             config = DEFAULT_CONF
         else:
@@ -61,14 +61,13 @@ class Analyser(threading.Thread):
         self.event = None
         self.stream = None
         self.streaming = True
-        self.signifier_return = callback
         # self.y_roll = np.random.rand(RHISTORY, self.buffer) / 1e16
         # self.amp = 0
         # self.amp_q = queue.Queue(maxsize=1)
         self.dBa = 0
-        self.dBa_q = queue.Queue(maxsize=1)
         self.peak = 0
-        self.peak_q = queue.Queue(maxsize=1)
+        self.analysis_data = {}
+        self.analysis_q = analysis_q
         logger.debug('Audio passthrough module initialised.')
 
 
@@ -81,15 +80,25 @@ class Analyser(threading.Thread):
         if self.stream is not None:
             self.stream.close()
         self.event = threading.Event()
-        with sd.InputStream(
-                device='pulse', channels=1, callback=self.process_audio) as self.stream:
-            self.event.wait()
-            try:
-                sd.Stream.abort(self)
-            except AttributeError:
-                sd.CallbackAbort()
-            print("ABORTED STREAM!")
-            self.streaming = False
+        self.stream = sd.InputStream(device='pulse', channels=1,
+            callback=self.process_audio, finished_callback=event.set)
+        with self.stream:
+            event.wait()
+        self.streaming = False
+
+        # try:
+        #     analysis_data = self.analysis_q.get_nowait()
+        #     print(analysis_data)
+        #     print(self.signifier_return)
+        #     self.signifier_return(analysis_data)
+        # except queue.Empty:
+        #     pass
+
+            # try:
+            #     sd.Stream.abort(self)
+            # except AttributeError:
+            #     sd.CallbackAbort()
+            # print("ABORTED STREAM!")
 
 
     def terminate(self):
@@ -99,7 +108,7 @@ class Analyser(threading.Thread):
         logger.info(f'Stopping audio streaming thread...')
         self.streaming = False
         self.event.set()
-        sd.sleep(10)
+        sd.sleep(100)
         self.stream.abort()
 
 
@@ -110,27 +119,18 @@ class Analyser(threading.Thread):
         if self.streaming:
             if status:
                 logger.debug(status)
-            # self.y_roll[:-1] = self.y_roll[1:]
-            # self.y_roll[-1, :] = np.copy(indata[0])
-            # self.y_data = np.concatenate(self.y_roll, axis=0).astype(np.float32)
-            # self.amp = np.max(np.abs(self.y_data))
-            # try:
-            #     self.amp_q.put_nowait(self.amp)
-            # except queue.Full:
-            #     pass
             boosted_indata = indata * 2
             self.peak = np.max(np.abs(boosted_indata))
-            self.dBa = 20 * np.log10(rms_flat(boosted_indata) / 2e-5)
+            with np.errstate(divide='ignore'):
+                self.dBa = 20 * np.log10(rms_flat(boosted_indata) / 2e-5)
+                self.dBa = self.dBa if np.isfinite(self.dBa) else 0
             try:
-                self.peak_q.put_nowait(self.peak)
-            except queue.Full:
-                pass
-            try:
-                self.dBa_q.put_nowait(self.dBa)
+                data = {"peak":self.peak, "dba":self.dBa}
+                self.analysis_q.put_nowait(data)
             except queue.Full:
                 pass
         else:
-            self.stream.abort()
+            self.event.set()
 
 
     def get_descriptors(self) -> dict:
@@ -149,8 +149,6 @@ class Analyser(threading.Thread):
 
 
 def rms_flat(a):
-    """
-    Return the root mean square of all the elements of *a*, flattened out.
-    From here: https://github.com/SiggiGue/pyfilterbank/issues/17
-    """
+    """Return the root mean square of all the elements of *a*, flattened out."""
+    # https://github.com/SiggiGue/pyfilterbank/issues/17
     return np.sqrt(np.mean(np.absolute(a)**2))

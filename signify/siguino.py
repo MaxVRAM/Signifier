@@ -33,88 +33,121 @@ class ArduinoState(enum.Enum):
     closed = 5
 
 
-class SerialPacket(object):
+class ReceivePacket(object):
     command = ''
     value = 0
     duration = 0
 
 
+class SendPacket():
+    def __init__(self, cmd:str, val:int, dur:int) -> None:
+        self.command = cmd
+        self.value = val
+        self.duration = dur
+    def __str__(self) -> str:
+        return f'Serial Send Packet | "{self.command}", value: ({self.value}), duration ({self.duration})ms.'
+
+
+class LedValue:
+    def __init__(self, config:dict, tx_period:int) -> None:
+        self.cmd = config['cmd']
+        self.min = config.get('min') or 0
+        self.max = config.get('max') or 255
+        self.smooth = config.get('smooth') or 0
+        self.tx_period = tx_period
+        self.duration = int(config.get('dur') or tx_period)
+        self.tx_time = time.time_ns() // 1_000_000
+        self.updated = False
+        self.packet = None
+
+
+    def set_value(self, value):
+        value = int(scale(value, (0, 1), (self.min, self.max), 'clamp'))
+        self.packet = SendPacket(self.cmd, value, self.duration)
+        self.updated = True
+
+
+    def get_packet(self) -> SendPacket:
+        if self.packet is not None:
+            if self.updated and (
+                current_ms := time.time_ns() // 1_000_000)\
+                    > self.tx_time + self.tx_period:
+                self.tx_time = current_ms
+                self.updated = False
+                return self.packet
+            else:
+                return None
+        else:
+            return None
+
+
+
+def scale(value, source_range, dest_range, *args):
+        """
+        Scale the given value from the scale of src to the scale of dst.\
+        Send argument `clamp` to limit output to destination range as well.
+        """
+        s_range = source_range[1] - source_range[0]
+        d_range = dest_range[1] - dest_range[0]
+        scaled_value = ((value - source_range[0]) / s_range) * d_range + dest_range[0]
+        if 'clamp' in args:
+            return max(dest_range[0], min(dest_range[1], scaled_value))
+        return scaled_value
+
+
 class Siguino:   
     def __init__(self, config:dict) -> None:
+        self.config = config
+        self.start_delay = config['start_delay']
         self.enabled = config['enabled']
+        self.callback_list = None
+        self.rx_packet = ReceivePacket
         self.active = False
         self.state = ArduinoState.run
         self.link = None
-        self.start_delay = config['start_delay']
-        self.tx_time = time.time_ns() // 1_000_000
-        self.tx_period = config['send_period']
-        self.rx_packet = SerialPacket
-        self.brightness = 0
-        self.callback_list = None
-        self.send_q = queue.Queue(maxsize=10)
-        
+        self.tx_period = config['update_ms']
 
-    def callback_tick(self) -> SerialPacket:
+        self.bright = LedValue(config['brightness'], self.tx_period)
+        self.saturation = None
+        self.hue = None
+
+
+    def callback_tick(self) -> ReceivePacket:
         self.rx_packet = None
         if self.active:
             self.link.tick()
             return self.rx_packet
 
 
-    def send_packet(self, command: c_wchar, value: int, duration: int) -> bool:
+    def send_packet(self, cmd:str, val:int, dur:int):
         """Send the Arduino a command via serial, including a value,\
         and duration for the command to run for."""
         # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
         sendSize = 0
-        value = int(value)
-        sendSize = self.link.tx_obj(command, start_pos=sendSize)
-        sendSize = self.link.tx_obj(value, start_pos=sendSize)
-        sendSize = self.link.tx_obj(duration, start_pos=sendSize)
+        sendSize = self.link.tx_obj(cmd, start_pos=sendSize)
+        sendSize = self.link.tx_obj(val, start_pos=sendSize)
+        sendSize = self.link.tx_obj(dur, start_pos=sendSize)
         success = self.link.send(sendSize)
-        return success
+        if not success:
+            logger.warn(f'Ardiuno did not accept my packet "{cmd}" with value ({val}) over ({dur})ms.')
+        return None
     
+
     
-    def brightness_wave(self):
+    def wave(self):
         """Simple sine wave modulation over all LED brightness."""
-        if (current_ms := time.time_ns() // 1_000_000)\
-                > self.tx_time + self.tx_period:
-            self.tx_time = current_ms
-
-            dur = int(self.tx_period)
-            # Flash
-            # if brightness_value == 0:
-            #     brightness_value = 1
-            # else:
-            #     brightness_value = 0
-            #
-            # Random
-            # brightness_value = random.triangular(0.0, 1.0, 0.5)
-            #
-            # Slow sine pulse
-            self.brightness = int(((
-                math.sin(time.time()*2) + 1) / 2) * 255)
-            self.send_packet('B', self.brightness, dur)
-
-
-    def send_brightness(self, bright=None, duration=None):
-        """Extremely simple modulation of all LED brightness.\n
-        Sends when receiving the following 'ready' message from\
-        the Arduino once it has been `tx_limit:(ms)` after the
-        last brightness tx."""
-        if (current_ms := time.time_ns() // 1_000_000)\
-                > self.tx_time + self.tx_period:
-            self.tx_time = current_ms
-            self.brightness = bright if bright is not None else self.brightness
-            dur = duration if duration is not None else int(self.tx_period)
-            self.send_packet('B', self.brightness, dur)
-            print(f'{dt.now()}    SEND TO ARDUINO: "B" '
-                f'{self.brightness} {dur}')
-
-
-    def set_brightness_norm(self, bright:float):
-        """Simply scales the supplied bright argument from 0-1 to 0-255
-        and sets the value to the Arduino object's self.brightness."""
-        self.brightness = int(max(0, min(255, bright * 255)))
+        # Flash
+        # if brightness_value == 0:
+        #     brightness_value = 1
+        # else:
+        #     brightness_value = 0
+        #
+        # Random
+        # brightness_value = random.triangular(0.0, 1.0, 0.5)
+        #
+        # Slow sine pulse
+        #self.brightness = (math.sin(time.time()*2) + 1) / 2
+        return None
 
 
     def receive_packet(self):
@@ -123,7 +156,7 @@ class Siguino:
         using the `arduino.rx_obj()` function).\n Depending on the message\
         received, this function may or may not execute additional commands."""
         if self.active:
-            self.rx_packet = SerialPacket
+            self.rx_packet = ReceivePacket
             recSize = 0
             self.rx_packet.command = self.link.rx_obj(
                 obj_type='c', start_pos=recSize)
@@ -138,8 +171,12 @@ class Siguino:
             
             if self.rx_packet.command == 'r':
                 if self.state == ArduinoState.run:
-                    self.brightness_wave()
-                    # self.send_brightness()
+                    # Get new packets if there's been any updates
+                    # Send them to the Arduino
+                    bright = self.bright.get_packet()
+                    if bright is not None:
+                        self.send_packet(bright.command,bright.value,bright.duration)
+
                 elif self.state == ArduinoState.pause:
                     print()
                     print()
@@ -150,6 +187,7 @@ class Siguino:
                     self.state = ArduinoState.paused
                 elif self.state == ArduinoState.close:
                     self.close_serial()
+            self.rx_packet = None
 
 
     def set_state(self, state:ArduinoState):
