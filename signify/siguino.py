@@ -184,12 +184,12 @@ class Siguino(threading.Thread):
                 print(self.link.state)
                 print('sending arduino off stuff')
                 if self.send_packet(SendPacket('B', 0, 1000)) is not None:
+                    print('OKAY IT SENT!!!')
                     self.set_state(ArduinoState.closed)
-                    self.event.set()
-                    self.link.close()
-                    logger.debug(f'Arduino connection now {self.state.name}')
-                else:                
-                    print('COULDNT SEND IT!!!!')
+            if self.state == ArduinoState.closed:
+                self.event.set()
+                self.link.close()
+                logger.debug(f'Arduino connection now {self.state.name}')
 
 
     def send_packet(self, packet:SendPacket) -> SendPacket:
@@ -204,7 +204,7 @@ class Siguino(threading.Thread):
         success = self.link.send(sendSize)
         if not success:
             logger.warn(f'Arduino refused packet: {packet}.')
-            return SendPacket
+            return packet
         return None
 
 
