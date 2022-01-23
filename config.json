@@ -3,9 +3,12 @@
     {
         "enabled":true,
         "start_delay":5,
-        "brightness":{"cmd":"B", "min":3, "max":255, "smooth":0},
-        "default_hue":"",
-        "update_ms":50
+        "update_ms":50,
+        "values":{
+            "brightness":{"command":"B", "min":3, "max":255, "default":0, "smooth":0},
+            "saturation":{"command":"S", "min":0, "max":255, "default":0, "smooth":0},
+            "hue":{"command":"H", "min":0, "max":255, "default":195, "smooth":0}
+        }
     },
     "audio":
     {

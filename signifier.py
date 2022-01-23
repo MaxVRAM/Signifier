@@ -34,6 +34,7 @@ import os
 import sys
 import time
 import json
+import copy
 import queue
 import signal
 import logging
@@ -62,14 +63,14 @@ arduino = None
 arduino_active = False
 arduino_state = ArduinoState
 arduino_return_q = queue.Queue()
-arduino_state_q = queue.Queue()
+arduino_control_q = queue.Queue(maxsize=1)
 arduino_value_q = queue.Queue()
 
 audio_active = False
 audio_analysis = None
 analysis_active = False
 analysis_return_q = queue.Queue(maxsize=1)
-analysis_control_q = queue.Queue()
+analysis_control_q = queue.Queue(maxsize=1)
 
 descriptors = {}
 clip_manager: ClipManager
@@ -142,9 +143,7 @@ def get_collection(pool_size=None, restart_jobs=True):
         print()
         if restart_jobs is True:
             stop_job('composition', 'volume')
-        if arduino is not None and arduino_active:
-            arduino.set_state(ArduinoState.pause)
-            arduino_state_wait(ArduinoState.paused, 0.5)
+        set_arduino_state(ArduinoState.pause)
         stop_all_clips()
         print()
         while pg.mixer.get_busy():
@@ -155,8 +154,7 @@ def get_collection(pool_size=None, restart_jobs=True):
             time.sleep(config["clip_manager"]["fail_retry_delay"])
             get_collection()
         logger.info('NEW COLLECTION JOB DONE.')
-        if arduino is not None and arduino_active:
-            arduino.set_state(ArduinoState.running)
+        set_arduino_state(ArduinoState.starting)
         print()
         if restart_jobs is True:
             time.sleep(1)
@@ -366,21 +364,30 @@ def stop_scheduler():
     schedule.clear()
 
 
-def arduino_state_wait(state:ArduinoState, timeout=2):
-    timeout_start = time.time()
-    while time.time() < timeout_start + timeout:
-        if arduino.state == state:
-            break
-    if arduino.state != state:
-        logger.error(f'Timed out while waiting for Arduino "{state.name}" message!')
+# def arduino_state_wait(state:ArduinoState, timeout=2):
+#     timeout_start = time.time()
+#     while time.time() < timeout_start + timeout:
+#         if arduino.state == state:
+#             break
+#     if arduino.state != state:
+#         logger.error(f'Timed out while waiting for Arduino "{state.name}" message!')
 
 
-def close_arduino_connection():
+def close_arduino_connection(timeout=2):
     global arduino, arduino_active
     if arduino is not None and arduino_active:
-        arduino.shutdown()
-        logger.info('Waiting for Arduino connection to close...')
-        arduino_state_wait(ArduinoState.closed, 2)
+        if set_arduino_state(ArduinoState.close) is True:
+            logger.info('Waiting for Arduino connection to close...')
+            timeout_start = time.time()
+            while time.time() < timeout_start + timeout:
+                try:
+                    if arduino_return_q.get(timeout) == ArduinoState.closed:
+                        logger.debug('Received "closed" state from Arduino thread.')
+                        break
+                except queue.Empty:
+                    break
+        else:
+            logger.error('Could not send Aurdino thread shutdown message. Ignoring.')
     arduino_active = False
 
 
@@ -438,36 +445,31 @@ def analysis_values():
     if arduino is not None and arduino_active\
             and audio_analysis is not None and analysis_active:
         try:
-            values = analysis_return_q.get_nowait()
-            arduino.bright.set_value(values['dba'] * 0.01)
+            value = analysis_return_q.get_nowait()
+            message = ('brightness', value['dba'] * 0.01)
+            message_copy = copy.deepcopy(message)
+            set_arduino_value(message_copy)
         except queue.Empty:
             pass
 
 
-def check_arduino_queue():
-    try:
-        message = arduino_return_q.get_nowait()
-        if 'state' in message:
-            arduino_state = message['state']
-            logger.info(f'Arduino state is now "{arduino_state.name}"')
-    except queue.Empty:
-        pass
-
-
-def set_arduino_state(state:ArduinoState, timeout=2):
-    try:
-        arduino_state_q.put(state, timeout)
-    except queue.Full:
-        logger.error(f'Timed out while sending state to Arduino thread: "{state.name}"!')
-        pass
-
-
-def set_arduino_value(message:dict, timeout=2):
+def set_arduino_value(message:tuple, timeout=0.1):
     try:
         arduino_value_q.put(message, timeout)
     except queue.Full:
         logger.error(f'Timed out while sending value to Arduino thread: "{message}"!')
         pass
+
+
+def set_arduino_state(state:ArduinoState, timeout=1):
+    if arduino is not None and arduino_active:
+        try:
+            arduino_control_q.put(state, timeout)
+            return True
+        except queue.Full:
+            logger.error(f'Timed out while sending state to Arduino thread: "{state.name}"!')
+            pass
+    return False
 
 
 #     _____         .__
@@ -491,15 +493,14 @@ if __name__ == '__main__':
     set_audio_engine()
 
 
-
+    # TODO Put in an Arduino startup function
     if config['arduino']['enabled']:
         arduino = Siguino(
             return_q=arduino_return_q,
-            control_q=arduino_state_q,
+            control_q=arduino_control_q,
             value_q=arduino_value_q,
             config=config['arduino'])
-        arduino.open_connection()
-        arduino_state_wait(ArduinoState.running)
+        arduino.start()
         arduino_active = True
 
     init_clip_manager()
@@ -511,9 +512,7 @@ if __name__ == '__main__':
     audio_analysis.start()
 
     while True:
-        if arduino_active:
-            analysis_values()
-            arduino.callback_tick()
+        analysis_values()
         schedule.run_pending()
         manage_audio_events()
         #time.sleep(0.01)

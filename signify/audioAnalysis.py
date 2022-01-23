@@ -37,8 +37,6 @@ sd.default.samplerate = DEFAULT_CONF['sample_rate']
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-event = threading.Event()
-
 
 class Analyser(threading.Thread):
     """Perform audio analysis on the default PulseAudio input device.\n
@@ -69,7 +67,7 @@ class Analyser(threading.Thread):
         logger.debug('Starting audio analysis thread...')
         self.event.clear()
         with sd.InputStream(device='pulse', channels=1,
-                callback=self.process_audio, finished_callback=event.set):
+                callback=self.process_audio, finished_callback=self.event.set):
             while not self.event.is_set():
                 try:
                     if self.control_q.get_nowait() == 'close':
@@ -77,7 +75,7 @@ class Analyser(threading.Thread):
                 except queue.Empty:
                     pass
         self.streaming = False
-        logger.debug('Audio analysis thread closed.')
+        logger.info('Audio analysis thread closed.')
 
 
     def process_audio(self, indata, frames, time, status):
