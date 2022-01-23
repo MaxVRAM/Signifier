@@ -56,12 +56,21 @@ os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
 
 config = None
-arduino = None
 active_jobs = {}
+
+arduino = None
+arduino_active = False
+arduino_state = ArduinoState
+arduino_return_q = queue.Queue()
+arduino_state_q = queue.Queue()
+arduino_value_q = queue.Queue()
+
 audio_active = False
 audio_analysis = None
+analysis_active = False
 analysis_return_q = queue.Queue(maxsize=1)
 analysis_control_q = queue.Queue()
+
 descriptors = {}
 clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
@@ -133,7 +142,9 @@ def get_collection(pool_size=None, restart_jobs=True):
         print()
         if restart_jobs is True:
             stop_job('composition', 'volume')
-        arduino.set_state(ArduinoState.pause)
+        if arduino is not None and arduino_active:
+            arduino.set_state(ArduinoState.pause)
+            arduino_state_wait(ArduinoState.paused, 0.5)
         stop_all_clips()
         print()
         while pg.mixer.get_busy():
@@ -144,7 +155,8 @@ def get_collection(pool_size=None, restart_jobs=True):
             time.sleep(config["clip_manager"]["fail_retry_delay"])
             get_collection()
         logger.info('NEW COLLECTION JOB DONE.')
-        arduino.set_state(ArduinoState.run)
+        if arduino is not None and arduino_active:
+            arduino.set_state(ArduinoState.running)
         print()
         if restart_jobs is True:
             time.sleep(1)
@@ -288,7 +300,7 @@ def check_audio_device() -> str:
 
 def set_audio_engine(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    global audio_active, audio_analysis
+    global audio_active, audio_analysis, analysis_active
     if config['audio']['enabled']:
         if audio_active:
             if 'force' in args:
@@ -324,12 +336,13 @@ def set_audio_engine(*args):
         audio_active = True
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
         if config['audio']['analysis']:
-            logger.debug('Audio analysis stream active.')
             audio_analysis = Analyser(
                                 return_q=analysis_return_q,
                                 control_q=analysis_control_q,
                                 config=config['audio'])
             audio_analysis.setDaemon(True)
+            analysis_active = True
+            logger.debug('Audio analysis thread active.')
         time.sleep(1)
     else:
         if audio_active:
@@ -353,24 +366,29 @@ def stop_scheduler():
     schedule.clear()
 
 
+def arduino_state_wait(state:ArduinoState, timeout=2):
+    timeout_start = time.time()
+    while time.time() < timeout_start + timeout:
+        if arduino.state == state:
+            break
+    if arduino.state != state:
+        logger.error(f'Timed out while waiting for Arduino "{state.name}" message!')
+
+
 def close_arduino_connection():
-    global arduino
-    if arduino is not None and arduino.active:
+    global arduino, arduino_active
+    if arduino is not None and arduino_active:
         arduino.shutdown()
         logger.info('Waiting for Arduino connection to close...')
-        timeout = 2
-        timeout_start = time.time()
-        while time.time() < timeout_start + timeout:
-            if arduino.state == ArduinoState.closed:
-                break
-            time.sleep(0.1)
+        arduino_state_wait(ArduinoState.closed, 2)
+    arduino_active = False
 
 
 def close_audio_system():
     global audio_active, audio_analysis
     logger.info('Closing audio system...')
     if audio_active:
-        if audio_analysis is not None:
+        if analysis_active is True:
             if audio_analysis.is_alive():
                 analysis_control_q.put('close')
         if pg.get_init() is True and pg.mixer.get_init() is not None:
@@ -395,7 +413,6 @@ class ExitHandler:
         while pg.mixer.get_busy():
             time.sleep(0.1)
         pg.quit()
-        audio_active = False
         logger.info('Audio system now inactive.')
         logger.info('Signifier shutdown complete.')
         print()
@@ -418,12 +435,39 @@ jobs_dict = {
 #          \/     \/              \/     \/     \/     \/     \/ 
 
 def analysis_values():
-    if arduino.active:
+    if arduino is not None and arduino_active\
+            and audio_analysis is not None and analysis_active:
         try:
             values = analysis_return_q.get_nowait()
             arduino.bright.set_value(values['dba'] * 0.01)
         except queue.Empty:
             pass
+
+
+def check_arduino_queue():
+    try:
+        message = arduino_return_q.get_nowait()
+        if 'state' in message:
+            arduino_state = message['state']
+            logger.info(f'Arduino state is now "{arduino_state.name}"')
+    except queue.Empty:
+        pass
+
+
+def set_arduino_state(state:ArduinoState, timeout=2):
+    try:
+        arduino_state_q.put(state, timeout)
+    except queue.Full:
+        logger.error(f'Timed out while sending state to Arduino thread: "{state.name}"!')
+        pass
+
+
+def set_arduino_value(message:dict, timeout=2):
+    try:
+        arduino_value_q.put(message, timeout)
+    except queue.Full:
+        logger.error(f'Timed out while sending value to Arduino thread: "{message}"!')
+        pass
 
 
 #     _____         .__
@@ -446,8 +490,17 @@ if __name__ == '__main__':
 
     set_audio_engine()
 
-    arduino = Siguino(config['arduino'])
-    arduino.open_connection()
+
+
+    if config['arduino']['enabled']:
+        arduino = Siguino(
+            return_q=arduino_return_q,
+            control_q=arduino_state_q,
+            value_q=arduino_value_q,
+            config=config['arduino'])
+        arduino.open_connection()
+        arduino_state_wait(ArduinoState.running)
+        arduino_active = True
 
     init_clip_manager()
     get_collection(restart_jobs=False)
@@ -458,8 +511,9 @@ if __name__ == '__main__':
     audio_analysis.start()
 
     while True:
-        analysis_values()
-        arduino.callback_tick()
+        if arduino_active:
+            analysis_values()
+            arduino.callback_tick()
         schedule.run_pending()
         manage_audio_events()
         #time.sleep(0.01)

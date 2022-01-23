@@ -23,11 +23,13 @@ logger.setLevel(logging.DEBUG)
 
 
 class ArduinoState(enum.Enum):
-    run = 1
-    pause = 2
-    paused = 3
-    close = 4
-    closed = 5
+    starting = 1
+    running = 2
+    idle = 3
+    pause = 4
+    paused = 5
+    close = 6
+    closed = 7
 
 
 class ReceivePacket(object):
@@ -69,12 +71,12 @@ class LedValue:
             self.updated = True
 
 
-    def send(self, send_packet) -> bool:
+    def send(self, send_packet, *args) -> bool:
         if self.packet is None:
             return False
-        if self.updated and (
+        if 'force' in args or (self.updated and (
             current_ms := time.time_ns() // 1_000_000)\
-                > self.tx_time + self.tx_period:
+                > self.tx_time + self.tx_period):
             if send_packet(self.packet) is not None:
                 self.tx_time = current_ms
                 self.updated = False
@@ -83,17 +85,17 @@ class LedValue:
 
 
 class Siguino:   
-    def __init__(self, config:dict) -> None:
+    def __init__(self, return_q, control_q, value_q, config:dict) -> None:
         self.config = config
         self.start_delay = config['start_delay']
-        self.enabled = config['enabled']
         self.callback_list = None
+        self.return_q = return_q
+        self.control_q = control_q
+        self.value_q = value_q
         self.rx_packet = ReceivePacket
-        self.active = False
-        self.state = ArduinoState.run
+        self.state = None
         self.link = None
         self.tx_period = config['update_ms']
-
         self.bright = LedValue(config['brightness'], self.tx_period)
         self.saturation = None
         self.hue = None
@@ -101,7 +103,7 @@ class Siguino:
 
     def callback_tick(self) -> ReceivePacket:
         self.rx_packet = None
-        if self.active:
+        if self.state not in [ArduinoState.paused, ArduinoState.closed]:
             self.link.tick()
             return self.rx_packet
 
@@ -111,37 +113,38 @@ class Siguino:
         Arduino, automatically parsing the serial packets for processing (i.e.\
         using the `arduino.rx_obj()` function).\n Depending on the message\
         received, this function may or may not execute additional commands."""
-        if self.active:
-            self.rx_packet = ReceivePacket
-            recSize = 0
-            self.rx_packet.command = self.link.rx_obj(
-                obj_type='c', start_pos=recSize)
-            self.rx_packet.command = self.rx_packet.command.decode("utf-8")
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
-            self.rx_packet.value = self.link.rx_obj(
-                obj_type='l', start_pos=recSize)
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-            self.rx_packet.duration = self.link.rx_obj(
-                obj_type='l', start_pos=recSize)
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-            
-            # We can send packets once we get a `r` "ready" message.
-            # The LEDs require precise timing, so inturrupting a write
-            # sequence would cause issues with the LED output.
-            if self.rx_packet.command == 'r':
-                if self.state == ArduinoState.run:
-                    self.bright.send(self.send_packet)
-                elif self.state == ArduinoState.pause:
-                    if self.bright.send(self.send_packet) is True:
-                        self.set_state(ArduinoState.paused)
-                        logger.debug(f'Arduino connection now {self.state.name}')
-                elif self.state == ArduinoState.close:
-                    if self.bright.send(self.send_packet) is True:
-                        self.set_state(ArduinoState.closed)
-                        self.link.close()
-                        self.active = False
-                        logger.debug(f'Arduino connection now {self.state.name}')
-            self.rx_packet = None
+        self.rx_packet = ReceivePacket
+        recSize = 0
+        self.rx_packet.command = self.link.rx_obj(
+            obj_type='c', start_pos=recSize)
+        self.rx_packet.command = self.rx_packet.command.decode("utf-8")
+        recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
+        self.rx_packet.value = self.link.rx_obj(
+            obj_type='l', start_pos=recSize)
+        recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+        self.rx_packet.duration = self.link.rx_obj(
+            obj_type='l', start_pos=recSize)
+        recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+        
+        # We can send packets once we get a `r` "ready" message.
+        # The LEDs require precise timing, so inturrupting a write
+        # sequence would cause issues with the LED output.
+        if self.rx_packet.command == 'r':
+            if self.state == ArduinoState.starting:
+                self.set_state(ArduinoState.running)
+
+            if self.state == ArduinoState.running:
+                self.bright.send(self.send_packet)
+            elif self.state == ArduinoState.pause:
+                if self.bright.send(self.send_packet, 'force') is True:
+                    self.set_state(ArduinoState.paused)
+                    logger.debug(f'Arduino connection now {self.state.name}')
+            elif self.state == ArduinoState.close:
+                if self.bright.send(self.send_packet, 'force') is True:
+                    self.set_state(ArduinoState.closed)
+                    self.link.close()
+                    logger.debug(f'Arduino connection now {self.state.name}')
+        self.rx_packet = None
 
 
     def send_packet(self, packet:SendPacket) -> SendPacket:
@@ -163,15 +166,17 @@ class Siguino:
     def set_state(self, state:ArduinoState):
         logger.debug(f'Arduino state set to "{state.name}"')
         self.state = state
-        if self.state is ArduinoState.run:
+        if self.state in [ArduinoState.starting, ArduinoState.running]:
             self.bright.is_listening = True
         else:
             self.bright.is_listening = False
+        if self.state == ArduinoState.idle:
+            print('Arduino now running in idle mode.')
 
 
     def resume(self):
         logger.debug('Arduino resuming...')
-        self.set_state(ArduinoState.run)
+        self.set_state(ArduinoState.starting)
 
 
     def pause(self, duration=500):
@@ -199,21 +204,19 @@ class Siguino:
             time.sleep(1)
         print()
 
-        
+
     def open_connection(self) -> bool:
         """TODO will populate with checks and timeouts for Arduino serial\
         connection.\n If reaches timeout before connection, will disable\
         Arduino/LED portion of the Signifier code."""
-        if self.enabled is True:
-            self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
-            self.callback_list = [self.receive_packet]
-            self.link.set_callbacks(self.callback_list)
-            logger.debug(f'({len(self.link.callbacks)}) Arduino callback(s) ready.')
-            self.link.open()
-            self.wait_for_ready()
-            self.active = True
-            self.set_state(ArduinoState.run)
-        logger.info(f'Arduino connection active: {self.active}')
+        self.set_state(ArduinoState.starting)
+        self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
+        self.callback_list = [self.receive_packet]
+        self.link.set_callbacks(self.callback_list)
+        logger.debug(f'({len(self.link.callbacks)}) Arduino callback(s) ready.')
+        self.link.open()
+        # self.wait_for_ready()
+        logger.info(f'Arduino connection state is: {self.state.name}')
         print()
 
 
