@@ -55,11 +55,13 @@ os.environ['SDL_VIDEODRIVER'] = 'dummy'
 # os.environ['ALSA_CTL_CARD'] = 'Loopback'
 # os.environ['ALSA_PCM_CARD'] = 'Loopback'
 
+import threading
+
 
 config = None
 active_jobs = {}
 
-arduino = None
+arduino_thread = None
 arduino_active = False
 arduino_state = ArduinoState
 arduino_return_q = queue.Queue()
@@ -67,7 +69,7 @@ arduino_control_q = queue.Queue(maxsize=1)
 arduino_value_q = queue.Queue()
 
 audio_active = False
-audio_analysis = None
+analysis_thread = None
 analysis_active = False
 analysis_return_q = queue.Queue(maxsize=1)
 analysis_control_q = queue.Queue(maxsize=1)
@@ -296,9 +298,9 @@ def check_audio_device() -> str:
     return default_device
 
 
-def set_audio_engine(*args):
+def set_audio_system(*args):
     """Ensure audio driver exists and initialise the Pygame mixer."""
-    global audio_active, audio_analysis, analysis_active
+    global audio_active, analysis_thread, analysis_active
     if config['audio']['enabled']:
         if audio_active:
             if 'force' in args:
@@ -334,11 +336,11 @@ def set_audio_engine(*args):
         audio_active = True
         logger.debug(f'Audio output device: "{device}" with {pg.mixer.get_init()}')
         if config['audio']['analysis']:
-            audio_analysis = Analyser(
+            analysis_thread = Analyser(
                                 return_q=analysis_return_q,
                                 control_q=analysis_control_q,
                                 config=config['audio'])
-            audio_analysis.setDaemon(True)
+            analysis_thread.setName('Audio Analysis Thread')
             analysis_active = True
             logger.debug('Audio analysis thread active.')
         time.sleep(1)
@@ -374,32 +376,42 @@ def stop_scheduler():
 
 
 def close_arduino_connection(timeout=2):
-    global arduino, arduino_active
-    if arduino is not None and arduino_active:
-        if set_arduino_state(ArduinoState.close) is True:
-            logger.info('Waiting for Arduino connection to close...')
-            timeout_start = time.time()
-            while time.time() < timeout_start + timeout:
-                try:
-                    if arduino_return_q.get(timeout) == ArduinoState.closed:
-                        logger.debug('Received "closed" state from Arduino thread.')
-                        break
-                except queue.Empty:
-                    break
+    global arduino_thread, arduino_active
+    if arduino_thread is not None and arduino_active:
+        logger.info('Closing Arduino communications...')
+        closed = set_arduino_state(ArduinoState.close)
+        if closed:
+            print('arduino was successfully sent closed message')
         else:
-            logger.error('Could not send Aurdino thread shutdown message. Ignoring.')
+            print('arduino just doesn\'t get it')
+            # logger.info('Waiting for Arduino connection to close...')
+            # timeout_start = time.time()
+            # while time.time() < timeout_start + timeout:
+            #     try:
+            #         if arduino_return_q.get(timeout) == ArduinoState.closed:
+            #             logger.debug('Received "closed" state from Arduino thread.')
+            #             break
+            #     except queue.Empty:
+            #         break
+        # else:
+        #     logger.error('Could not send Aurdino thread shutdown message. Ignoring.')
     arduino_active = False
 
 
 def close_audio_system():
-    global audio_active, audio_analysis
-    logger.info('Closing audio system...')
+    global audio_active, analysis_thread
     if audio_active:
+        logger.info('Closing audio system...')
         if analysis_active is True:
-            if audio_analysis.is_alive():
+            if analysis_thread.is_alive():
                 analysis_control_q.put('close')
         if pg.get_init() is True and pg.mixer.get_init() is not None:
             stop_all_clips()
+            while pg.mixer.get_busy():
+                time.sleep(0.1)
+            pg.quit()
+        audio_active = False
+        logger.info('Audio system now inactive.')
 
 
 class ExitHandler:
@@ -412,15 +424,15 @@ class ExitHandler:
 
     def shutdown(self, *args):
         print()
+        print(f'Is "{analysis_thread.getName()}" alive? {analysis_thread.is_alive()}')
+        print(f'Is "{arduino_thread.getName()}" alive? {arduino_thread.is_alive()}')
         self.exiting = True
         logger.info('Shutdown sequence started.')
         stop_scheduler()
-        close_audio_system()
         close_arduino_connection()
-        while pg.mixer.get_busy():
-            time.sleep(0.1)
-        pg.quit()
-        logger.info('Audio system now inactive.')
+        close_audio_system()
+        analysis_thread.join()
+        arduino_thread.join()
         logger.info('Signifier shutdown complete.')
         print()
         sys.exit()
@@ -442,13 +454,12 @@ jobs_dict = {
 #          \/     \/              \/     \/     \/     \/     \/ 
 
 def analysis_values():
-    if arduino is not None and arduino_active\
-            and audio_analysis is not None and analysis_active:
+    if arduino_thread is not None and arduino_active\
+            and analysis_thread is not None and analysis_active:
         try:
             value = analysis_return_q.get_nowait()
             message = ('brightness', value['dba'] * 0.01)
-            message_copy = copy.deepcopy(message)
-            set_arduino_value(message_copy)
+            set_arduino_value(message)
         except queue.Empty:
             pass
 
@@ -462,13 +473,15 @@ def set_arduino_value(message:tuple, timeout=0.1):
 
 
 def set_arduino_state(state:ArduinoState, timeout=1):
-    if arduino is not None and arduino_active:
+    if arduino_thread is not None and arduino_active:
         try:
+            print('trying to put close message in queue for arduino thread.........')
             arduino_control_q.put(state, timeout)
+            print('IT WAS PUT!!! :D')
             return True
         except queue.Full:
             logger.error(f'Timed out while sending state to Arduino thread: "{state.name}"!')
-            pass
+            return False
     return False
 
 
@@ -490,17 +503,18 @@ if __name__ == '__main__':
     exit_handler = ExitHandler()
     time.sleep(1)
 
-    set_audio_engine()
+    set_audio_system()
 
 
     # TODO Put in an Arduino startup function
     if config['arduino']['enabled']:
-        arduino = Siguino(
+        arduino_thread = Siguino(
             return_q=arduino_return_q,
             control_q=arduino_control_q,
             value_q=arduino_value_q,
             config=config['arduino'])
-        arduino.start()
+        arduino_thread.setName('Arduino Comms Thread')
+        arduino_thread.start()
         arduino_active = True
 
     init_clip_manager()
@@ -509,7 +523,8 @@ if __name__ == '__main__':
     start_job('collection', 'composition', 'volume')
     automate_composition(start_num=config['jobs']['collection']['parameters']['start_clips'])
 
-    audio_analysis.start()
+    analysis_thread.start()
+
 
     while True:
         analysis_values()

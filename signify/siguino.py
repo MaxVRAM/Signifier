@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+
 class ArduinoState(enum.Enum):
     starting = 1
     running = 2
@@ -86,7 +87,9 @@ class LedValue:
 
 
 class Siguino(threading.Thread):   
-    def __init__(self, return_q, control_q, value_q, config:dict) -> None:
+    def __init__(
+            self, return_q, control_q, value_q,
+            config:dict, args=(), kwargs=None) -> None:
         super().__init__()
         self.config = config
         self.start_delay = config['start_delay']
@@ -111,22 +114,26 @@ class Siguino(threading.Thread):
         logger.debug('Starting Arduino comms thread...')
         self.open_connection()
         self.event.clear()
-        while self.state != ArduinoState.closed and not self.event.is_set():
+        while self.state != ArduinoState.closed or not self.event.is_set():
+            # Loop while we wait for serial packets from the Arduino
             while not self.link.available():
                 # Apply a new state if one is in the queue
                 try:
                     state = self.control_q.get_nowait()
+                    print(state.name)
                     self.set_state(state)
                 except queue.Empty:
                     pass
                 # Assign any value updates from the value queue
-                try:
-                    message = self.value_q.get_nowait()
-                    print(message)
-                    if (value := self.values.get(message[0])) is not None:
-                        value.set_value(message[1], None)
-                except queue.Empty:
-                    pass
+                if self.state == ArduinoState.running:
+                    try:
+                        message = self.value_q.get_noswait()
+                        print(message)
+                        if (value := self.values.get(message[0])) is not None:
+                            value.set_value(message[1], None)
+                    except queue.Empty:
+                        pass
+                # Now check for serial link errors
                 if self.link.status < 0:
                     if self.link.status == txfer.CRC_ERROR:
                         logger.error('Arduino: CRC_ERROR')
@@ -174,11 +181,15 @@ class Siguino(threading.Thread):
                     logger.debug(f'Arduino connection now {self.state.name}')
             # If attempting to close the Arduino but it's still open:
             elif self.state == ArduinoState.close:
+                print(self.link.state)
+                print('sending arduino off stuff')
                 if self.send_packet(SendPacket('B', 0, 1000)) is not None:
                     self.set_state(ArduinoState.closed)
                     self.event.set()
                     self.link.close()
                     logger.debug(f'Arduino connection now {self.state.name}')
+                else:                
+                    print('COULDNT SEND IT!!!!')
 
 
     def send_packet(self, packet:SendPacket) -> SendPacket:

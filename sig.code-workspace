@@ -2,6 +2,10 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"name": "Signifier @ 9a9a0cc",
+			"uri": "gitlens://9a9a0cc/home/pi/Signifier?{\"path\":\"/home/pi/Signifier\",\"ref\":\"9a9a0cc2b9c2bddf88cbcf3b8d89eeadd5bc2ac3\",\"repoPath\":\"/home/pi/Signifier\"}"
 		}
 	],
 	"settings": {
