@@ -829,13 +829,13 @@ SUUUUUPER High CPU usage when using the PulseAudio combined-sink devices. It com
 
 Install
 ```bash
-curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=~/bin sh
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=~/Arduino sh
 ```
-Note: arudino-cli needs to be run with `./arduino-cli` from the folder the application is stored in, even when the path is added to $PATH. Probably a mistake on my end.
+Note: arudino-cli needs to be run with `./arduino-cli` from the folder the application is stored in, even when the path is added to $PATH. Maybe a mistake on my end. Yup. It was just a dumb $PATH issue on my end. Okay, moving on...
 
 Display connected Arduino board:
 ```bash
-./arduino-cli board list
+arduino-cli board list
 
 # /dev/ttyACM0   serial   Serial Port (USB) Arduino Nano Every arduino:megaavr:nona4809 arduino:megaavr
 ```
@@ -843,8 +843,8 @@ But we'll need to install a core module to use
 
 Download, then install the core module for the Arduino Nano Every
 ```bash
-./arduino-cli core download arduino:megaavr
-./arduino-cli core install arduino:megaavr
+arduino-cli core download arduino:megaavr
+arduino-cli core install arduino:megaavr
 ```
 
 Then check the module is installed:
@@ -893,9 +893,29 @@ The libraries will be installed in `~/Arduino/libraries`. Make sure the VS Code 
 }
 ```
 
+To check the serial connection with the Arduino, we can run this command:
+```bash
+arduino-cli monitor -p /dev/ttyACM0 -b arduino:megaavr:nona4809:mode=off
+```
 
 
+To build and push a sketch is a bit of a mouth-full:
+> More information: <https://forum.arduino.cc/t/compile-with-cli-and-specify-register-emulation-option-solved/639015>
+```bash
+arduino-cli compile -b arduino:megaavr:nona4809:mode=off -p /dev/ttyACM0 <path to script>
+```
 
+So let's create an alias to shorten the command. It makes for a much easier development process:
+```bash
+alias aupload="arduino-cli compile -b arduino:megaavr:nona4809:mode=off -p /dev/ttyACM0"
+```
+
+Now from our Signifier project path, we can simply run the following command to build our sketch and push it to the Arduino:
+``bash
+aupload leds/arduino/sig_led/sig_led.ino
+```
+
+You might want to add this alias to your shell's alias exports on startup, otherwise, this alias command will need to be commit each boot.
 
 
 

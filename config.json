@@ -12,8 +12,8 @@
     },
     "audio":
     {
-        "enabled":false,
-        "analysis":false,
+        "enabled":true,
+        "analysis":true,
         "output_device":"pulse",
         "loopback_output":"Loopback, Loopback PCM",
         "loopback_return":"Loopback: PCM (hw:1,1)",

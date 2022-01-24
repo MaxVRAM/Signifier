@@ -222,7 +222,7 @@ def start_job(*args):
     for job in jobs:
         active_jobs[job] = schedule.every(config['jobs'][job]['timer'])\
                             .seconds.do(jobs_dict[job])
-    print(f'({len(active_jobs)}) jobs scheduled!')
+    logger.debug(f'({len(active_jobs)}) jobs scheduled!')
 
 
 def stop_job(*args):
@@ -327,9 +327,11 @@ class ExitHandler:
         if analysis_thread is not None and analysis_thread.is_alive():
             analysis_thread.join()
             analysis_active = False
+            print('analysis thread down')
         if arduino_thread is not None and arduino_thread.is_alive():
             arduino_thread.join()
             arduino_active = False
+            print('arduino thread down')
         logger.info('Signifier shutdown complete!')
         print()
         sys.exit()
@@ -343,7 +345,9 @@ def close_arduino_connection():
     global arduino_thread, arduino_active
     if arduino_thread is not None and arduino_thread.is_alive():
         logger.info('Closing Arduino communications...')
-        set_arduino_state('close', 2)
+        set_arduino_state('closed', 2)
+        arduino_thread.event.set()
+        arduino_thread.join()
     arduino_active = False
 
 
@@ -352,8 +356,9 @@ def close_audio_system():
     if audio_active:
         logger.info('Closing audio system...')
         if analysis_thread is not None and analysis_thread.is_alive():
-                analysis_control_q.put('close', timeout=2)
-                analysis_thread.event.set()
+            analysis_control_q.put('close', timeout=2)
+            analysis_thread.event.set()
+            analysis_thread.join()
         thread_event.set()
         if pg.get_init() is True and pg.mixer.get_init() is not None:
             pg.quit()
@@ -400,9 +405,7 @@ def set_arduino_value(message:tuple):
 def set_arduino_state(state:str, timeout=0.5):
     if arduino_thread is not None and arduino_active:
         try:
-            logger.debug(f'Attempting to send Arduino thread "{state}" state...')
             arduino_control_q.put(state, timeout=timeout)
-            logger.debug(f'State sent!')
             return True
         except queue.Full:
             logger.error(f'Timed out sending "{state}" state to Arduino thread!')

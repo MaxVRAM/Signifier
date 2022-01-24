@@ -116,13 +116,17 @@ class Siguino(threading.Thread):
         logger.debug('Starting Arduino comms thread...')
         self.open_connection()
         self.event.clear()
-        while self.state != ArduinoState.closed or not self.event.is_set():
+        counter = 0
+        while self.state != ArduinoState.closed:
+            print(counter)
+            counter += 1
+            if self.event.is_set():
+                break
             # Loop while we wait for serial packets from the Arduino
             while not self.link.available():
                 # Apply a new state if one is in the queue
                 try:
                     state = self.control_q.get_nowait()
-                    print(f'Ardunio thread got state {state}')
                     self.set_state(ArduinoState[state])
                 except queue.Empty:
                     pass
@@ -130,11 +134,12 @@ class Siguino(threading.Thread):
                 if self.state == ArduinoState.running:
                     try:
                         message = self.value_q.get_nowait()
-                        print(message)
+                        #print(message)
                         if (value := self.values.get(message[0])) is not None:
+                            #print(f'wozers in my trousers... i found a ({message[0]}) participant... {message[1]}')
                             value.set_value(message[1], None)
                     except queue.Empty:
-                        break
+                        pass
                 # Now check for serial link errors
                 if self.link.status < 0:
                     if self.link.status == txfer.CRC_ERROR:
@@ -147,20 +152,26 @@ class Siguino(threading.Thread):
                         logger.error('ERROR: {}'.format(self.link.status))
 
             # Only continues once received a packet...
-            self.rx_packet = ReceivePacket
-            recSize = 0
-            self.rx_packet.command = self.link.rx_obj(
-                obj_type='c', start_pos=recSize)
-            self.rx_packet.command = self.rx_packet.command.decode("utf-8")
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
-            self.rx_packet.valA = self.link.rx_obj(
-                obj_type='l', start_pos=recSize)
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-            self.rx_packet.valB = self.link.rx_obj(
-                obj_type='l', start_pos=recSize)
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-            self.process_packet()
+            try:
+                self.rx_packet = ReceivePacket
+                recSize = 0
+                self.rx_packet.command = self.link.rx_obj(
+                    obj_type='c', start_pos=recSize)
+                self.rx_packet.command = self.rx_packet.command.decode("utf-8")
+                recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
+                self.rx_packet.valA = self.link.rx_obj(
+                    obj_type='l', start_pos=recSize)
+                recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+                self.rx_packet.valB = self.link.rx_obj(
+                    obj_type='l', start_pos=recSize)
+                recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+                self.process_packet()
+            except TypeError:
+                pass
         # Close everything off if the event has been triggerd
+        print("FOOOOFEJFPEOSFJEPSOFJESPOFjpojPFGPOEJFPOJSE")
+        self.link.close()
+        self.event.set()
         self.state = ArduinoState.closed
         logger.info('Arduino comms closed!')
 
@@ -250,7 +261,11 @@ class Siguino(threading.Thread):
     def set_state(self, state:ArduinoState):
         self.state = state
         logger.debug(f'Arduino state now "{self.state.name}"')
-        self.return_q.put(state.name, timeout=2)
+        if self.state == ArduinoState.closed:
+            print("I'm actually super really closed......")
+            #self.event.set()
+            #self.link.close()
+
 
 
     def wait_for_ready(self):
@@ -273,11 +288,7 @@ class Siguino(threading.Thread):
         Arduino/LED portion of the Signifier code."""
         self.set_state(ArduinoState.running)
         self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
-        # self.callback_list = [self.receive_packet]
-        # self.link.set_callbacks(self.callback_list)
-        # logger.debug(f'({len(self.link.callbacks)}) Arduino callback(s) ready.')
         self.link.open()
-        # self.wait_for_ready()
         print()
 
 

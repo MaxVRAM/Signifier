@@ -78,7 +78,7 @@ SerialTransfer sigSerial;
 void setup()
 {
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
-  startup_sequence();
+  //startup_sequence();
 
   // Serial transfer setup
   Serial.begin(BAUD);
