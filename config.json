@@ -3,7 +3,7 @@
     {
         "enabled":true,
         "start_delay":5,
-        "update_ms":50,
+        "update_ms":200,
         "values":{
             "brightness":{"command":"B", "min":3, "max":255, "default":0, "smooth":0},
             "saturation":{"command":"S", "min":0, "max":255, "default":0, "smooth":0},
@@ -12,8 +12,8 @@
     },
     "audio":
     {
-        "enabled":true,
-        "analysis":true,
+        "enabled":false,
+        "analysis":false,
         "output_device":"pulse",
         "loopback_output":"Loopback, Loopback PCM",
         "loopback_return":"Loopback: PCM (hw:1,1)",

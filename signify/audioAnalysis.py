@@ -54,7 +54,7 @@ class Analyser(threading.Thread):
         self.event = threading.Event()
         self.streaming = True
         self.rms = Filter(0, alpha_decay=0.02, alpha_rise=0.02)
-        self.peak = 0
+        self.peak = Filter(0, alpha_decay=0.2, alpha_rise=0.2)
         self.analysis_data = {}
         self.analysis_q = return_q
         self.control_q = control_q
@@ -66,7 +66,7 @@ class Analyser(threading.Thread):
         These are returned to the `analysis_return_q` in the main thread."""
         logger.debug('Starting audio analysis thread...')
         self.event.clear()
-        with sd.InputStream(device='pulse', channels=1,
+        with sd.InputStream(device='pulse', channels=1, blocksize=2048,
                 callback=self.process_audio, finished_callback=self.event.set):
             while not self.event.is_set():
                 try:
@@ -84,28 +84,17 @@ class Analyser(threading.Thread):
         output audio device."""
         if status:
             logger.debug(status)
-        self.peak = np.max(np.abs(indata))
+        peak = np.amax(np.abs(indata)) * 10
+        peak = max(0.0, min(1.0, self.peak.update(peak)))
         with np.errstate(divide='ignore'):
             rms = 20 * np.log10(rms_flat(indata) / 2e-5)
-            rms = rms if np.isfinite(rms) else 0
-        rms = self.rms.update(rms)
+            rms = rms * 0.01 if np.isfinite(rms) else 0
+        rms = max(0.0, min(1.0, self.rms.update(rms)))
         try:
-            data = {"peak":self.peak, "dba":rms}
+            data = {"peak":peak, "rms":rms}
             self.analysis_q.put_nowait(data)
         except queue.Full:
             pass
-
-
-    # def terminate(self):
-    #     """Requests that the Stream thread aborts current buffer processing\
-    #     and provides an `event.set()` call to terminate the thread."""
-    #     print()
-    #     logger.info(f'Stopping audio streaming thread...')
-    #     self.streaming = False
-    #     self.event.set()
-    #     sd.sleep(100)
-    #     self.stream.abort()
-
 
 
 def rms_flat(a):

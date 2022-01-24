@@ -25,6 +25,7 @@
 #define NUM_LEDS 240
 #define DATA_PIN 6
 #define LOOP_DELAY 10
+#define BAUD 38400
 
 const unsigned int INIT_BRIGHTNESS = 255U;
 const unsigned int INIT_SATURATION = 255U;
@@ -80,7 +81,7 @@ void setup()
   startup_sequence();
 
   // Serial transfer setup
-  Serial.begin(38400);
+  Serial.begin(BAUD);
   sigSerial.begin(Serial);
   delay(100);
 }

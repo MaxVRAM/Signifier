@@ -825,6 +825,78 @@ SUUUUUPER High CPU usage when using the PulseAudio combined-sink devices. It com
 
 
 
+## Arduino-CLI
+
+Install
+```bash
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=~/bin sh
+```
+Note: arudino-cli needs to be run with `./arduino-cli` from the folder the application is stored in, even when the path is added to $PATH. Probably a mistake on my end.
+
+Display connected Arduino board:
+```bash
+./arduino-cli board list
+
+# /dev/ttyACM0   serial   Serial Port (USB) Arduino Nano Every arduino:megaavr:nona4809 arduino:megaavr
+```
+But we'll need to install a core module to use 
+
+Download, then install the core module for the Arduino Nano Every
+```bash
+./arduino-cli core download arduino:megaavr
+./arduino-cli core install arduino:megaavr
+```
+
+Then check the module is installed:
+```bash
+./arduino-cli core list
+
+# ID              Installed Latest Name
+# arduino:megaavr 1.8.7     1.8.7  Arduino megaAVR Boards
+```
+
+Looks good! Now we need to install the libraries:
+
+```bash
+./arduino-cli lib install FastLED
+./arduino-cli lib install SerialTransfer
+```
+
+Another sense-check:
+```bash
+./arduino-cli lib list
+
+# Name           Installed Available    Location              Description
+# FastLED        3.5.0     -            LIBRARY_LOCATION_USER -
+# SerialTransfer 3.1.2     -            LIBRARY_LOCATION_USER -
+```
+
+The libraries will be installed in `~/Arduino/libraries`. Make sure the VS Code `c_cpp_properties.json` has this path in the `includePath` section. We'll also add the Arduino core library at the same time. This is what mine looks like:
+
+```json
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "/home/pi/Arduino/libraries/**",
+                "/home/pi/.arduino15/packages/arduino/hardware/megaavr/1.8.7/cores/arduino/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-arm64"
+        }
+    ],
+    "version": 4
+}
+```
+
+
+
+
+
 
 
 
