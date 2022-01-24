@@ -295,6 +295,7 @@ def init_arduino_comms():
         arduino_thread.setName('Arduino Comms Thread')
         arduino_thread.start()
         arduino_active = True
+        logger.debug(f'{arduino_thread.getName()} has started.')
 
 
 #    _________.__            __      .___
@@ -405,7 +406,9 @@ def set_arduino_value(message:tuple):
 def set_arduino_state(state:str, timeout=0.5):
     if arduino_thread is not None and arduino_active:
         try:
+            logger.debug(f'Trying to send Arduino thread "{state}" state.')
             arduino_control_q.put(state, timeout=timeout)
+            logger.debug(f'Sent state "{state}" to Arduino thread!')
             return True
         except queue.Full:
             logger.error(f'Timed out sending "{state}" state to Arduino thread!')

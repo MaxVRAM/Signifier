@@ -792,7 +792,7 @@ Setting of hwparams failed: Invalid argument
   systemctl --user status pulseaudio      # Check if the daemon is running for user -- do not run as sudo
   pulseaudio -k                           # Kill PulseAudio service
   pulseaudio --start
-  pulseaudio --real-time
+  pulseaudio --realtime
   ```
 - Excellent example of weighted dB scaling to the sounddevice input stream with Numpy:
   > More information <https://github.com/SiggiGue/pyfilterbank/issues/17>
