@@ -898,24 +898,35 @@ To check the serial connection with the Arduino, we can run this command:
 arduino-cli monitor -p /dev/ttyACM0 -b arduino:megaavr:nona4809:mode=off
 ```
 
+You can add an alias to make it quicker to check the Arduino serial outputs when you're developing:
+```bash
+alias amonitor="arduino-cli monitor -p /dev/ttyACM0 -b arduino:megaavr:nona4809:mode=off"
+```
+No you can just punch in `amonitor` instead.
 
-To build and push a sketch is a bit of a mouth-full:
-> More information: <https://forum.arduino.cc/t/compile-with-cli-and-specify-register-emulation-option-solved/639015>
+Note, the alias will disappear when you reboot, so if you want it to stick around, you'll have to add it to your shell's config, e.g `~/.bashrc`, etc.
+
+
+Next we can get on with building sketches and pushing them to the Arduino. This is the command I'm using with my work on the Arduino Nano Every: 
+
 ```bash
 arduino-cli compile -b arduino:megaavr:nona4809:mode=off -p /dev/ttyACM0 <path to script>
 ```
 
-So let's create an alias to shorten the command. It makes for a much easier development process:
+Again, it's a bit too long-winded for me. So let's alias this one too:
 ```bash
 alias aupload="arduino-cli compile -b arduino:megaavr:nona4809:mode=off -p /dev/ttyACM0"
 ```
+
+> More information: <https://forum.arduino.cc/t/compile-with-cli-and-specify-register-emulation-option-solved/639015>
+
 
 Now from our Signifier project path, we can simply run the following command to build our sketch and push it to the Arduino:
 ``bash
 aupload leds/arduino/sig_led/sig_led.ino
 ```
 
-You might want to add this alias to your shell's alias exports on startup, otherwise, this alias command will need to be commit each boot.
+
 
 
 
@@ -950,3 +961,68 @@ https://github.com/larsimmisch/pyalsaaudio
 This module is far less comprehensive than the PulseAudio module `sounddevice`. I attempted this module because `sounddevice` produced some strange errors in certain scenarios (running Stream in a thread, for instance).
 
 PyAlsaAudio is very bare-bones in functionality. Futhermore, not only is it poorly documented, for some reason the module refused to import into my VC Code Intellisense. So I had to have a second terminal open running things like `dir(alsaaudio)` into `dir(alsaaudio.pcms())` and web browsers constantly searching on forums and the like.
+
+
+
+
+
+# EARLIER ARDUINO NOTES (KEEP)
+
+https://github.com/PowerBroker2/pySerialTransfer
+https://github.com/PowerBroker2/SerialTransfer
+
+python3 -m pip install pySerialTransfer
+
+
+DEVELOPMENT STEPS ONLY (NO NEED FOR THESE TOOLS FOR PRODUCTION)
+
+Installing remote VSCODE headless Arduino project functionality:
+https://joachimweise.github.io/post/2020-04-07-vscode-remote/
+
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+
+sudo usermod -a -G tty $USER
+sudo usermod -a -G dialout $USER
+sudo usermod -a -G uucp $USER
+sudo usermod -a -G plugdev $USER
+
+arduino-cli config init
+arduino-cli core update-index
+arduino-cli board list
+arduino-cli core search arduino
+arduino-cli core install arduino:megaavr
+arduino-cli lib search adafruit neopixel
+arduino-cli lib install "Adafruit NeoPixel"
+arduino-cli lib search FastLED
+arduino-cli lib install "FastLED"
+arduino-cli lib search SerialTransfer
+arduino-cli lib install "SerialTransfer"
+sudo find / -name 'arduino-cli'
+
+GET FQBNs from commands:
+  arduino-cli board list
+      e.g.:
+          "arduino:megaavr:nona4809"
+Function Commands:
+  alias acompile="arduino-cli compile --fqbn arduino:megaavr:nona4809"
+  alias aupload="arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:megaavr:nona4809"
+
+Storing the commands:
+  funcsave acompile
+  funcsave aupload
+
+Then, you can compile and push Arduino sketches like this:
+  acompile /home/pi/Signifier/leds/arduino/mmw_led_breath_purple && aupload /home/pi/Signifier/leds/arduino/mmw_led_breath_purple
+
+`cpptools`` is returning very high on the CPU and memory stats for `top`
+..So is `node`. I wonder how related `node` and `cpptools` are to the Arduino apps. 
+ Going to reboot and see what happens... but almost 80%+ CPU usage on all cores RN.
+
+Still very high, doing to disable Sys-QTT and Node Exporter...
+- Investigating furhter, this is a known issue with cpptools
+  - https://github.com/microsoft/vscode-cpptools/issues/5574
+- Attempting to limit C++ library directories to prevent recursive searching by library...
+
+CPU usage seems to have settled for the moment. Obviously this won't be a problem for production,
+but it would be good to have VS Code -> Arduino functionality during development. Will stick with this for now.
+CPU is good again. Narrowed the libraries included in c_cpp_properties.json
