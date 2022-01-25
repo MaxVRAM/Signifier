@@ -816,7 +816,7 @@ Setting of hwparams failed: Invalid argument
   > More information: <https://forums.opensuse.org/showthread.php/400774-Pulseaudio-Can-t-get-realtime-or-high-priority-permissions>
 
 
-SUUUUUPER High CPU usage when using the PulseAudio combined-sink devices. It comepletely maxes out a core.
+SUUUUUPER High CPU usage when using the PulseAudio combined-sink devices. It comepletely maxes out a core. I believe this is because of the no-wait loops in the code. Either way, I need to utilise the 4 cores. Multithreading time!!
 
 Attempting to move to Python `multiprocessing` module. But got error:
 
@@ -846,8 +846,16 @@ Apparently, this might be caused by the ALSA system integration of the Arduino a
 > More information <https://github.com/raspberrypi/linux/issues/994#issuecomment-141051047>
 
 
+The issue appears to be in the source file format! `sounddevice` is a simple wrapper for PulseAudio, and according to the above github issue, PulseAudio has issues converting sample rates. Either way, converting the sample rates on the fly would most certainly add unnessessary CPU time to the system.
 
-
+- Original audio source files were in 32bit Stereo @ 44.1KHz, but I since the Signifiers are using a single channel, I converted the files to Mono, which I've been using for most of the development.
+- Since reading about the realtime sample rate conversion issues between PulseAudio and the snd_bcm2835 ALSA driver, I've moved to **32bit Mono @ 48KHz**
+- I batch converted the original files using FFmpeg Batch AV Converter (Windows) and the command: `-vn -c:a pcm_s32le -ar 48000 -sample_fmt s32 -ac 1`
+- I then updated my audio analysis script to use everything default (except forcing mono). The `sounddevice.InputStream` looks like this:
+    ```python
+    with sd.InputStream(channels=1, callback=self.process_audio, finished_callback=self.event.set):
+    ```
+- This appears to have solved the problem
 
 
 

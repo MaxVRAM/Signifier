@@ -26,7 +26,7 @@
 #define NUM_LEDS 240
 #define DATA_PIN 6
 #define LOOP_DELAY 10
-#define TARGET_LOOP_TIME 30
+#define TARGET_LOOP_DUR 30
 
 const unsigned int INIT_BRIGHTNESS = 255U;
 const unsigned int INIT_SATURATION = 255U;
@@ -84,7 +84,9 @@ void setup()
   // Serial transfer setup
   Serial.begin(BAUD);
   sigSerial.begin(Serial);
-  delay(100);
+  loopStartTime = millis();
+  delay(TARGET_LOOP_DUR);
+  ms = millis();
 }
 
 void loop()
@@ -92,18 +94,19 @@ void loop()
   prevLoopTime = millis() - loopStartTime;
   loopStartTime = millis();
   smooth(loopAvg, prevLoopTime);
-  sendCommand(COMMAND{'L', loopStartTime, loopAvg.average});
+  //sendCommand(COMMAND{'L', loopStartTime, loopAvg.average});
 
   fadeToTarget(main_brightness);
 
   FastLED.setBrightness(main_brightness.currVal);
   FastLED.show();
 
-  // Let the RPi know the Arduino is ready to receive serial commands for number of ms
-  //sendCommand(COMMAND{'r', 1, LOOP_DELAY});
-
   // Calculates the remaining time to wait for a response based on the target loop time
-  loopEndTime = loopStartTime + TARGET_LOOP_TIME - (millis() - loopStartTime);
+  loopEndTime = loopStartTime + TARGET_LOOP_DUR;
+
+  // Let the RPi know the Arduino is ready to receive serial commands for number of ms
+  sendCommand(COMMAND{'r', 1, loopEndTime - millis()});
+
   while (ms < loopEndTime)
   {
     ms = millis();
@@ -112,7 +115,7 @@ void loop()
       uint16_t recSize = 0;
       sigSerial.rxObj(inputCommand, recSize);
       processInput(inputCommand);
-      break; // TODO: Test without to see if multiple commands can be received per loop
+      //break; // TODO: Test without to see if multiple commands can be received per loop
     }
   }
 }
@@ -158,7 +161,7 @@ void assignInput(COMMAND input, HSV_PROP &property)
   property.stepSize = loopAvg.average / input.duration;
   property.lerpPos = 0.0f;
 
-  sendCommand(COMMAND{'A', property.currVal, property.targetVal});
+  sendCommand(COMMAND{input.command, property.currVal, property.targetVal});
 }
 
 // Linearly fade an LED property towards its target value.

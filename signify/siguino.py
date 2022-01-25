@@ -6,8 +6,10 @@
 #  /_______  /|__\___  /|____/|__|___|  /\____/ 
 #          \/   /_____/               \/        
 
-"""A module for the Signify system to control the LED system hosted on a
-connected Arduino Nano Every."""
+"""
+A module for the Signify system to control the LED system hosted on a
+connected Arduino Nano Every.
+"""
 
 from __future__ import annotations
 import time
@@ -80,15 +82,15 @@ class LedValue:
         if 'force' in args or (self.updated and (
             current_ms := time.time_ns() // 1_000_000)\
                 > self.tx_time + self.tx_period):
-            if send_function(self.packet) is not None:
+            if send_function(self.packet) is None:
                 self.tx_time = current_ms
-                self.updated = False        
-                print(f'SENT PACKET TO ARDY! {self.packet}')
+                self.updated = False
                 return True
         return False
 
 
-class Siguino(Process):   
+class Siguino(Process):
+    Process.daemon = True
     def __init__(
             self, return_q:Queue, control_q:Queue, value_q:Queue,
             config:dict, args=(), kwargs=None) -> None:
@@ -113,13 +115,22 @@ class Siguino(Process):
 
 
     def run(self):
-        """Begin executing Arudino communication thread to control LEDs."""
+        """
+        Begin executing Arudino communication thread to control LEDs.
+        """
         logger.debug('Starting Arduino comms thread...')
-        self.start_time = time.time()
-        self.open_connection()
         self.event.clear()
+        self.open_connection()
+        self.start_time = time.time()
         # Loop while we wait for serial packets from the Arduino
         while self.state != ArduinoState.closed:
+            # Prioritise apply a new state if one is in the queue
+            try:
+                state = self.control_q.get_nowait()
+                self.set_state(ArduinoState[state])
+            except Empty:
+                pass
+            # Next, check for any available serial packets from the Arduino
             if self.link.available():
                 recSize = 0
                 self.rx_packet.command = self.link.rx_obj(
@@ -133,24 +144,7 @@ class Siguino(Process):
                 recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
                 self.process_packet()
             else:
-                try:
-                    # Apply a new state if one is in the queue
-                    state = self.control_q.get_nowait()
-                    print(f'YEAH WE GOT A CONTROL MESSAGHE IN THE FGPQUEUE!!!')
-                    self.set_state(ArduinoState[state])
-                except Empty:
-                    pass
-                if self.state == ArduinoState.running:
-                    try:
-                    # Assign any value updates from the value queue
-                        message = self.value_q.get_nowait()
-                        #print(message)
-                        if (value := self.values.get(message[0])) is not None:
-                            #print(f'wozers in my trousers ({value}) i found a ({message[0]}) participant... {message[1]}')
-                            value.set_value(message[1], None)
-                    except Empty:
-                        pass
-                # Now check for serial link errors
+                # If not, check for serial link errors
                 if self.link.status < 0:
                     if self.link.status == txfer.CRC_ERROR:
                         logger.error('Arduino: CRC_ERROR')
@@ -160,17 +154,26 @@ class Siguino(Process):
                         logger.error('Arduino: STOP_BYTE_ERROR')
                     else:
                         logger.error('ERROR: {}'.format(self.link.status))
+            # Finally, push any new LED values that are in the queue
+            if self.state not in [ArduinoState.close, ArduinoState.closed]:
+                try:
+                    message = self.value_q.get_nowait()
+                    if (value := self.values.get(message[0])) is not None:
+                        value.set_value(message[1], None)
+                except Empty:
+                    pass
 
-        # Close everything off if the event has been triggerd
-        print("FOOOOFEJFPEOSFJEPSOFJESPOFjpojPFGPOEJFPOJSE")
+        # Close everything off just in case something got missed
         self.link.close()
         self.event.set()
         self.state = ArduinoState.closed
-        logger.info('Arduino comms closed!')
+        logger.info('Arduino comms closed.')
 
 
     def process_packet(self):
-        """Called by the run thread to process the received serial packet"""
+        """
+        Called by the run thread to process the received serial packet
+        """
         # We can send packets once we get a `r` "ready" message.
         # The LEDs require precise timing, so inturrupting an LED write
         # sequence would cause issues with the LED output.
@@ -178,7 +181,6 @@ class Siguino(Process):
         run_time = round((time.time() - self.start_time) * 1000)
         print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
         if cmd == 'r':
-            print('Got Arduino ready message')
             # Wait for first Arduino "ready" message before sending LED values
             if self.state == ArduinoState.starting:
                 self.set_state(ArduinoState.running)
@@ -205,11 +207,12 @@ class Siguino(Process):
     def set_paused(self) -> bool:
         logger.debug(f'Attempting LED fade out and pause Arduino comms...')
         timeout_start = time.time()
-        while time.time() < timeout_start + 2:
+        while time.time() < timeout_start + 1:
             if self.send_packet(SendPacket('B', 0, 500)) is not None:
                 self.set_state(ArduinoState.paused)
                 logger.debug(f'Arduino connection now {self.state.name}')
                 return True
+            time.sleep(0.01)
         logger.error(f'Could not set Arduino state to "paused"!')
         return False
 
@@ -217,19 +220,17 @@ class Siguino(Process):
     def set_closed(self) -> bool:
         logger.debug(f'Trying to fade out LEDs and close serial port...')
         timeout_start = time.time()
-        while time.time() < timeout_start + 2:
-            while not self.link.available():
-                time.sleep(0.01)
-            if self.send_packet(SendPacket('B', 0, 1000)) is not None:
-                logger.warning(f'Arduino could not hear "shutdown" request.')
-                timeout_start = 0
-                break
+        while time.time() < timeout_start + 1:
+            if self.link.available():
+                if self.send_packet(SendPacket('B', 0, 1000)) is None:
+                    logger.debug(f'Arduino received shutdown request, terminating connection.')
+                    self.state = ArduinoState.closed
+                    self.link.close()
+                    self.event.set()
+                    timeout_start = 0
+                    return True
             else:
-                self.set_state(ArduinoState.closed)
-                logger.debug(f'Arduino connection now {self.state.name}')
-                self.link.close()
-                self.event.set()
-                return True
+                time.sleep(0.01)
         self.set_state(ArduinoState.closed)
         logger.error(f'Could not gracefully shutdown Arduino. '
                      f'Forced {self.state.name} state')
@@ -239,9 +240,11 @@ class Siguino(Process):
 
 
     def send_packet(self, packet:SendPacket) -> SendPacket:
-        """Send the Arduino a command via serial, including a value,\
+        """
+        Send the Arduino a command via serial, including a value,\
         and duration for the command to run for. Returns the attempted\
-        serial packet should the send fail."""
+        serial packet should the send fail.
+        """
         # https://github.com/PowerBroker2/pySerialTransfer/blob/master/examples/data/Python/tx_data.py
         sendSize = 0
         sendSize = self.link.tx_obj(packet.command, start_pos=sendSize)
@@ -258,15 +261,14 @@ class Siguino(Process):
         self.state = state
         logger.debug(f'Arduino state now "{self.state.name}"')
         if self.state == ArduinoState.closed:
-            print("I'm actually super really closed......")
-            #self.event.set()
-            #self.link.close()
-
+            self.set_closed()
 
 
     def wait_for_ready(self):
-        """Sleep after initialisation to make sure Arduino and\
-        RPi start at the same time."""
+        """
+        Sleep after initialisation to make sure Arduino and\
+        RPi start at the same time.
+        """
         # TODO: Replace with a serial message callback for Arduino ready.
         print()
         logger.info(f'Signifier ready! Delaying start to make sure Arduino '
@@ -279,9 +281,11 @@ class Siguino(Process):
 
 
     def open_connection(self) -> bool:
-        """TODO will populate with checks and timeouts for Arduino serial\
+        """
+        TODO will populate with checks and timeouts for Arduino serial\
         connection.\n If reaches timeout before connection, will disable\
-        Arduino/LED portion of the Signifier code."""
+        Arduino/LED portion of the Signifier code.
+        """
         self.set_state(ArduinoState.running)
         self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=self.baud)
         self.link.open()
@@ -289,7 +293,9 @@ class Siguino(Process):
 
 
     def wave(self):
-        """Simple sine wave modulation over all LED brightness."""
+        """
+        Simple sine wave modulation for generating patterns.
+        """
         # Flash
         # if brightness_value == 0:
         #     brightness_value = 1

@@ -17,6 +17,7 @@ import logging
 import schedule
 from queue import Empty, Full
 from multiprocessing import Process, Queue, Event
+import multiprocessing as mp
 
 import pygame as pg
 
@@ -43,7 +44,7 @@ arduino_value_q = Queue()
 audio_active = False
 analysis_thread = None
 analysis_active = False
-analysis_return_q = Queue()
+analysis_return_q = Queue(maxsize=1)
 analysis_control_q = Queue(maxsize=1)
 
 passthrough_event = Event()
@@ -64,18 +65,22 @@ logger.setLevel(logging.DEBUG)
 #          \/        |__|       \/
 
 def stop_random_clip():
-    """Stop a randomly selected audio clip from the active pool."""
+    """
+    Stop a randomly selected audio clip from the active pool.
+    """
     if audio_active:
         clip_manager.stop_clip()
 
 
 def stop_all_clips(fade_time=None, disable_events=True):
-    """Tell all active clips to stop playing, emptying the mixer of\
+    """
+    Tell all active clips to stop playing, emptying the mixer of\
     active channels.\n `fade_time=(int)` the number of milliseconds active\
     clips should take to fade their volumes before stopping playback.\
     If no parameter is provided, the clip_manager's `fade_out`\
     value from the config.json will be used.\n Use 'disable_events=True'\
-    to prevent misfiring audio jobs that use clip end events to launch more."""
+    to prevent misfiring audio jobs that use clip end events to launch more.
+    """
     if audio_active:
         fade_time = config['clip_manager']['fade_out'] if fade_time is None\
             else fade_time
@@ -88,8 +93,10 @@ def stop_all_clips(fade_time=None, disable_events=True):
 
 
 def manage_audio_events():
-    """Check for audio playback completion events,
-    call the clip manager to clean them up."""
+    """
+    Check for audio playback completion events,
+    call the clip manager to clean them up.
+    """
     if audio_active:
         for event in pg.event.get():
             if event.type == CLIP_EVENT:
@@ -98,10 +105,14 @@ def manage_audio_events():
 
 
 def wait_for_silence():
-    """Stops the main thread until all challens have faded out."""
-    if audio_active:
+    """
+    Stops the main thread until all challens have faded out.
+    """
+    if audio_active and pg.mixer.get_init():
+        logger.debug('Waiting for audio mixer to release all channels...')
         while pg.mixer.get_busy():
             time.sleep(0.1)
+        logger.info('Mixer empty.')
 
 
 #       ____.     ___.
@@ -112,14 +123,16 @@ def wait_for_silence():
 #                      \/     \/
 
 def get_collection(pool_size=None, restart_jobs=True, pause_leds=True):
-    """Select a new collection from the clip manager, replacing any\
+    """
+    Select a new collection from the clip manager, replacing any\
     currently loaded collection.\n - `pool_size=(int)` defines the
     number of clips to load from the collection.\n If parameter is
     not provided, the job's config.json default `pool_size` value
     will be used.\n - `restart_jobs=(bool)` tells the function if the
     additional modulation jobs should be started immediately after the
     new collection has been loaded. If set to False, they will need
-    to be manually triggered using the `set_jobs()` function."""
+    to be manually triggered using the `set_jobs()` function.
+    """
     if audio_active:
         job_params = config['jobs']['collection']['parameters']
         pool_size = job_params['pool_size']\
@@ -149,12 +162,14 @@ def get_collection(pool_size=None, restart_jobs=True, pause_leds=True):
 
 
 def automate_composition(quiet_level=None, busy_level=None, start_num=1):
-    """Ensure the clip manager is playing an appropriate number of clips,\
+    """
+    Ensure the clip manager is playing an appropriate number of clips,\
     and move any finished clips still lingering in the active pool to
     the inactive pool.\n - `quiet_level=(int)` the lowest number of
     concurrent clips playing before looking for more to play.\n -
     `busy_level=(int)` the highest number of concurrent clips playing
-    before stopping active clips."""
+    before stopping active clips.
+    """
     if audio_active:
         job_params = config['jobs']['composition']['parameters']
         quiet_level = job_params['quiet_level']\
@@ -173,11 +188,13 @@ def automate_composition(quiet_level=None, busy_level=None, start_num=1):
 
 
 def modulate_volumes(speed=None, weight=None):
-    """Randomly modulate the Channel volumes for all Clip(s) in the\
+    """
+    Randomly modulate the Channel volumes for all Clip(s) in the\
     active pool.\n - `speed=(int)` is the maximum volume jump per tick
     as a percentage of the total volume. 1 is slow, 10 is very quick.\n -
     "weight=(float)" is a signed normalised float (-1.0 to 1.0) that
-    weighs the random steps towards either direction."""
+    weighs the random steps towards either direction.
+    """
     if audio_active:
         speed = config['jobs']['volume']['parameters']['speed']\
             if speed is None else speed
@@ -187,10 +204,12 @@ def modulate_volumes(speed=None, weight=None):
 
 
 def start_job(*args):
-    """Start jobs matching names provided as string arguments.\n
+    """
+    Start jobs matching names provided as string arguments.\n
     Jobs will only start if it is registered in the jobs dict,\
     not in the active jobs pool, and where it's tagged service\
-    and the job ifself are both enabled in config file."""
+    and the job ifself are both enabled in config file.
+    """
     jobs = set(args)
     jobs.intersection_update(jobs_dict.keys())
     jobs.difference_update(active_jobs.keys())
@@ -204,8 +223,10 @@ def start_job(*args):
 
 
 def stop_job(*args):
-    """Stop jobs matching names provided as string arguments.\n
-    Jobs will only be stopped if they are found in the active pool."""
+    """
+    Stop jobs matching names provided as string arguments.\n
+    Jobs will only be stopped if they are found in the active pool.
+    """
     jobs = set(args)
     jobs.intersection_update(active_jobs.keys())
     for job in jobs:
@@ -222,14 +243,16 @@ def stop_job(*args):
 def process_analysis(audio_q, arduino_q):
     while not passthrough_event.is_set():
         try:
-            value = audio_q.get(timeout=1)
+            value = audio_q.get(timeout=0.01)
             message = ('brightness', value['peak'])
+            print(message)
             try:
-                arduino_q.put(message, timeout=1)
+                arduino_q.put(message, timeout=0.01)
             except Full:
                 pass
         except Empty:
             pass
+        time.sleep(0.01)
 
 
 def set_arduino_value(message:tuple):
@@ -261,7 +284,9 @@ def set_arduino_state(state:str, timeout=0.5):
 #          \/     \/           |__|
 
 def init_clip_manager():
-    """Load Clip Manager with audio library and initialise the clips."""
+    """
+    Load Clip Manager with audio library and initialise the clips.
+    """
     global clip_manager
     if audio_active:
         logger.info('Initialising Clip Mananger...')
@@ -274,7 +299,9 @@ def init_clip_manager():
 
 
 def init_audio_system():
-    """Initialise the Pygame mixer and analysis thread (if enabled)."""
+    """
+    Initialise the Pygame mixer and analysis thread (if enabled).
+    """
     global audio_active, analysis_thread, analysis_active, passthrough_thread
     if config['audio']['enabled'] and not audio_active:
         logger.info('Initialising audio system...')
@@ -293,17 +320,19 @@ def init_audio_system():
                                 control_q=analysis_control_q,
                                 config=config['audio'])
             analysis_thread.name = 'Audio Analysis Thread'
-            passthrough_thread = Process(
+            passthrough_thread = Process(daemon=True,
                 name='Passthrough Thread', target=process_analysis,
                 args=(analysis_return_q, arduino_value_q))
             analysis_active = True
-            logger.debug(f'{analysis_thread.name} active!')
-            logger.debug(f'{passthrough_thread.name} active!')
+            logger.debug(f'{analysis_thread.name} initialised.')
+            logger.debug(f'{passthrough_thread.name} initialised.')
         time.sleep(1)
 
 
 def init_arduino_comms():
-    """Initialise the Arduino serial communication thread."""
+    """
+    Initialise the Arduino serial communication thread.
+    """
     global arduino_active, arduino_thread
     if config['arduino']['enabled']:
         arduino_thread = Siguino(
@@ -334,27 +363,21 @@ class ExitHandler:
 
     def shutdown(self, *args):
         global analysis_active, arduino_active
-        self.exiting = True
-        print()
-        logger.info('Shutdown sequence started!')
-        stop_scheduler()
-        stop_all_clips()
-        wait_for_silence()
-        close_arduino_connection()
-        close_audio_system()
-        logger.info('Waiting to join threads...')
-
-        if analysis_thread is not None and analysis_thread.is_alive():
-            analysis_thread.join()
-            analysis_active = False
-            print('                          analysis thread down')
-        if arduino_thread is not None and arduino_thread.is_alive():
-            arduino_thread.join()
-            arduino_active = False
-            print('                          arduino thread down')
-        logger.info('Signifier shutdown complete!')
-        print()
-        sys.exit()
+        if mp.current_process() is main_thread:
+            if not self.exiting:
+                self.exiting = True
+                print()
+                logger.info('Shutdown sequence started!')
+                stop_scheduler()
+                stop_all_clips()
+                wait_for_silence()
+                close_arduino_connection()
+                close_audio_system()
+                logger.info('Signifier shutdown complete!')
+                print()
+                sys.exit()
+        else:
+            return None
 
 
 def stop_scheduler():
@@ -363,12 +386,15 @@ def stop_scheduler():
 
 def close_arduino_connection():
     global arduino_thread, arduino_active
-    if arduino_thread is not None and arduino_thread.is_alive():
-        logger.info('Closing Arduino communications...')
-        set_arduino_state('closed', 2)
-        arduino_thread.event.set()
-        arduino_thread.join(timeout=1)
-    arduino_active = False
+    if arduino_active:
+        logger.info('Closing Arduino system...')
+        if arduino_thread is not None and arduino_thread.is_alive():
+            logger.info('Requesting Arduino thread to stop...')
+            arduino_control_q.put('close', timeout=2)
+            arduino_thread.event.set()
+            arduino_thread.join(timeout=1)
+        arduino_active = False
+        logger.info('Arduino connection inactive!')
 
 
 def close_audio_system():
@@ -376,6 +402,7 @@ def close_audio_system():
     if audio_active:
         logger.info('Closing audio system...')
         if analysis_thread is not None and analysis_thread.is_alive():
+            logger.info('Requesting analysis thread to stop...')
             analysis_control_q.put('close', timeout=2)
             analysis_thread.event.set()
             analysis_thread.join(timeout=1)
@@ -408,6 +435,7 @@ if __name__ == '__main__':
     with open(CONFIG_FILE) as c:
         config = json.load(c)
 
+    main_thread = mp.current_process()
     exit_handler = ExitHandler()
     passthrough_event.clear()
     time.sleep(1)
@@ -426,4 +454,4 @@ if __name__ == '__main__':
     while True:
         schedule.run_pending()
         manage_audio_events()
-        #time.sleep(0.01)
+        time.sleep(0.1)
