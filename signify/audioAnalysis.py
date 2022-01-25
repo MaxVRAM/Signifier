@@ -25,7 +25,7 @@ from signify.utils import ExpFilter as Filter
 DEFAULT_CONF = {
     "loopback_return":1,
     "hw_loop_output":0,
-    "sample_rate":44100,
+    "sample_rate":48000,
     "buffer":4096 }
 
 logger = logging.getLogger(__name__)

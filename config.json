@@ -20,7 +20,7 @@
         "loopback_return":"Loopback: PCM (hw:1,1)",
         "hw_direct_output":"bcm2835 Headphones, bcm2835 Headphones",
         "hw_loop_output":"bcm2835 Headphones: - (hw:0,0)",
-        "sample_rate":44100,
+        "sample_rate":48000,
         "bit_size":-16,
         "buffer":4096,
         "latency":0.1
@@ -28,7 +28,7 @@
     "clip_manager":
     {
         "fail_retry_delay":5,
-        "base_path":"/home/pi/Signifier/audio",
+        "base_path":"/home/pi/Signifier/audio_3",
         "valid_extensions":[".wav"],
         "strict_distribution":false,
         "volume":0.5,
