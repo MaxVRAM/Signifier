@@ -8,7 +8,7 @@
 
 // Compile using Ardino-CLI: https://github.com/arduino/arduino-cli
 // Use command:
-// acompile /home/pi/Signifier/leds/arduino/sig_led && aupload /home/pi/Signifier/leds/arduino/sig_led
+// acompile ~/Signifier/signify/sig_led && aupload ~/Signifier/signify/sig_led -v
 
 // TODO:
 // Reporting: periodic updates to RPi with average loop length, run-time, etc.
@@ -22,10 +22,11 @@
 #include <Arduino.h>
 #include <SerialTransfer.h>
 #include <FastLED.h>
+#define BAUD 38400
 #define NUM_LEDS 240
 #define DATA_PIN 6
 #define LOOP_DELAY 10
-#define BAUD 38400
+#define TARGET_LOOP_TIME 30
 
 const unsigned int INIT_BRIGHTNESS = 255U;
 const unsigned int INIT_SATURATION = 255U;
@@ -99,10 +100,10 @@ void loop()
   FastLED.show();
 
   // Let the RPi know the Arduino is ready to receive serial commands for number of ms
-  sendCommand(COMMAND{'r', 1, LOOP_DELAY});
+  //sendCommand(COMMAND{'r', 1, LOOP_DELAY});
 
-  serialStartTime = millis();
-  loopEndTime = serialStartTime + LOOP_DELAY;
+  // Calculates the remaining time to wait for a response based on the target loop time
+  loopEndTime = loopStartTime + TARGET_LOOP_TIME - (millis() - loopStartTime);
   while (ms < loopEndTime)
   {
     ms = millis();
@@ -135,10 +136,10 @@ void processInput(COMMAND input)
   case 'b':
     assignInput(input, brightness);
     break;
-  case 's':
+  case 'S':
     assignInput(input, saturation);
     break;
-  case 'h':
+  case 'H':
     assignInput(input, hue);
     break;
   default:
@@ -157,7 +158,7 @@ void assignInput(COMMAND input, HSV_PROP &property)
   property.stepSize = loopAvg.average / input.duration;
   property.lerpPos = 0.0f;
 
-  //sendCommand(COMMAND{'R', property.currVal, property.targetVal});
+  sendCommand(COMMAND{'A', property.currVal, property.targetVal});
 }
 
 // Linearly fade an LED property towards its target value.

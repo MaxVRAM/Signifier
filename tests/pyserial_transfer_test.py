@@ -38,7 +38,7 @@
 #   alias acompile="arduino-cli compile --fqbn arduino:megaavr:nona4809"
 #   alias aupload="arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:megaavr:nona4809"
 #
-# Storing the commands:
+# With Fish shell, storing the commands:
 #   funcsave acompile
 #   funcsave aupload
 # 
@@ -65,8 +65,9 @@ from pySerialTransfer import pySerialTransfer as txfer
 
 if __name__ == '__main__':
     try:
-        link = txfer.SerialTransfer('COM3')
+        link = txfer.SerialTransfer('/dev/ttyACM0')
         link.open()
+        print('Think I opened the serial port....')
         time.sleep(2) # allow some time for the Arduino to completely reset
         
         while True:
@@ -96,8 +97,9 @@ if __name__ == '__main__':
             ###################################################################
             # Transmit all the data to send in a single packet
             ###################################################################
-            link.send(send_size)
-            
+            print(f'About to send {send_size}')
+            did_it_send = link.send(send_size)
+            print(f'Sent: {did_it_send}')
             ###################################################################
             # Wait for a response and report any errors while receiving packets
             ###################################################################

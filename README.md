@@ -818,6 +818,32 @@ Setting of hwparams failed: Invalid argument
 
 SUUUUUPER High CPU usage when using the PulseAudio combined-sink devices. It comepletely maxes out a core.
 
+Attempting to move to Python `multiprocessing` module. But got error:
+
+```python
+DEBUG:signify.audioAnalysis:Starting audio analysis thread...
+Expression 'ret' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1736
+Expression 'AlsaOpen( &alsaApi->baseHostApiRep, params, streamDir, &self->pcm )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1904
+Expression 'PaAlsaStreamComponent_Initialize( &self->capture, alsaApi, inParams, StreamDirection_In, NULL != callback )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2171
+Expression 'PaAlsaStream_Initialize( stream, alsaHostApi, inputParameters, outputParameters, sampleRate, framesPerBuffer, callback, streamFlags, userData )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2839
+Process Audio Analysis Thread:
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/pi/Signifier/signify/audioAnalysis.py", line 70, in run
+    with sd.InputStream(device='pulse', channels=1, blocksize=2048,
+  File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 1415, in __init__
+    _StreamBase.__init__(self, kind='input', wrap_callback='array',
+  File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 892, in __init__
+    _check(_lib.Pa_OpenStream(self._ptr, iparameters, oparameters,
+  File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 2741, in _check
+    raise PortAudioError(errormsg, err)
+sounddevice.PortAudioError: Error opening InputStream: Illegal combination of I/O devices [PaErrorCode -9993]
+```
+
+Apparently, this might be caused by the ALSA system integration of the Arduino audio device `snd_bcm2835` failing to process sample rates other than 480000. It's suggested to create an ALSA `plug` device to convert the sample rate: 
+
+> More information <https://github.com/raspberrypi/linux/issues/994#issuecomment-141051047>
 
 
 
@@ -900,35 +926,37 @@ arduino-cli monitor -p /dev/ttyACM0 -b arduino:megaavr:nona4809:mode=off
 
 You can add an alias to make it quicker to check the Arduino serial outputs when you're developing:
 ```bash
-alias amonitor="arduino-cli monitor -p /dev/ttyACM0 -b arduino:megaavr:nona4809:mode=off"
+alias amonitor="arduino-cli monitor -p /dev/ttyACM0 -b arduino:megaavr:nona4809 -c baudrate=38400"
 ```
 No you can just punch in `amonitor` instead.
 
 Note, the alias will disappear when you reboot, so if you want it to stick around, you'll have to add it to your shell's config, e.g `~/.bashrc`, etc.
 
 
-Next we can get on with building sketches and pushing them to the Arduino. This is the command I'm using with my work on the Arduino Nano Every: 
+Next we can get on with building sketches and pushing them to the Arduino. This is what the commands look like with my development environment using an Arduino Nano Every:
 
 ```bash
-arduino-cli compile -b arduino:megaavr:nona4809:mode=off -p /dev/ttyACM0 <path to script>
+arduino-cli compile --fqbn arduino:megaavr:nona4809
+arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:megaavr:nona4809 <path to script>
 ```
 
 Again, it's a bit too long-winded for me. So let's alias this one too:
 ```bash
-alias aupload="arduino-cli compile -b arduino:megaavr:nona4809:mode=off -p /dev/ttyACM0"
+alias acompile="arduino-cli compile --fqbn arduino:megaavr:nona4809"
+alias aupload="arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:megaavr:nona4809"
+```
+
+Now we can simply run the following command to build our sketch and push it to the Arduino:
+``bash
+acompile ~/Signifier/signify/sig_led && aupload ~/Signifier/signify/sig_led
+```
+
+Use the `-v` arugment for verbose mode, in case you need to debug:
+``bash
+acompile ~/Signifier/signify/sig_led && aupload ~/Signifier/signify/sig_led
 ```
 
 > More information: <https://forum.arduino.cc/t/compile-with-cli-and-specify-register-emulation-option-solved/639015>
-
-
-Now from our Signifier project path, we can simply run the following command to build our sketch and push it to the Arduino:
-``bash
-aupload leds/arduino/sig_led/sig_led.ino
-```
-
-
-
-
 
 
 

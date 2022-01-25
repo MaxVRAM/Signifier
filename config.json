@@ -2,8 +2,9 @@
     "arduino":
     {
         "enabled":true,
+        "baud":38400,
         "start_delay":5,
-        "update_ms":200,
+        "update_ms":10,
         "values":{
             "brightness":{"command":"B", "min":3, "max":255, "default":0, "smooth":0},
             "saturation":{"command":"S", "min":0, "max":255, "default":0, "smooth":0},

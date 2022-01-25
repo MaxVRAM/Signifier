@@ -7,38 +7,16 @@
 #          \/   /_____/      \/          \/     
 #
 
-"""
-Audio System Information:
-
-To run Signify with LEDs modulated by the Signify audio
-
-An audio loopback device needs to be instantiated on
-before this script: `sudo modprobe snd-aloop`. This will
-create a device called 'Loopback, Loopback PCM', and
-should be the device name set in config.json.
-
-The audio sent to the loopback device then needs to be
-manually routed through the RPi's physical audio output
-jack. This can be done with the `alsa-utils` CLI tool
-`alsaloop`, and should run prior to the Signifier.
-
-`alsaloop -C hw:3,1 -P hw:0,0 -t 5000 -c 1 -f S16_LE`
-
-Note, that these audio device numbers are system specific.
-They may need to be changed to reflect you system config.
-
-"""
-
 
 import os
 import sys
 import time
 import json
-import queue
 import signal
 import logging
 import schedule
-import threading
+from queue import Empty, Full
+from multiprocessing import Process, Queue, Event
 
 import pygame as pg
 
@@ -58,17 +36,17 @@ active_jobs = {}
 arduino_thread = None
 arduino_active = False
 arduino_state = ArduinoState
-arduino_return_q = queue.Queue()
-arduino_control_q = queue.Queue(maxsize=1)
-arduino_value_q = queue.Queue()
+arduino_return_q = Queue()
+arduino_control_q = Queue(maxsize=1)
+arduino_value_q = Queue()
 
 audio_active = False
 analysis_thread = None
 analysis_active = False
-analysis_return_q = queue.Queue()
-analysis_control_q = queue.Queue(maxsize=1)
+analysis_return_q = Queue()
+analysis_control_q = Queue(maxsize=1)
 
-thread_event = threading.Event()
+passthrough_event = Event()
 passthrough_thread = None
 
 descriptors = {}
@@ -234,6 +212,47 @@ def stop_job(*args):
         schedule.cancel_job(active_jobs.pop(job))
 
 
+#  ________                               
+#  \_____  \  __ __   ____  __ __   ____  
+#   /  / \  \|  |  \_/ __ \|  |  \_/ __ \ 
+#  /   \_/.  \  |  /\  ___/|  |  /\  ___/ 
+#  \_____\ \_/____/  \___  >____/  \___  >
+#         \__>           \/            \/ 
+
+def process_analysis(audio_q, arduino_q):
+    while not passthrough_event.is_set():
+        try:
+            value = audio_q.get(timeout=1)
+            message = ('brightness', value['peak'])
+            try:
+                arduino_q.put(message, timeout=1)
+            except Full:
+                pass
+        except Empty:
+            pass
+
+
+def set_arduino_value(message:tuple):
+    if arduino_thread is not None and arduino_active:
+        try:
+            arduino_value_q.put_nowait(message)
+        except Full:
+            pass
+
+
+def set_arduino_state(state:str, timeout=0.5):
+    if arduino_thread is not None and arduino_active:
+        try:
+            logger.debug(f'Trying to send Arduino thread "{state}" state.')
+            arduino_control_q.put(state, timeout=timeout)
+            logger.debug(f'Sent state "{state}" to Arduino thread!')
+            return True
+        except Full:
+            logger.error(f'Timed out sending "{state}" state to Arduino thread!')
+            return False
+    return False
+
+
 #    _________       __
 #   /   _____/ _____/  |_ __ ________
 #   \_____  \_/ __ \   __\  |  \____ \
@@ -273,13 +292,13 @@ def init_audio_system():
                                 return_q=analysis_return_q,
                                 control_q=analysis_control_q,
                                 config=config['audio'])
-            analysis_thread.setName('Audio Analysis Thread')
-            passthrough_thread = threading.Thread(
+            analysis_thread.name = 'Audio Analysis Thread'
+            passthrough_thread = Process(
                 name='Passthrough Thread', target=process_analysis,
                 args=(analysis_return_q, arduino_value_q))
             analysis_active = True
-            logger.debug(f'{analysis_thread.getName()} active!')
-            logger.debug(f'{passthrough_thread.getName()} active!')
+            logger.debug(f'{analysis_thread.name} active!')
+            logger.debug(f'{passthrough_thread.name} active!')
         time.sleep(1)
 
 
@@ -292,10 +311,10 @@ def init_arduino_comms():
             control_q=arduino_control_q,
             value_q=arduino_value_q,
             config=config['arduino'])
-        arduino_thread.setName('Arduino Comms Thread')
+        arduino_thread.name = 'Arduino Comms Thread'
         arduino_thread.start()
         arduino_active = True
-        logger.debug(f'{arduino_thread.getName()} has started.')
+        logger.debug(f'{arduino_thread.name} has started.')
 
 
 #    _________.__            __      .___
@@ -328,11 +347,11 @@ class ExitHandler:
         if analysis_thread is not None and analysis_thread.is_alive():
             analysis_thread.join()
             analysis_active = False
-            print('analysis thread down')
+            print('                          analysis thread down')
         if arduino_thread is not None and arduino_thread.is_alive():
             arduino_thread.join()
             arduino_active = False
-            print('arduino thread down')
+            print('                          arduino thread down')
         logger.info('Signifier shutdown complete!')
         print()
         sys.exit()
@@ -348,7 +367,7 @@ def close_arduino_connection():
         logger.info('Closing Arduino communications...')
         set_arduino_state('closed', 2)
         arduino_thread.event.set()
-        arduino_thread.join()
+        arduino_thread.join(timeout=1)
     arduino_active = False
 
 
@@ -359,8 +378,8 @@ def close_audio_system():
         if analysis_thread is not None and analysis_thread.is_alive():
             analysis_control_q.put('close', timeout=2)
             analysis_thread.event.set()
-            analysis_thread.join()
-        thread_event.set()
+            analysis_thread.join(timeout=1)
+        passthrough_event.set()
         if pg.get_init() is True and pg.mixer.get_init() is not None:
             pg.quit()
         audio_active = False
@@ -372,48 +391,6 @@ jobs_dict = {
     'composition': automate_composition,
     'volume': modulate_volumes
 }
-
-
-#  ________                               
-#  \_____  \  __ __   ____  __ __   ____  
-#   /  / \  \|  |  \_/ __ \|  |  \_/ __ \ 
-#  /   \_/.  \  |  /\  ___/|  |  /\  ___/ 
-#  \_____\ \_/____/  \___  >____/  \___  >
-#         \__>           \/            \/ 
-
-
-def process_analysis(audio_q, arduino_q):
-    while not thread_event.is_set():
-        try:
-            value = audio_q.get(timeout=1)
-            message = ('brightness', value['peak'])
-            try:
-                arduino_q.put(message, timeout=1)
-            except queue.Full:
-                pass
-        except queue.Empty:
-            pass
-
-
-def set_arduino_value(message:tuple):
-    if arduino_thread is not None and arduino_active:
-        try:
-            arduino_value_q.put_nowait(message)
-        except queue.Full:
-            pass
-
-
-def set_arduino_state(state:str, timeout=0.5):
-    if arduino_thread is not None and arduino_active:
-        try:
-            logger.debug(f'Trying to send Arduino thread "{state}" state.')
-            arduino_control_q.put(state, timeout=timeout)
-            logger.debug(f'Sent state "{state}" to Arduino thread!')
-            return True
-        except queue.Full:
-            logger.error(f'Timed out sending "{state}" state to Arduino thread!')
-            return False
-    return False
 
 
 #     _____         .__
@@ -432,7 +409,7 @@ if __name__ == '__main__':
         config = json.load(c)
 
     exit_handler = ExitHandler()
-    thread_event.clear()
+    passthrough_event.clear()
     time.sleep(1)
 
     init_audio_system()

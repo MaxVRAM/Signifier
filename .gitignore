@@ -130,6 +130,7 @@ dmypy.json
 
 
 # Custom
+*.wav
+*.mp3
 audio/
-old_audio/
-arduino_examples/
+examples/

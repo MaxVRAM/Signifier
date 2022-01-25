@@ -15,44 +15,42 @@ stream, which can be sent to the arduino to modulate the LEDs."""
 # - https://stackoverflow.com/questions/66964597/python-gui-freezing-problem-of-thread-using-tkinter-and-sounddevice
 
 
-import queue
 import logging
-import threading
 import numpy as np
-import sounddevice as sd
+from queue import Empty, Full
+from multiprocessing import Process, Queue, Event
 
 from signify.utils import ExpFilter as Filter
 
 DEFAULT_CONF = {
-    "enabled":True,
     "loopback_return":1,
     "hw_loop_output":0,
     "sample_rate":44100,
     "buffer":4096 }
 
-sd.default.device = (1,0)
-sd.default.channels = (1,1)
-sd.default.samplerate = DEFAULT_CONF['sample_rate']
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-class Analyser(threading.Thread):
-    """Perform audio analysis on the default PulseAudio input device.\n
-    Supply the audio portion of `config.json`, ie `config=config['audio']`."""
-    def __init__(self, return_q:queue.Queue, control_q:queue.Queue, config=None):
+class Analyser(Process):
+    """
+    Perform audio analysis on the default PulseAudio input device.\n
+    Supply the audio portion of `config.json`, ie `config=config['audio']`.
+    """
+    
+    import sounddevice as sd
+    sd.default.device = (1,0)
+    sd.default.channels = (1,1)
+    sd.default.samplerate = DEFAULT_CONF['sample_rate']
+    
+    def __init__(self, return_q:Queue, control_q:Queue, config=None):
         super().__init__()
         if config is None:
             config = DEFAULT_CONF
         else:
-            self.active = True
-            self.sample_rate = config['sample_rate']
-            self.buffer = config['buffer']
-        sd.default.channels = 1
-        sd.default.samplerate = self.sample_rate
-        self.event = threading.Event()
-        self.streaming = True
+            self.sample_rate = config.get('sample_rate', DEFAULT_CONF['sample_rate'])
+            self.buffer = config.get('buffer', DEFAULT_CONF['buffer'])
+        self.event = Event()
         self.rms = Filter(0, alpha_decay=0.02, alpha_rise=0.02)
         self.peak = Filter(0, alpha_decay=0.2, alpha_rise=0.2)
         self.analysis_data = {}
@@ -66,15 +64,17 @@ class Analyser(threading.Thread):
         These are returned to the `analysis_return_q` in the main thread."""
         logger.debug('Starting audio analysis thread...')
         self.event.clear()
+        import sounddevice as sd
+        sd.default.channels = 1
+        sd.default.samplerate = self.sample_rate
         with sd.InputStream(device='pulse', channels=1, blocksize=2048,
                 callback=self.process_audio, finished_callback=self.event.set):
             while not self.event.is_set():
                 try:
                     if self.control_q.get_nowait() == 'close':
                         self.event.set()
-                except queue.Empty:
+                except Empty:
                     pass
-        self.streaming = False
         logger.info('Audio analysis thread closed.')
 
 
@@ -93,7 +93,7 @@ class Analyser(threading.Thread):
         try:
             data = {"peak":peak, "rms":rms}
             self.analysis_q.put_nowait(data)
-        except queue.Full:
+        except Full:
             pass
 
 

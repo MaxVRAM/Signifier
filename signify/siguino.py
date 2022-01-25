@@ -12,9 +12,9 @@ connected Arduino Nano Every."""
 from __future__ import annotations
 import time
 import enum
-import queue
 import logging
-import threading
+from queue import Empty, Full
+from multiprocessing import Process, Queue, Event
 
 from pySerialTransfer import pySerialTransfer as txfer
 
@@ -22,7 +22,6 @@ from signify.utils import scale as scale
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
 
 
 class ArduinoState(enum.Enum):
@@ -83,21 +82,23 @@ class LedValue:
                 > self.tx_time + self.tx_period):
             if send_function(self.packet) is not None:
                 self.tx_time = current_ms
-                self.updated = False
+                self.updated = False        
+                print(f'SENT PACKET TO ARDY! {self.packet}')
                 return True
         return False
 
 
-class Siguino(threading.Thread):   
+class Siguino(Process):   
     def __init__(
-            self, return_q, control_q, value_q,
+            self, return_q:Queue, control_q:Queue, value_q:Queue,
             config:dict, args=(), kwargs=None) -> None:
         super().__init__()
         self.config = config
-        self.start_delay = config['start_delay']
+        self.baud = self.config.get('baud', 38400)
+        self.start_delay = self.config['start_delay']
         # Thread/state management
         self.state = ArduinoState.idle
-        self.event = threading.Event()
+        self.event = Event()
         self.return_q = return_q
         self.control_q = control_q
         self.value_q = value_q
@@ -105,7 +106,7 @@ class Siguino(threading.Thread):
         self.link = None
         self.values = {}
         self.rx_packet = ReceivePacket
-        self.tx_period = config['update_ms']
+        self.tx_period = self.config['update_ms']
         for k, v in self.config['values'].items():
             self.values.update({k:LedValue(v, self.tx_period)})
             logger.debug(f'Added Arduino command: {self.values[k]}')
@@ -114,52 +115,52 @@ class Siguino(threading.Thread):
     def run(self):
         """Begin executing Arudino communication thread to control LEDs."""
         logger.debug('Starting Arduino comms thread...')
+        self.start_time = time.time()
         self.open_connection()
         self.event.clear()
         # Loop while we wait for serial packets from the Arduino
-        while self.state != ArduinoState.closed and not self.link.available():
-            # Apply a new state if one is in the queue
-            try:
-                state = self.control_q.get_nowait()
-                print(f'YEAH WE GOT A CONTROL MESSAGHE IN THE FGPQUEUE!!!')
-                self.set_state(ArduinoState[state])
-            except queue.Empty:
-                pass
-            # Assign any value updates from the value queue
-            if self.state == ArduinoState.running:
+        while self.state != ArduinoState.closed:
+            if self.link.available():
+                recSize = 0
+                self.rx_packet.command = self.link.rx_obj(
+                    obj_type='c', start_pos=recSize)
+                recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
+                self.rx_packet.valA = self.link.rx_obj(
+                    obj_type='l', start_pos=recSize)
+                recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+                self.rx_packet.valB = self.link.rx_obj(
+                    obj_type='l', start_pos=recSize)
+                recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+                self.process_packet()
+            else:
                 try:
-                    message = self.value_q.get_nowait()
-                    #print(message)
-                    if (value := self.values.get(message[0])) is not None:
-                        #print(f'wozers in my trousers ({value}) i found a ({message[0]}) participant... {message[1]}')
-                        value.set_value(message[1], None)
-                except queue.Empty:
+                    # Apply a new state if one is in the queue
+                    state = self.control_q.get_nowait()
+                    print(f'YEAH WE GOT A CONTROL MESSAGHE IN THE FGPQUEUE!!!')
+                    self.set_state(ArduinoState[state])
+                except Empty:
                     pass
-            # Now check for serial link errors
-            if self.link.status < 0:
-                if self.link.status == txfer.CRC_ERROR:
-                    logger.error('Arduino: CRC_ERROR')
-                elif self.link.status == txfer.PAYLOAD_ERROR:
-                    logger.error('Arduino: PAYLOAD_ERROR')
-                elif self.link.status == txfer.STOP_BYTE_ERROR:
-                    logger.error('Arduino: STOP_BYTE_ERROR')
-                else:
-                    logger.error('ERROR: {}'.format(self.link.status))
+                if self.state == ArduinoState.running:
+                    try:
+                    # Assign any value updates from the value queue
+                        message = self.value_q.get_nowait()
+                        #print(message)
+                        if (value := self.values.get(message[0])) is not None:
+                            #print(f'wozers in my trousers ({value}) i found a ({message[0]}) participant... {message[1]}')
+                            value.set_value(message[1], None)
+                    except Empty:
+                        pass
+                # Now check for serial link errors
+                if self.link.status < 0:
+                    if self.link.status == txfer.CRC_ERROR:
+                        logger.error('Arduino: CRC_ERROR')
+                    elif self.link.status == txfer.PAYLOAD_ERROR:
+                        logger.error('Arduino: PAYLOAD_ERROR')
+                    elif self.link.status == txfer.STOP_BYTE_ERROR:
+                        logger.error('Arduino: STOP_BYTE_ERROR')
+                    else:
+                        logger.error('ERROR: {}'.format(self.link.status))
 
-            # Only continues once received a packet...
-            self.rx_packet = ReceivePacket
-            recSize = 0
-            self.rx_packet.command = self.link.rx_obj(
-                obj_type='c', start_pos=recSize)
-            self.rx_packet.command = self.rx_packet.command.decode("utf-8")
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
-            self.rx_packet.valA = self.link.rx_obj(
-                obj_type='l', start_pos=recSize)
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-            self.rx_packet.valB = self.link.rx_obj(
-                obj_type='l', start_pos=recSize)
-            recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-            self.process_packet()
         # Close everything off if the event has been triggerd
         print("FOOOOFEJFPEOSFJEPSOFJESPOFjpojPFGPOEJFPOJSE")
         self.link.close()
@@ -173,8 +174,10 @@ class Siguino(threading.Thread):
         # We can send packets once we get a `r` "ready" message.
         # The LEDs require precise timing, so inturrupting an LED write
         # sequence would cause issues with the LED output.
-        print(self.rx_packet.command)
-        if self.rx_packet.command == 'r':
+        cmd = self.rx_packet.command.decode("utf-8")
+        run_time = round((time.time() - self.start_time) * 1000)
+        print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
+        if cmd == 'r':
             print('Got Arduino ready message')
             # Wait for first Arduino "ready" message before sending LED values
             if self.state == ArduinoState.starting:
@@ -280,7 +283,7 @@ class Siguino(threading.Thread):
         connection.\n If reaches timeout before connection, will disable\
         Arduino/LED portion of the Signifier code."""
         self.set_state(ArduinoState.running)
-        self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=38400)
+        self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=self.baud)
         self.link.open()
         print()
 
