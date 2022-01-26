@@ -16,9 +16,9 @@ be sent to the arduino to modulate the LEDs.
 
 import logging
 import numpy as np
-from queue import Empty, Full
-from multiprocessing import Process, Queue, Event
-import sounddevice as sd
+
+from queue import Empty, Full, Queue
+from threading import Thread, Event
 
 from signify.utils import ExpFilter as Filter
 
@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-class Analyser(Process):
+class Analyser(Thread):
     """
     Perform audio analysis on the default PulseAudio input device.\n
     Supply the audio portion of `config.json`, ie `config=config['audio']`.
     """
 
-    Process.daemon = True
+    Thread.daemon = True
 
     def __init__(self, return_q:Queue, control_q:Queue, config=None):
         super().__init__()
@@ -54,8 +54,7 @@ class Analyser(Process):
         self.analysis_data = {}
         self.analysis_q = return_q
         self.control_q = control_q
-        sd.default.samplerate = self.sample_rate
-        logger.debug(f'Input device details: {sd.query_devices(self.input)}')
+
 
     def run(self):
         """
@@ -64,8 +63,10 @@ class Analyser(Process):
         """
         logger.debug('Audio analysis thread now running...')
         self.event.clear()
+        import sounddevice as sd
+        logger.debug(f'PulseAudio audio devices:\n{sd.query_devices()}')
         sd.default.channels = 1
-        sd.default.device = self.input
+        #sd.default.device = self.input
         sd.default.dtype = self.dtype
         sd.default.blocksize = self.buffer
         sd.default.samplerate = self.sample_rate

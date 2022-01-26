@@ -1036,11 +1036,14 @@ Jan 26 16:14:08 sig-dev pulseaudio[3204]: We were woken up with POLLIN set -- ho
 
   ```r
   load-module module-remap-source master=audio_jack.monitor source_name=analysis_source source_properties="device.description='Source fed from Audio Jack output'"
-  
   # ...
   # then at the bottom, change the default source with:
-  
   set-default-source analysis_source
+  ```
+  Just to be sure we'll remove the user Pulse config cache, then restart the Pulse service:
+  ```bash
+  rm -rf ~/.config/pulse
+  systemctl --user restart pulseaudio
   ```
 
 

@@ -16,7 +16,9 @@ import signal
 import logging
 import schedule
 from queue import Empty, Full
-from multiprocessing import Process, Queue, Event
+from queue import Queue
+from multiprocessing import Process, Event
+from multiprocessing import Queue as MpQueue
 import multiprocessing as mp
 
 import pygame as pg
@@ -37,14 +39,14 @@ active_jobs = {}
 arduino_thread = None
 arduino_active = False
 arduino_state = ArduinoState
-arduino_return_q = Queue()
-arduino_control_q = Queue(maxsize=1)
-arduino_value_q = Queue()
+arduino_return_q = MpQueue(maxsize=10)
+arduino_control_q = MpQueue(maxsize=1)
+arduino_value_q = MpQueue(maxsize=10)
 
 audio_active = False
 analysis_thread = None
 analysis_active = False
-analysis_return_q = Queue(maxsize=1)
+analysis_return_q = Queue(maxsize=10)
 analysis_control_q = Queue(maxsize=1)
 
 passthrough_event = Event()
@@ -55,6 +57,10 @@ clip_manager: ClipManager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+analysis_missed = 0
+
 
 
 #  _________ .__  .__
@@ -238,6 +244,7 @@ def stop_job(*args):
 #         \__>           \/            \/ 
 
 def process_analysis(audio_q, arduino_q):
+    global analysis_missed
     while not passthrough_event.is_set():
         try:
             value = audio_q.get(timeout=0.01)
@@ -246,6 +253,8 @@ def process_analysis(audio_q, arduino_q):
             try:
                 arduino_q.put(message, timeout=0.01)
             except Full:
+                analysis_missed += 1
+                print(f'Have now missed ({analysis_missed}) analysis values because of a full queue!')
                 pass
         except Empty:
             pass
