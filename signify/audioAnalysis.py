@@ -58,7 +58,7 @@ class Analyser(Thread):
         self.analysis_q = return_q
         self.control_q = control_q
         self.buffer_q = MpQueue(maxsize=1)
-
+        self.process_thread = Process
 
 
     def run(self):
@@ -76,15 +76,16 @@ class Analyser(Thread):
         sd.default.blocksize = self.buffer
         sd.default.samplerate = self.sample_rate
         logger.debug(f'Analysis | device:{sd.default.device},\
-                    channels:{sd.default.channels},\
-                    bit-depth:{sd.default.dtype},\
-                    sample-rate:{sd.default.samplerate},\
-                    buffer size:{sd.default.blocksize}.')
+            channels:{sd.default.channels},\
+            bit-depth:{sd.default.dtype},\
+            sample-rate:{sd.default.samplerate},\
+            buffer size:{sd.default.blocksize}.')
         with sd.InputStream(callback=self.stream_callback):
             while not self.event.is_set():
                 try:
                     if self.control_q.get_nowait() == 'close':
-                        return None
+                        self.process_thread.join()
+                        break
                 except Empty:
                     pass
         logger.info('Audio analysis thread closed.')
@@ -99,16 +100,16 @@ class Analyser(Thread):
         """
         if status:
             logger.debug(status)
-        process_buffer = Process(target=analysis,
+        process_buffer = Process(target=analysis, daemon=True,
                             args=(indata, self.peak, self.rms, self.buffer_q))
-        print(f'{process_buffer.name} waiting for data:')
+        print(f'Starting thread "{process_buffer.name}"...')
         process_buffer.start()
         process_buffer.join()
         try:
-            processed_values = self.buffer_q.get(timeout=0.01)
-            print(processed_values)
-            self.peak = processed_values[0]
-            self.rms = processed_values[1]
+            results = self.buffer_q.get(timeout=0.01)
+            print(f'Data retreived from queue: (Peak: {results[0]:.5f}, RMS: {results[1]:.5f})')
+            self.peak = results[0]
+            self.rms = results[1]
         except Empty:
             print('Should not be empty, but the analysis queue is empty....')
 
@@ -116,7 +117,7 @@ class Analyser(Thread):
 
 def analysis(indata, in_peak, in_rms, thread_q):
     """Processes incomming audio buffer data and updates analysis values."""
-    peak = np.amax(np.abs(indata)) * 10
+    peak = np.amax(np.abs(indata))
     peak = max(0.0, min(1.0, peak))
     lerp_peak = lerp(in_peak, peak, 0.5)
 
@@ -125,9 +126,8 @@ def analysis(indata, in_peak, in_rms, thread_q):
         rms = rms * 0.01 if np.isfinite(rms) else 0
     rms = max(0.0, min(1.0, rms))
     lerp_rms = lerp(in_rms, rms, 0.5)
-
     data = (lerp_peak, lerp_rms)
-    print(f'InPeak: {in_peak} | Peak: {peak} | LerpPeak: {lerp_peak}      InRMS: {in_rms} | RMS: {rms} | LerpRMS:{lerp_rms}')
+    print(f'InPeak: {in_peak:.5f} | Peak: {peak:.5f} | LerpPeak: {lerp_peak:.5f}        InRMS: {in_rms:.5f} | RMS: {rms:.5f} | LerpRMS: {lerp_rms:.5f}')
 
     try:
         thread_q.put(data, timeout=0.01)
