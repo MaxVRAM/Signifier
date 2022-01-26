@@ -36,14 +36,24 @@ def scale(value, source_range, dest_range, *args):
             return max(dest_range[0], min(dest_range[1], scaled_value))
         return scaled_value
 
+def lerp(a, b, pos) -> float:
+    """\
+    Basic linear interpolation. This method returns a value between the\
+    given `a`->`b` values.\n\nWhen `pos=0` the return value will be `a`.\
+    When `pos=1` the turn value will be the value of `b`. `pos=0.5` would be\
+    half-way between `a` and `b`... I think you get the idea.
+    """
+    lerp_out = a * (1.0 - pos) + (b * pos)
+    return lerp_out
+
 class ExpFilter:
     """
     Simple exponential smoothing filter.
     """
     def __init__(self, val=0.0, alpha_decay=0.5, alpha_rise=0.5):
         """Small rise / decay factors = more smoothing"""
-        assert 0.0 < alpha_decay < 1.0, 'Invalid decay smoothing factor'
-        assert 0.0 < alpha_rise < 1.0, 'Invalid rise smoothing factor'
+        assert 0.0 < alpha_decay < 1.0
+        assert 0.0 < alpha_rise < 1.0
         self.alpha_decay = alpha_decay
         self.alpha_rise = alpha_rise
         self.value = val

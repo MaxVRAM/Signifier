@@ -1327,6 +1327,8 @@ card 2: vc4hdmi1 [vc4-hdmi-1], device 0: MAI PCM i2s-hifi-0 [MAI PCM i2s-hifi-0]
   Subdevices: 1/1
   Subdevice #0: subdevice #0
 ```
+fglgkbjs;gsjg;kljgsd;fgjd;jdfsd'lgkjsd'kjsd'flkjd'lkjdv'jdv;'sndv'osodifvnm'asvmnae'krvm'elrkmA'FMAF'LMF'L;MF';lme'LMLmdmsdfv;almv'avmS'DMASD';LMAD'CV;LMD'L;Msdc'LMC'lmc'AL;MSC'as'JL'efgoj'rpohjth'pojth'opjrth9operthj90erthj4w90thj4w90[hj56h90j6h
+
 
 By comparing the output from both the `sdl2` module and `aplay -l`, we can see that the matching strings are between the square brackets from aplay's output:
 
