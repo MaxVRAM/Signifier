@@ -180,7 +180,7 @@ class Siguino(Process):
         # sequence would cause issues with the LED output.
         cmd = self.rx_packet.command.decode("utf-8")
         run_time = round((time.time() - self.start_time) * 1000)
-        print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
+        #print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
         if cmd == 'r':
             # Wait for first Arduino "ready" message before sending LED values
             if self.state == ArduinoState.starting:

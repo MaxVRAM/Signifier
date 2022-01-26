@@ -6,7 +6,7 @@
         "start_delay":5,
         "update_ms":10,
         "commands":{
-            "brightness":{"command":"B", "min":3, "max":200, "default":0, "smooth":0},
+            "brightness":{"command":"B", "min":3, "max":255, "default":0, "smooth":0},
             "saturation":{"command":"S", "min":0, "max":255, "default":0, "smooth":0},
             "hue":{"command":"H", "min":0, "max":255, "default":195, "smooth":0}
         }
@@ -18,9 +18,10 @@
         "input_device":"Loopback: PCM (hw:1,1)",
         "default_device":"default",
         "sample_rate":48000,
+        "dtype":"int16",
         "bit_size":-16,
         "buffer":2048,
-        "latency":0.1
+        "latency":0.03
     },
     "clip_manager":
     {
@@ -28,7 +29,7 @@
         "base_path":"/home/pi/Signifier/audio_3",
         "valid_extensions":[".wav"],
         "strict_distribution":false,
-        "volume":0.5,
+        "volume":0.8,
         "fade_in":2000,
         "fade_out":3000,
         "max_playtime":60,
@@ -46,7 +47,7 @@
         {
             "enabled":true,
             "service":"audio",
-            "timer":256,
+            "timer":128,
             "parameters": {"pool_size":12, "start_clips":1}
         },
         "composition":

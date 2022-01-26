@@ -25,6 +25,7 @@ from signify.utils import ExpFilter as Filter
 DEFAULT_CONF = {
     "input_device":"Loopback: PCM (hw:1,1)",
     "sample_rate":48000,
+    "dtype":"int16",
     "buffer":2048 }
 
 logger = logging.getLogger(__name__)
@@ -44,20 +45,17 @@ class Analyser(Process):
         if config is None:
             config = DEFAULT_CONF
         self.input = config['input_device']
-        self.buffer = config['buffer']
         self.sample_rate = config['sample_rate']
+        self.dtype = config['dtype']
+        self.buffer = config['buffer']
         self.event = Event()
-        self.rms = Filter(0, alpha_decay=0.02, alpha_rise=0.02)
-        self.peak = Filter(0, alpha_decay=0.02, alpha_rise=0.02)
+        self.rms = Filter(0, alpha_decay=0.1, alpha_rise=0.1)
+        self.peak = Filter(0, alpha_decay=0.1, alpha_rise=0.1)
         self.analysis_data = {}
         self.analysis_q = return_q
         self.control_q = control_q
         sd.default.samplerate = self.sample_rate
-        print(sd.query_devices())
-        for api in sd.query_hostapis():
-            if api['name'] == 'ALSA':
-                print(sd.query_devices(api['default_input_device']))
-            break
+        logger.debug(f'Input device details: {sd.query_devices(self.input)}')
 
     def run(self):
         """
@@ -67,10 +65,11 @@ class Analyser(Process):
         logger.debug('Audio analysis thread now running...')
         self.event.clear()
         sd.default.channels = 1
-        # sd.default.device = self.input
+        sd.default.device = self.input
+        sd.default.dtype = self.dtype
         sd.default.blocksize = self.buffer
         sd.default.samplerate = self.sample_rate
-        print(sd.check_input_settings())
+        print(f'{sd.default.device} {sd.default.channels} {sd.default.dtype} {sd.default.samplerate}')
         with sd.InputStream(callback=self.process):
             while not self.event.is_set():
                 try:
@@ -91,7 +90,8 @@ class Analyser(Process):
         if status:
             logger.debug(status)
         peak = np.amax(np.abs(indata)) * 10
-        peak = max(0.0, min(1.0, self.peak.update(peak)))
+        print(f'from within the audio analysis thread, we have detected a peak of {peak}')
+        peak = self.peak.update(peak)
         with np.errstate(divide='ignore'):
             rms = 20 * np.log10(rms_flat(indata) / 2e-5)
             rms = rms * 0.01 if np.isfinite(rms) else 0
