@@ -863,137 +863,185 @@ Also did nothing.....
 
  - Wait! There's something interesting here. It seems that the PulseAudio combined-sink can't be accessed from `multiprocessing` processes! See this Python I wrote to check which produces the following outputs: `tests/basic_sd_pulse_test.py`...
  
- ```python
-❯ python tests/basic_sd_pulse_test.py
+  ```python
+  ❯ python tests/basic_sd_pulse_test.py
 
-Selected input device: {'name': 'Loopback: PCM (hw:1,1)', 'hostapi': 0, 'max_input_channels': 32, 'max_output_channels': 32, 'default_low_input_latency': 0.008707482993197279, 'default_low_output_latency': 0.008707482993197279, 'default_high_input_latency': 0.034829931972789115, 'default_high_output_latency': 0.034829931972789115, 'default_samplerate': 44100.0}
-
-
-SoundDevice defaults: [2, 11] [1, 1] ['float32', 'float32'] 44100
-No issues detected by SoundDevice
-
-Testing outside Process...
-    Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
-Test done.
-
-Now to test the same function in multiprocessing...
-
-SoundDevice defaults: [2, 11] [1, 1] ['float32', 'float32'] 44100
-No issues detected by SoundDevice
-
-Testing outside Process...
-    Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
-Test done.
-
-❯ python tests/basic_sd_pulse_test.py
-
-Selected input device: {'name': 'Loopback: PCM (hw:1,1)', 'hostapi': 0, 'max_input_channels': 32, 'max_output_channels': 32, 'default_low_input_latency': 0.008707482993197279, 'default_low_output_latency': 0.008707482993197279, 'default_high_input_latency': 0.034829931972789115, 'default_high_output_latency': 0.034829931972789115, 'default_samplerate': 44100.0}
+  Selected input device: {'name': 'Loopback: PCM (hw:1,1)', 'hostapi': 0, 'max_input_channels': 32, 'max_output_channels': 32, 'default_low_input_latency': 0.008707482993197279, 'default_low_output_latency': 0.008707482993197279, 'default_high_input_latency': 0.034829931972789115, 'default_high_output_latency': 0.034829931972789115, 'default_samplerate': 44100.0}
 
 
-SoundDevice defaults: [2, 11] [1, 1] ['int16', 'int16'] 48000
-No issues detected by SoundDevice
+  SoundDevice defaults: [2, 11] [1, 1] ['float32', 'float32'] 44100
+  No issues detected by SoundDevice
 
-Testing outside Process...
-    Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
-Test done.
+  Testing outside Process...
+      Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
+  Test done.
 
-Now to test the same function in multiprocessing...
+  Now to test the same function in multiprocessing...
 
-SoundDevice defaults: [2, 11] [1, 1] ['int16', 'int16'] 48000
-No issues detected by SoundDevice
+  SoundDevice defaults: [2, 11] [1, 1] ['float32', 'float32'] 44100
+  No issues detected by SoundDevice
 
-Testing outside Process...
-    Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
-Test done.
+  Testing outside Process...
+      Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 2, Channels: 1, Dtype: float32, Samplerate: 44100.0
+  Test done.
 
-❯ python tests/basic_sd_pulse_test.py
+  ❯ python tests/basic_sd_pulse_test.py
 
-Selected input device: {'name': 'default', 'hostapi': 0, 'max_input_channels': 32, 'max_output_channels': 32, 'default_low_input_latency': 0.008684807256235827, 'default_low_output_latency': 0.008684807256235827, 'default_high_input_latency': 0.034807256235827665, 'default_high_output_latency': 0.034807256235827665, 'default_samplerate': 44100.0}
-
-
-SoundDevice defaults: [11, 11] [1, 1] ['float32', 'float32'] 44100
-No issues detected by SoundDevice
-
-Testing outside Process...
-    Device: 11, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 11, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 11, Channels: 1, Dtype: float32, Samplerate: 44100.0
-    Device: 11, Channels: 1, Dtype: float32, Samplerate: 44100.0
-Test done.
-
-Now to test the same function in multiprocessing...
-
-SoundDevice defaults: [11, 11] [1, 1] ['float32', 'float32'] 44100
-Expression 'ret' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1736
-Expression 'AlsaOpen( hostApi, parameters, streamDir, &pcm )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1768
-Process Process-1:
-Traceback (most recent call last):
-  File "/usr/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
-    self.run()
-  File "/usr/lib/python3.9/multiprocessing/process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "/home/pi/Signifier/tests/basic_sd_pulse_test.py", line 23, in input_test
-    if sd.check_input_settings() is None:
-  File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 677, in check_input_settings
-    _check(_lib.Pa_IsFormatSupported(parameters, _ffi.NULL, samplerate))
-  File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 2741, in _check
-    raise PortAudioError(errormsg, err)
-sounddevice.PortAudioError: Illegal combination of I/O devices [PaErrorCode -9993]
-❯ python tests/basic_sd_pulse_test.py
-
-Selected input device: {'name': 'default', 'hostapi': 0, 'max_input_channels': 32, 'max_output_channels': 32, 'default_low_input_latency': 0.008684807256235827, 'default_low_output_latency': 0.008684807256235827, 'default_high_input_latency': 0.034807256235827665, 'default_high_output_latency': 0.034807256235827665, 'default_samplerate': 44100.0}
+  Selected input device: {'name': 'Loopback: PCM (hw:1,1)', 'hostapi': 0, 'max_input_channels': 32, 'max_output_channels': 32, 'default_low_input_latency': 0.008707482993197279, 'default_low_output_latency': 0.008707482993197279, 'default_high_input_latency': 0.034829931972789115, 'default_high_output_latency': 0.034829931972789115, 'default_samplerate': 44100.0}
 
 
-SoundDevice defaults: [11, 11] [1, 1] ['int16', 'int16'] 48000
-No issues detected by SoundDevice
+  SoundDevice defaults: [2, 11] [1, 1] ['int16', 'int16'] 48000
+  No issues detected by SoundDevice
 
-Testing outside Process...
-    Device: 11, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 11, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 11, Channels: 1, Dtype: int16, Samplerate: 48000.0
-    Device: 11, Channels: 1, Dtype: int16, Samplerate: 48000.0
-Test done.
+  Testing outside Process...
+      Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
+  Test done.
 
-Now to test the same function in multiprocessing...
+  Now to test the same function in multiprocessing...
 
-SoundDevice defaults: [11, 11] [1, 1] ['int16', 'int16'] 48000
-Expression 'ret' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1736
-Expression 'AlsaOpen( hostApi, parameters, streamDir, &pcm )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1768
-Process Process-1:
-Traceback (most recent call last):
-  File "/usr/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
-    self.run()
-  File "/usr/lib/python3.9/multiprocessing/process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "/home/pi/Signifier/tests/basic_sd_pulse_test.py", line 23, in input_test
-    if sd.check_input_settings() is None:
-  File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 677, in check_input_settings
-    _check(_lib.Pa_IsFormatSupported(parameters, _ffi.NULL, samplerate))
-  File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 2741, in _check
-    raise PortAudioError(errormsg, err)
-sounddevice.PortAudioError: Illegal combination of I/O devices [PaErrorCode -9993]
- ``` 
+  SoundDevice defaults: [2, 11] [1, 1] ['int16', 'int16'] 48000
+  No issues detected by SoundDevice
 
-So!!! It's NOT a format issue, is somewhere near an issue between `sounddevice`, PulseAudio's `combined-sink` devices and `multiprocessing`.
+  Testing outside Process...
+      Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 2, Channels: 1, Dtype: int16, Samplerate: 48000.0
+  Test done.
 
-I don't think I need to use the combined-sink device in the Python script. I'll just use the loopback return device. Will report back shortly....
+  ❯ python tests/basic_sd_pulse_test.py
+
+  Selected input device: {'name': 'default', 'hostapi': 0, 'max_input_channels': 32, 'max_output_channels': 32, 'default_low_input_latency': 0.008684807256235827, 'default_low_output_latency': 0.008684807256235827, 'default_high_input_latency': 0.034807256235827665, 'default_high_output_latency': 0.034807256235827665, 'default_samplerate': 44100.0}
+
+
+  SoundDevice defaults: [11, 11] [1, 1] ['float32', 'float32'] 44100
+  No issues detected by SoundDevice
+
+  Testing outside Process...
+      Device: 11, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 11, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 11, Channels: 1, Dtype: float32, Samplerate: 44100.0
+      Device: 11, Channels: 1, Dtype: float32, Samplerate: 44100.0
+  Test done.
+
+  Now to test the same function in multiprocessing...
+
+  SoundDevice defaults: [11, 11] [1, 1] ['float32', 'float32'] 44100
+  Expression 'ret' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1736
+  Expression 'AlsaOpen( hostApi, parameters, streamDir, &pcm )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1768
+  Process Process-1:
+  Traceback (most recent call last):
+    File "/usr/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+      self.run()
+    File "/usr/lib/python3.9/multiprocessing/process.py", line 108, in run
+      self._target(*self._args, **self._kwargs)
+    File "/home/pi/Signifier/tests/basic_sd_pulse_test.py", line 23, in input_test
+      if sd.check_input_settings() is None:
+    File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 677, in check_input_settings
+      _check(_lib.Pa_IsFormatSupported(parameters, _ffi.NULL, samplerate))
+    File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 2741, in _check
+      raise PortAudioError(errormsg, err)
+  sounddevice.PortAudioError: Illegal combination of I/O devices [PaErrorCode -9993]
+  ❯ python tests/basic_sd_pulse_test.py
+
+  Selected input device: {'name': 'default', 'hostapi': 0, 'max_input_channels': 32, 'max_output_channels': 32, 'default_low_input_latency': 0.008684807256235827, 'default_low_output_latency': 0.008684807256235827, 'default_high_input_latency': 0.034807256235827665, 'default_high_output_latency': 0.034807256235827665, 'default_samplerate': 44100.0}
+
+
+  SoundDevice defaults: [11, 11] [1, 1] ['int16', 'int16'] 48000
+  No issues detected by SoundDevice
+
+  Testing outside Process...
+      Device: 11, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 11, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 11, Channels: 1, Dtype: int16, Samplerate: 48000.0
+      Device: 11, Channels: 1, Dtype: int16, Samplerate: 48000.0
+  Test done.
+
+  Now to test the same function in multiprocessing...
+
+  SoundDevice defaults: [11, 11] [1, 1] ['int16', 'int16'] 48000
+  Expression 'ret' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1736
+  Expression 'AlsaOpen( hostApi, parameters, streamDir, &pcm )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 1768
+  Process Process-1:
+  Traceback (most recent call last):
+    File "/usr/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+      self.run()
+    File "/usr/lib/python3.9/multiprocessing/process.py", line 108, in run
+      self._target(*self._args, **self._kwargs)
+    File "/home/pi/Signifier/tests/basic_sd_pulse_test.py", line 23, in input_test
+      if sd.check_input_settings() is None:
+    File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 677, in check_input_settings
+      _check(_lib.Pa_IsFormatSupported(parameters, _ffi.NULL, samplerate))
+    File "/home/pi/.local/lib/python3.9/site-packages/sounddevice.py", line 2741, in _check
+      raise PortAudioError(errormsg, err)
+  sounddevice.PortAudioError: Illegal combination of I/O devices [PaErrorCode -9993]
+  ``` 
+
+  So!!! It's NOT a format issue, is somewhere near an issue between `sounddevice`, PulseAudio's `combined-sink` devices and `multiprocessing`.
+
+  I don't think I need to use the combined-sink device in the Python script. I'll just use the loopback return device. Will report back shortly....
 
  - I tried to use loop the ALSA loopback return `hw:1,1`, which is supposed to be the device that PulseAudio pipes the output audio to (via the `hw:1,0` loopback output device. However, despite the *Loop Return* device metering with the Signifier output signals in PulseAudio's desktop GUI application, the analysis thread doesn't output anything except 0s....
 
- 
+ - There might be some insight within the systemctl logs:
 
+  ```bash
+  systemctl --user status pulseaudio
+  ```
+
+```yaml
+● pulseaudio.service - Sound Service
+     Loaded: loaded (/usr/lib/systemd/user/pulseaudio.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2022-01-26 14:39:03 AEDT; 1h 50min ago
+TriggeredBy: ● pulseaudio.socket
+   Main PID: 3204 (pulseaudio)
+      Tasks: 8 (limit: 4472)
+        CPU: 8min 2.399s
+     CGroup: /user.slice/user-1000.slice/user@1000.service/app.slice/pulseaudio.service
+             └─3204 /usr/bin/pulseaudio --daemonize=no --log-target=journal
+
+Jan 26 14:39:03 sig-dev systemd[610]: Starting Sound Service...
+Jan 26 14:39:03 sig-dev systemd[610]: Started Sound Service.
+Jan 26 16:14:08 sig-dev pulseaudio[3204]: ALSA woke us up to read new data from the device, but there was actually nothing to read.
+Jan 26 16:14:08 sig-dev pulseaudio[3204]: Most likely this is a bug in the ALSA driver 'snd_aloop'. Please report this issue to the ALSA developers.
+Jan 26 16:14:08 sig-dev pulseaudio[3204]: We were woken up with POLLIN set -- however a subsequent snd_pcm_avail() returned 0 or another value < min_avail.
+```
+
+- Of course! What about using the PulseAudio output device monitors as sources! I didn't know how this would work, but found this potential approach:
+
+  > Source: <https://unix.stackexchange.com/a/636410>
+
+  > "Besides creating the sink, most applications filter out monitor sources. To be able to pick the source directly for example in Google Meet, the module-remap-source helps."
+
+  ```bash
+  # create sink
+  pactl load-module module-null-sink sink_name=virtmic \
+      sink_properties=device.description=Virtual_Microphone_Sink
+  # remap the monitor to a new source
+  pactl load-module module-remap-source \
+      master=virtmic.monitor source_name=virtmic \
+      source_properties=device.description=Virtual_Microphone
+  ```
+
+  Since I already have the ALSA Headphones output sink setup, why don't I just try to create a monitor source from that?
+
+  ```r
+  load-module module-remap-source master=audio_jack.monitor source_name=analysis_source source_properties="device.description='Source fed from Audio Jack output'"
+  
+  # ...
+  # then at the bottom, change the default source with:
+  
+  set-default-source analysis_source
+  ```
 
 
 
