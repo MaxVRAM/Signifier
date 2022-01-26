@@ -388,6 +388,9 @@ For audio-reactive LEDs, we need to create a **loopback** device to internally p
         - "Headphone" output card/device is (0, 0)
         - "Loopback" virtual card/devices are on (1, 0) and (1, 1)
 
+
+<!-- OLD INFO!
+
 5. Finally, we'll make a custom ALSA configuration that creates a new audio device called `SpeakerAndLoop`. This will duplicate its audio stream to both the hardware output and loopback device, and sets it as ALSA's default PLAYBACK device. The configuration will also set the second loopback device as the default RECORD device.
 
 
@@ -467,11 +470,10 @@ For audio-reactive LEDs, we need to create a **loopback** device to internally p
     speaker-test -D SpeakerAndLoop -t wav -c 2
     ```
 
-    If you're hearing sound from the headphones output, you've successfully created an audio device that sends its audio to other devices: one to the speaker, and one internally for the Signifier's audio analysis module.
+    If you're hearing sound from the headphones output, you've successfully created an audio device that sends its audio to other devices: one to the speaker, and one internally for the Signifier's audio analysis module. -->
 
 
-
-5. The Signifier audio playback engine uses PyGame's mixer module, which relies on SDL for interfacing with the OS' audio systems. We need to set environment variables to tell PyGame which audio device to output from.
+<!-- 5. The Signifier audio playback engine uses PyGame's mixer module, which relies on SDL for interfacing with the OS' audio systems. We need to set environment variables to tell PyGame which audio device to output from.
 
     > More information: <https://raspberrypi.stackexchange.com/questions/68127/how-to-change-audio-output-device-for-python>
 
@@ -491,7 +493,7 @@ For audio-reactive LEDs, we need to create a **loopback** device to internally p
     Which should output:
     ```bash
     Headphones Headphones Headphones
-    ```
+    ``` -->
 
 **We've now completed the audio environment configuration!** To recap what we've done:
 
@@ -557,12 +559,15 @@ The Signifier should now run as expected!
 
 ## Realtime audio streaming
 
-
 <https://codeberg.org/rtcqs/rtcqs>
 
-## Audio debugging CLI commands
+## ALSA Commands
 
-### Various outputs of the available audio devices
+Config file is here:
+```bash
+sudo nano /usr/share/alsa/alsa.conf
+```
+
 
 ```bash
 cat /proc/asound/modules
@@ -578,169 +583,73 @@ cat /proc/asound/cards
                       bcm2835 Headphones
 ```
 
-### Audio configuration
-
-A pretty terminal GUI for inspecting and making changes to the audio device volumes. 
+A pretty, but basic terminal GUI for inspecting and making changes to the audio device volumes. 
 
 ```bash
 alsamixer
 ```
 
-
-## Pygame 2 audio device not detected
-<https://stackoverflow.com/questions/68529262/init-sounddevice-in-pygame2-on-raspberry>
-
-
-- I was able to find the correct audio device using `_sdl2` Python module:
-
-```python
-import pygame as pg
-import pygame._sdl2 as sdl2
-pg.init()
-is_capture = 0  # zero to request playback devices, non-zero to request recording devices
-num_devices = sdl2.get_num_audio_devices(is_capture)
-devices = [str(sdl2.get_audio_device_name(i, is_capture), encoding="utf-8") for i in range(num)]
-print("\n".join(device))
-pg.quit()
-```
-
-Which returned the following:
-
-```text
-bcm2835 Headphones, bcm2835 Headphones
-vc4-hdmi-0, MAI PCM i2s-hifi-0
-vc4-hdmi-1, MAI PCM i2s-hifi-0
-```
-
-I was able to start the Pygame mixer successfully:
-
-```python
-pg.mixer.pre_init(frequency=SAMPLE_RATE, size=SIZE, channels=1, buffer=BUFFER, devicename=devices[0])
-pg.mixer.init()
-pg.init()
-```
-
-
-- Using `aplay -l`, you can get the same information, albiet in a less succinct format:
 ```bash
-aplay -l
-**** List of PLAYBACK Hardware Devices ****
-card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
-  Subdevices: 8/8
-  Subdevice #0: subdevice #0
-  Subdevice #1: subdevice #1
-  Subdevice #2: subdevice #2
-  Subdevice #3: subdevice #3
-  Subdevice #4: subdevice #4
-  Subdevice #5: subdevice #5
-  Subdevice #6: subdevice #6
-  Subdevice #7: subdevice #7
-card 1: vc4hdmi0 [vc4-hdmi-0], device 0: MAI PCM i2s-hifi-0 [MAI PCM i2s-hifi-0]
-  Subdevices: 1/1
-  Subdevice #0: subdevice #0
-card 2: vc4hdmi1 [vc4-hdmi-1], device 0: MAI PCM i2s-hifi-0 [MAI PCM i2s-hifi-0]
-  Subdevices: 1/1
-  Subdevice #0: subdevice #0
-```
-
-By comparing the output from both the `sdl2` module and `aplay -l`, we can see that the matching strings are between the square brackets from aplay's output:
-
-<pre>
-card 0: Headphones <b>[bcm2835 Headphones]</b>, device 0: bcm2835 Headphones <b>[bcm2835 Headphones]</b>
-card 1: vc4hdmi0 <b>[vc4-hdmi-0]</b>, device 0: MAI PCM i2s-hifi-0 <b>[MAI PCM i2s-hifi-0]</b>
-card 2: vc4hdmi1 <b>[vc4-hdmi-1]</b>, device 0: MAI PCM i2s-hifi-0 <b>[MAI PCM i2s-hifi-0]</b>
-</pre>
-
-So, if you're unable to use the `sdl2` module for some reason, a short Python `subprocess` return wrangle from `aplay` could potentially (I haven't tested this on systems other than a couple of RPi4Bs running Ubuntu Server 20.04 with default I/O) produce the same output using a native Linux module.
-
-TODO - WRITE DEMO PYTHON SUBPROCESS SCRIPT
-
-
-
-Other useful utilities for investigating audio devices:
-
-- `alsabat` produces a test tone using ALSA audio output as a sanity check
-- `sudo lsmod | grep snd` to display current system sound module usage
-
-
-- Test ALSA audio output. Should produce a sine wave tone:
-```bash
-$ alsabat
-
-alsa-utils version 1.2.4
-
-Entering playback thread (ALSA).
-Get period size: 2760  buffer size: 22050
-Playing generated audio sine wave
-Entering capture thread (ALSA).
-Cannot open PCM capture device: No such file or directory(-2)
-Playback completed.
-Exit capture thread fail: -2
-```
-
-- Display system sound module usage:
-```bash
-$ sudo lsmod | grep snd
-
-snd_soc_hdmi_codec     20480  2
-snd_soc_core          241664  2 vc4,snd_soc_hdmi_codec
-snd_bcm2835            24576  0
-snd_compress           20480  1 snd_soc_core
-snd_pcm_dmaengine      20480  1 snd_soc_core
-snd_pcm               131072  5 snd_bcm2835,snd_soc_hdmi_codec,snd_compress,snd_soc_core,snd_pcm_dmaengine
-snd_timer              36864  1 snd_pcm
-snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_compress,snd_soc_core,snd_pcm
+❯ ls -l /dev/snd
+total 0
+drwxr-xr-x  2 root root       80 Jan 26 11:41 by-path
+crw-rw----+ 1 root audio 116,  0 Jan 26 11:41 controlC0
+crw-rw----+ 1 root audio 116, 32 Jan 26 11:41 controlC1
+crw-rw----+ 1 root audio 116, 16 Jan 26 11:41 pcmC0D0p
+crw-rw----+ 1 root audio 116, 56 Jan 26 11:41 pcmC1D0c
+crw-rw----+ 1 root audio 116, 48 Jan 26 12:05 pcmC1D0p
+crw-rw----+ 1 root audio 116, 57 Jan 26 11:41 pcmC1D1c
+crw-rw----+ 1 root audio 116, 49 Jan 26 11:41 pcmC1D1p
+crw-rw----+ 1 root audio 116,  1 Jan 26 11:41 seq
+crw-rw----+ 1 root audio 116, 33 Jan 26 11:41 timer
 ```
 
 
 
-### Debugging ALSA
+
+### Debugging PulseAudio
 
 Runnign speaker output test through loopback....
 ```bash
 speaker-test -c 2 -t wav -D hw:1,0
 
-speaker-test 1.2.4
+# speaker-test 1.2.4
 
-Playback device is hw:1,0
-Stream parameters are 48000Hz, S16_LE, 2 channels
-WAV file(s)
-Rate set to 48000Hz (requested 48000Hz)
-Buffer size range from 16 to 524288
-Period size range from 16 to 262144
-Using max buffer size 524288
-Periods = 4
-was set period_size = 131072
-was set buffer_size = 524288
- 0 - Front Left
- 1 - Front Right
-Time per period = 5.637673
- 0 - Front Left
- 1 - Front Right
-Time per period = 5.631830
- 0 - Front Left
-^C 1 - Front Right
-Transfer failed: Bad address
+# Playback device is hw:1,0
+# Stream parameters are 48000Hz, S16_LE, 2 channels
+# WAV file(s)
+# Rate set to 48000Hz (requested 48000Hz)
+# Buffer size range from 16 to 524288
+# Period size range from 16 to 262144
+# Using max buffer size 524288
+# Periods = 4
+# was set period_size = 131072
+# was set buffer_size = 524288
+#  0 - Front Left
+#  1 - Front Right
+# Time per period = 5.637673
+#  0 - Front Left
+#  1 - Front Right
 ```
 
-Works fine, then try to use sd_loopback_stream.py to internally pipe the audio and get this error message:
+Works fine, then try to use `sd_loopback_stream.py` to internally pipe the audio and get this error message:
 
 ```bash
 python tests/sd_loopback_stream.py
-Input and output device must have the same samplerate
+# Input and output device must have the same samplerate
 ```
 
 If I start the processes the other way around, the Python script runs fine, but speaker-test responds with:
 ```bash
 speaker-test -c 2 -t wav -D hw:1,0
 
-speaker-test 1.2.4
+# speaker-test 1.2.4
 
-Playback device is hw:1,0
-Stream parameters are 48000Hz, S16_LE, 2 channels
-WAV file(s)
-Sample format not available for playback: Invalid argument
-Setting of hwparams failed: Invalid argument
+# Playback device is hw:1,0
+# Stream parameters are 48000Hz, S16_LE, 2 channels
+# WAV file(s)
+# Sample format not available for playback: Invalid argument
+# Setting of hwparams failed: Invalid argument
 ```
 
 
@@ -801,7 +710,7 @@ Setting of hwparams failed: Invalid argument
 - PulseAudio not create correct sinks/sources. Ran commands to produce a verbose log:
   > More information: <https://wiki.ubuntu.com/PulseAudio/Log>
   ```bash
-  echo autospawn = no >> ~/.config/pulse/client.conf  #use ~/.pulse/client.conf on Ubuntu <= 12.10
+  echo autospawn = no >> ~/.config/pulse/client.conf
   killall pulseaudio
   LANG=C pulseaudio -vvvv --log-time=1 > ~/pulseverbose.log 2>&1
   ```
@@ -853,8 +762,6 @@ The issue appears to be in the source file format! `sounddevice` is a simple wra
 - I batch converted the original files using FFmpeg Batch AV Converter (Windows) and the command: `-vn -c:a pcm_s32le -ar 48000 -sample_fmt s32 -ac 1`
 - I also realised (using `sd.query_devices()` on the default output), that PulseAudio defaults to 44.1KHz! So I needed to add some config to `/etc/pulse/daemon.conf`, and added some extra stuff while I was there:
 
-> More information: <https://www.reddit.com/r/SteamPlay/comments/kw0bws/psa_if_you_have_audio_crackling/>
-
 > And more information: <https://forums.linuxmint.com/viewtopic.php?t=44862>
 
 ```yaml
@@ -875,7 +782,17 @@ realtime-scheduling = yes
 realtime-priority = 5
 ```
 
-avoid-resampling = true
+- It turns out this didn't fix the issue. Looking at the PulseAudio log, it shows all devices being created as 48KHz. However, running `sd.query_devices()` over all the available devices in Python return 44.1KHz. Will attempt this solution:
+
+> More information: <https://unix.stackexchange.com/questions/585789/pulseaudio-detects-wrong-sample-rate-forcing-pulseaudio-a-sample-rate>
+
+> Uncomment and set alternate-sample-rate to 44100 in `/etc/pulse/daemon.conf` (and remove `~/.asoundrc`).
+
+
+
+
+
+
 
 
 ## Arduino-CLI
@@ -987,22 +904,8 @@ acompile ~/Signifier/signify/sig_led && aupload ~/Signifier/signify/sig_led
 
 
 
-### Pipe-wire ---- no, just stop
-
-Attempting to swap over the `pipe-wire`
-
-> More information: <https://askubuntu.com/questions/1333404/how-to-replace-pulseaudio-with-pipewire-on-ubuntu-21-04>
-
-```bash
-sudo apt install pipewire-audio-client-libraries
-```
 
 
-
-
-  ```bash
-  ls -l /dev/snd
-  ```
 
 
 
@@ -1017,7 +920,15 @@ This module is far less comprehensive than the PulseAudio module `sounddevice`. 
 
 PyAlsaAudio is very bare-bones in functionality. Futhermore, not only is it poorly documented, for some reason the module refused to import into my VC Code Intellisense. So I had to have a second terminal open running things like `dir(alsaaudio)` into `dir(alsaaudio.pcms())` and web browsers constantly searching on forums and the like.
 
+## Pipe-wire ---- no, just stop
 
+Attempting to swap over the `pipe-wire`
+
+> More information: <https://askubuntu.com/questions/1333404/how-to-replace-pulseaudio-with-pipewire-on-ubuntu-21-04>
+
+```bash
+sudo apt install pipewire-audio-client-libraries
+```
 
 
 
@@ -1081,3 +992,127 @@ Still very high, doing to disable Sys-QTT and Node Exporter...
 CPU usage seems to have settled for the moment. Obviously this won't be a problem for production,
 but it would be good to have VS Code -> Arduino functionality during development. Will stick with this for now.
 CPU is good again. Narrowed the libraries included in c_cpp_properties.json
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# OLD INFO!
+
+
+<!-- ## Pygame 2 audio device not detected
+<https://stackoverflow.com/questions/68529262/init-sounddevice-in-pygame2-on-raspberry>
+
+
+- I was able to find the correct audio device using `_sdl2` Python module:
+
+```python
+import pygame as pg
+import pygame._sdl2 as sdl2
+pg.init()
+is_capture = 0  # zero to request playback devices, non-zero to request recording devices
+num_devices = sdl2.get_num_audio_devices(is_capture)
+devices = [str(sdl2.get_audio_device_name(i, is_capture), encoding="utf-8") for i in range(num)]
+print("\n".join(device))
+pg.quit()
+```
+
+Which returned the following:
+
+```text
+bcm2835 Headphones, bcm2835 Headphones
+vc4-hdmi-0, MAI PCM i2s-hifi-0
+vc4-hdmi-1, MAI PCM i2s-hifi-0
+```
+
+I was able to start the Pygame mixer successfully:
+
+```python
+pg.mixer.pre_init(frequency=SAMPLE_RATE, size=SIZE, channels=1, buffer=BUFFER, devicename=devices[0])
+pg.mixer.init()
+pg.init()
+```
+
+
+- Using `aplay -l`, you can get the same information, albiet in a less succinct format:
+```bash
+aplay -l
+**** List of PLAYBACK Hardware Devices ****
+card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]
+  Subdevices: 8/8
+  Subdevice #0: subdevice #0
+  Subdevice #1: subdevice #1
+  Subdevice #2: subdevice #2
+  Subdevice #3: subdevice #3
+  Subdevice #4: subdevice #4
+  Subdevice #5: subdevice #5
+  Subdevice #6: subdevice #6
+  Subdevice #7: subdevice #7
+card 1: vc4hdmi0 [vc4-hdmi-0], device 0: MAI PCM i2s-hifi-0 [MAI PCM i2s-hifi-0]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 2: vc4hdmi1 [vc4-hdmi-1], device 0: MAI PCM i2s-hifi-0 [MAI PCM i2s-hifi-0]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+```
+
+By comparing the output from both the `sdl2` module and `aplay -l`, we can see that the matching strings are between the square brackets from aplay's output:
+
+<pre>
+card 0: Headphones <b>[bcm2835 Headphones]</b>, device 0: bcm2835 Headphones <b>[bcm2835 Headphones]</b>
+card 1: vc4hdmi0 <b>[vc4-hdmi-0]</b>, device 0: MAI PCM i2s-hifi-0 <b>[MAI PCM i2s-hifi-0]</b>
+card 2: vc4hdmi1 <b>[vc4-hdmi-1]</b>, device 0: MAI PCM i2s-hifi-0 <b>[MAI PCM i2s-hifi-0]</b>
+</pre>
+
+So, if you're unable to use the `sdl2` module for some reason, a short Python `subprocess` return wrangle from `aplay` could potentially (I haven't tested this on systems other than a couple of RPi4Bs running Ubuntu Server 20.04 with default I/O) produce the same output using a native Linux module.
+
+TODO - WRITE DEMO PYTHON SUBPROCESS SCRIPT
+
+
+
+Other useful utilities for investigating audio devices:
+
+- `alsabat` produces a test tone using ALSA audio output as a sanity check
+- `sudo lsmod | grep snd` to display current system sound module usage
+
+
+- Test ALSA audio output. Should produce a sine wave tone:
+```bash
+$ alsabat
+
+alsa-utils version 1.2.4
+
+Entering playback thread (ALSA).
+Get period size: 2760  buffer size: 22050
+Playing generated audio sine wave
+Entering capture thread (ALSA).
+Cannot open PCM capture device: No such file or directory(-2)
+Playback completed.
+Exit capture thread fail: -2
+```
+
+- Display system sound module usage:
+```bash
+$ sudo lsmod | grep snd
+
+snd_soc_hdmi_codec     20480  2
+snd_soc_core          241664  2 vc4,snd_soc_hdmi_codec
+snd_bcm2835            24576  0
+snd_compress           20480  1 snd_soc_core
+snd_pcm_dmaengine      20480  1 snd_soc_core
+snd_pcm               131072  5 snd_bcm2835,snd_soc_hdmi_codec,snd_compress,snd_soc_core,snd_pcm_dmaengine
+snd_timer              36864  1 snd_pcm
+snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_compress,snd_soc_core,snd_pcm
+``` -->
