@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
 
-#  __________                         __  .__                              .__     
-#  \______   \_____    ______ _______/  |_|  |_________  ____  __ __  ____ |  |__  
-#   |     ___/\__  \  /  ___//  ___/\   __\  |  \_  __ \/  _ \|  |  \/ ___\|  |  \ 
-#   |    |     / __ \_\___ \ \___ \  |  | |   Y  \  | \(  <_> )  |  / /_/  >   Y  \
-#   |____|    (____  /____  >____  > |__| |___|  /__|   \____/|____/\___  /|___|  /
-#                  \/     \/     \/            \/                  /_____/      \/ 
+#     _____                .__               .__        
+#    /  _  \   ____ _____  |  | ___.__. _____|__| ______
+#   /  /_\  \ /    \\__  \ |  |<   |  |/  ___/  |/  ___/
+#  /    |    \   |  \/ __ \|  |_\___  |\___ \|  |\___ \ 
+#  \____|__  /___|  (____  /____/ ____/____  >__/____  >
+#          \/     \/     \/     \/         \/        \/ 
 
 """
 This module performs analyise on the Signifier audio stream, which can
@@ -15,19 +14,18 @@ be sent to the arduino to modulate the LEDs.
 # Primary research sources:
 # - https://stackoverflow.com/questions/66964597/python-gui-freezing-problem-of-thread-using-tkinter-and-sounddevice
 
-import time
 import logging
 import numpy as np
 from queue import Empty, Full
 from multiprocessing import Process, Queue, Event
+import sounddevice as sd
 
 from signify.utils import ExpFilter as Filter
 
 DEFAULT_CONF = {
-    "loopback_return":1,
-    "hw_loop_output":0,
+    "input_device":"Loopback: PCM (hw:1,1)",
     "sample_rate":48000,
-    "buffer":4096 }
+    "buffer":2048 }
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -38,13 +36,14 @@ class Analyser(Process):
     Perform audio analysis on the default PulseAudio input device.\n
     Supply the audio portion of `config.json`, ie `config=config['audio']`.
     """
+
     Process.daemon = True
 
     def __init__(self, return_q:Queue, control_q:Queue, config=None):
         super().__init__()
         if config is None:
             config = DEFAULT_CONF
-        self.input = config['loopback_return']
+        self.input = config['input_device']
         self.buffer = config['buffer']
         self.sample_rate = config['sample_rate']
         self.event = Event()
@@ -53,7 +52,11 @@ class Analyser(Process):
         self.analysis_data = {}
         self.analysis_q = return_q
         self.control_q = control_q
-
+        print(sd.query_devices())
+        for api in sd.query_hostapis():
+            if api['name'] == 'ALSA':
+                print(sd.query_devices(api['default_input_device']))
+            break
 
     def run(self):
         """
@@ -62,13 +65,12 @@ class Analyser(Process):
         """
         logger.debug('Audio analysis thread now running...')
         self.event.clear()
-        import sounddevice as sd
         sd.default.channels = 1
+        # sd.default.device = self.input
         sd.default.blocksize = self.buffer
         sd.default.samplerate = self.sample_rate
-        with sd.InputStream(device=self.input,
-                callback=self.process_audio,
-                finished_callback=self.event.set):
+        print(sd.check_input_settings())
+        with sd.InputStream(callback=self.process):
             while not self.event.is_set():
                 try:
                     if self.control_q.get_nowait() == 'close':
@@ -79,7 +81,7 @@ class Analyser(Process):
         return None
 
 
-    def process_audio(self, indata, frames, time, status):
+    def process(self, indata, frames, time, status):
         """
         The primary function called by the Streaming thread. This function\
         calculates the amplitude of the input signal, then streams it to the\

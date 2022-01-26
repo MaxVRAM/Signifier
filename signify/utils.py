@@ -10,7 +10,9 @@
 from numpy import ndarray
 
 def plural(value) -> str:
-    """Return "s" or "" pluralise strings based on supplied (int) value or len(!int)."""
+    """
+    Return "s" or "" pluralise strings based on supplied (int) value or len(!int).
+    """
     if value is None:
         return ""
     try:
@@ -35,7 +37,9 @@ def scale(value, source_range, dest_range, *args):
         return scaled_value
 
 class ExpFilter:
-    """Simple exponential smoothing filter"""
+    """
+    Simple exponential smoothing filter.
+    """
     def __init__(self, val=0.0, alpha_decay=0.5, alpha_rise=0.5):
         """Small rise / decay factors = more smoothing"""
         assert 0.0 < alpha_decay < 1.0, 'Invalid decay smoothing factor'

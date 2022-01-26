@@ -6,10 +6,11 @@
 #   \______  /____/__|   __/  |_______ \__||___  /__|  (____  /__|   / ____|
 #          \/        |__|             \/       \/           \/       \/     
 
-"""Module to manage an audio clip library and playback."""
+"""
+Module to manage an audio clip library and playback.
+"""
 
 import logging, os, random
-import pygame.mixer as Mixer
 
 from signify.utils import plural
 from signify.clipUtils import *
@@ -19,9 +20,13 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 class ClipManager:
-    """Used to create collections of audio clips for playback."""
-    def __init__(self, config:dict, mixer:Mixer, event:int) -> None:
-        """Create a new clip manager object.\nSee config.json file in project directory for required parameters."""
+    """
+    Used to create collections of audio clips for playback.
+    """
+    def __init__(self, config:dict, mixer, event:int) -> None:
+        """
+        Create a new clip manager object.\nSee config.json file in project directory for required parameters.
+        """
         if not os.path.isdir(config['base_path']):
             logger.error(f'Invalid root path for library: {config["base_path"]}.')
             raise OSError
@@ -39,7 +44,9 @@ class ClipManager:
     # Collection management
     #----------------------
     def init_library(self):
-        """Initialises the library with collections of Clips from the base path's subdirectories."""
+        """
+        Initialises the library with collections of Clips from the base path's subdirectories.
+        """
         logger.debug(f'Initialising library from base path {self.config["base_path"]}...')
         titles = [d for d in os.listdir(self.config['base_path']) \
             if os.path.isdir(os.path.join(self.config['base_path'], d))]
@@ -51,13 +58,14 @@ class ClipManager:
                     names.append(f)
             if len(names) != 0:
                 self.collections[title] = {'path':path, 'names':names}
-                #logger.debug(f'"{title}" added to library with "{len(names)}" audio files.')
         logger.info(f'Audio clip library initialised with ({len(self.collections)}) '
                     f'collection{plural(self.collections)}.')
 
     def select_collection(self, name=None, num_clips=12):
-        """Selects a collection from the library, prepares clips and playback pools.\n
-        Will randomly select a collection if valid name is not supplied."""
+        """
+        Selects a collection from the library, prepares clips and playback pools.\n
+        Will randomly select a collection if valid name is not supplied.
+        """
         logger.debug(f'Importing {"random " if name is None else ""}collection '
                     f'{(str(name) + " ") if name is not None else ""}from library.')
         if name is not None and name not in self.collections:
@@ -81,18 +89,18 @@ class ClipManager:
             return None
 
     def get_channels(self, clip_set:set) -> dict:
-        """Return dict with Channel indexes keys and Channel objects as values.
-        Updates the mixer if there aren't enough channels"""
+        """
+        Return dict with Channel indexes keys and Channel objects as values.
+        Updates the mixer if there aren't enough channels
+        """
         channels = {}
         num_chans = self.mixer.get_num_channels()
         num_wanted = len(clip_set)
         # Update the audio mixer channel count if required
         if num_chans != num_wanted:
-            logger.info(f'Mixer has {num_chans} Channels but '
-                        f'{num_wanted} are needed. Attempting to update mixer...')
             self.mixer.set_num_channels(num_wanted)
             num_chans = self.mixer.get_num_channels()
-            logger.info(f'Mixer now has {num_chans} channels.')
+            logger.debug(f'Mixer now has {num_chans} channels.')
             print()
         for i in range(num_chans):
             channels[i] = self.mixer.Channel(i)
@@ -102,36 +110,41 @@ class ClipManager:
     # Clip management
     #----------------
     def move_to_inactive(self, clips:set):
-        """Supplied list of Clip(s) are moved from active to inactive pool."""
+        """
+        Supplied list of Clip(s) are moved from active to inactive pool.
+        """
         for clip in clips:
             self.active_pool.remove(clip)
             self.inactive_pool.add(clip)
             logger.debug(f'MOVED: {clip.name} | active >>> INACTIVE.')
 
     def move_to_active(self, clips:set):
-        """Supplied list of Clip(s) are moved from inactive to active pool."""
+        """
+        Supplied list of Clip(s) are moved from inactive to active pool.
+        """
         for clip in clips:
             self.inactive_pool.remove(clip)
             self.active_pool.add(clip)
             logger.debug(f'MOVED: {clip.name} | inactive >>> ACTIVE.')
 
     def check_finished(self) -> set:
-        """Checks active pool for lingering Clips finished playback, and moves them to the inactive pool.
-        Returns a set containing any clips moved."""
+        """
+        Checks active pool for lingering Clips finished playback, and moves them to the inactive pool.
+        Returns a set containing any clips moved.
+        """
         finished = set()
         for clip in self.active_pool:
             if not clip.channel.get_busy():
-                logger.info(f'Clip {clip.name} finished.')
                 finished.add(clip)
         if len(finished) > 0:
-            print()
             self.move_to_inactive(finished)
-            print()
         return finished
 
     def play_clip(self, clips=set(), name=None, category=None, num_clips=1, volume=None, fade=None, event=None) -> set:
-        """Start playback of Clip(s) from the inactive pool, selected by object, name, category, or at random.
-        Clips started are moved to the active pool and are returned as a set."""
+        """
+        Start playback of Clip(s) from the inactive pool, selected by object, name, category, or at random.
+        Clips started are moved to the active pool and are returned as a set.
+        """
         volume = self.config['volume'] if volume is None else volume
         fade = self.config['fade_in'] if fade is None else fade
         event = self.clip_event if event is None else event
@@ -141,21 +154,31 @@ class ClipManager:
         self.move_to_active(started)
         return started
 
-    def stop_clip(self, clips=set(), name=None, category=None, num_clips=1, fade=None) -> set:
-        """Stop playback of Clip(s) from the active pool, selected by object, name, category, or at random.
-        Clips stopped are moved to the inactive pool and are returned as a set."""
+    def stop_clip(self, clips=set(), name=None, category=None, num_clips=1, fade=None, *args) -> set:
+        """
+        Stop playback of Clip(s) from the active pool, selected by object, name, category, or at random.
+        Clips stopped are moved to the inactive pool and are returned as a set. `'balance'` in args will
+        remove clips based on the most active category, overriding category in arguments if provided.
+        """
         fade = self.config['fade_out'] if fade is None else fade
         if len(clips) == 0:
+            if 'balance' in args:
+                # Find the most active category and supply its set of clips to `get_clip()` 
+                cats = get_contents(self.active_pool)
+                clips = cats[max(cats, key = cats.get)]
+                category = None
             clips = get_clip(self.active_pool, name=name, category=category, num_clips=num_clips)
         stopped = set([c for c in clips if c.stop(fade) is not None])
         self.move_to_inactive(stopped)
         return stopped
 
     def modulate_volumes(self, speed, weight):
-        """Randomly modulate the Channel volumes for all Clip(s) in the active pool.\n 
+        """
+        Randomly modulate the Channel volumes for all Clip(s) in the active pool.\n 
         - "speed=(int)" is the maximum volume jump per tick as a percentage of the total 
         volume. 1 is slow, 10 is very quick.\n - "weight=(float)" is a signed normalised 
-        float (-1.0 to 1.0) that weighs the random steps towards either direction."""
+        float (-1.0 to 1.0) that weighs the random steps towards either direction.
+        """
         speed = speed / 100
         weight = weight * speed
         new_volumes = []
@@ -169,10 +192,14 @@ class ClipManager:
         #     logger.debug(f'Volumes updated: {new_volumes})')
 
     def clips_playing(self) -> int:
-        """Return number of active clips."""
+        """
+        Return number of active clips.
+        """
         return len(self.active_pool)
 
     def clear_events(self):
-        """Clears the end event callbacks from all clips in the active pool."""
+        """
+        Clears the end event callbacks from all clips in the active pool.
+        """
         for clip in self.active_pool:
             clip.channel.set_endevent()

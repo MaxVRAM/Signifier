@@ -31,7 +31,7 @@ CONFIG_FILE = 'config.json'
 
 os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
-config = None
+config_dict = None
 active_jobs = {}
 
 arduino_thread = None
@@ -82,7 +82,7 @@ def stop_all_clips(fade_time=None, disable_events=True):
     to prevent misfiring audio jobs that use clip end events to launch more.
     """
     if audio_active:
-        fade_time = config['clip_manager']['fade_out'] if fade_time is None\
+        fade_time = config_dict['clip_manager']['fade_out'] if fade_time is None\
             else fade_time
         if pg.mixer.get_init():
             if pg.mixer.get_busy():
@@ -134,7 +134,7 @@ def get_collection(pool_size=None, restart_jobs=True, pause_leds=True):
     to be manually triggered using the `set_jobs()` function.
     """
     if audio_active:
-        job_params = config['jobs']['collection']['parameters']
+        job_params = config_dict['jobs']['collection']['parameters']
         pool_size = job_params['pool_size']\
             if pool_size is None else pool_size
         print()
@@ -147,8 +147,8 @@ def get_collection(pool_size=None, restart_jobs=True, pause_leds=True):
         print()
         while clip_manager.select_collection() is None:
             logger.info(f'Trying another collection in\
-                {config["clip_manager"]["fail_retry_delay"]} seconds...')
-            time.sleep(config["clip_manager"]["fail_retry_delay"])
+                {config_dict["clip_manager"]["fail_retry_delay"]} seconds...')
+            time.sleep(config_dict["clip_manager"]["fail_retry_delay"])
             get_collection()
         logger.info('NEW COLLECTION JOB DONE.')
         print()
@@ -171,19 +171,16 @@ def automate_composition(quiet_level=None, busy_level=None, start_num=1):
     before stopping active clips.
     """
     if audio_active:
-        job_params = config['jobs']['composition']['parameters']
+        job_params = config_dict['jobs']['composition']['parameters']
         quiet_level = job_params['quiet_level']\
             if quiet_level is None else quiet_level
         busy_level = job_params['busy_level']\
             if busy_level is None else busy_level
-        print()
-        changed = set()
-        changed = clip_manager.check_finished()
+        clip_manager.check_finished()
         if clip_manager.clips_playing() < quiet_level:
-            changed.update(clip_manager.play_clip(num_clips=start_num))
+            clip_manager.play_clip(num_clips=start_num)
         elif clip_manager.clips_playing() > busy_level:
-            changed.update(clip_manager.stop_clip())
-        # Stop a random clip after a certain amount of time?
+            clip_manager.stop_clip('balance')
         print()
 
 
@@ -196,9 +193,9 @@ def modulate_volumes(speed=None, weight=None):
     weighs the random steps towards either direction.
     """
     if audio_active:
-        speed = config['jobs']['volume']['parameters']['speed']\
+        speed = config_dict['jobs']['volume']['parameters']['speed']\
             if speed is None else speed
-        weight = config['jobs']['volume']['parameters']['weight']\
+        weight = config_dict['jobs']['volume']['parameters']['weight']\
             if weight is None else weight
         clip_manager.modulate_volumes(speed, weight)
 
@@ -214,10 +211,10 @@ def start_job(*args):
     jobs.intersection_update(jobs_dict.keys())
     jobs.difference_update(active_jobs.keys())
     jobs.intersection_update(
-        set(k for k, v in config['jobs'].items()
-            if v['enabled'] and config[v['service']]['enabled']))
+        set(k for k, v in config_dict['jobs'].items()
+            if v['enabled'] and config_dict[v['service']]['enabled']))
     for job in jobs:
-        active_jobs[job] = schedule.every(config['jobs'][job]['timer'])\
+        active_jobs[job] = schedule.every(config_dict['jobs'][job]['timer'])\
                             .seconds.do(jobs_dict[job])
     logger.debug(f'({len(active_jobs)}) jobs scheduled!')
 
@@ -283,7 +280,7 @@ def set_arduino_state(state:str, timeout=0.5):
 #  /_______  /\___  >__| |____/|   __/
 #          \/     \/           |__|
 
-def init_clip_manager():
+def init_clip_manager(config:dict):
     """
     Load Clip Manager with audio library and initialise the clips.
     """
@@ -292,33 +289,33 @@ def init_clip_manager():
         logger.info('Initialising Clip Mananger...')
         try:
             clip_manager = ClipManager(
-                config['clip_manager'], pg.mixer, CLIP_EVENT)
+                config, pg.mixer, CLIP_EVENT)
         except OSError:
             exit_handler.shutdown()
         clip_manager.init_library()
 
 
-def init_audio_system():
+def init_audio_system(config:dict):
     """
     Initialise the Pygame mixer and analysis thread (if enabled).
     """
     global audio_active, analysis_thread, analysis_active, passthrough_thread
-    if config['audio']['enabled'] and not audio_active:
+    if config['enabled'] and not audio_active:
         logger.info('Initialising audio system...')
         pg.mixer.pre_init(
-            frequency=config['audio']['sample_rate'],
-            size=config['audio']['bit_size'],
+            frequency=config['sample_rate'],
+            size=config['bit_size'],
             channels=1,
-            buffer=config['audio']['buffer'])
+            buffer=config['buffer'])
         pg.mixer.init()
         pg.init()
         audio_active = True
         logger.debug(f'Audio output mixer set: {pg.mixer.get_init()}')
-        if config['audio']['analysis']:
+        if config['analysis']:
             analysis_thread = Analyser(
                                 return_q=analysis_return_q,
                                 control_q=analysis_control_q,
-                                config=config['audio'])
+                                config=config)
             analysis_thread.name = 'Audio Analysis Thread'
             passthrough_thread = Process(daemon=True,
                 name='Passthrough Thread', target=process_analysis,
@@ -329,17 +326,17 @@ def init_audio_system():
         time.sleep(1)
 
 
-def init_arduino_comms():
+def init_arduino(config:dict):
     """
     Initialise the Arduino serial communication thread.
     """
     global arduino_active, arduino_thread
-    if config['arduino']['enabled']:
+    if config['enabled']:
         arduino_thread = Siguino(
             return_q=arduino_return_q,
             control_q=arduino_control_q,
             value_q=arduino_value_q,
-            config=config['arduino'])
+            config=config)
         arduino_thread.name = 'Arduino Comms Thread'
         arduino_thread.start()
         arduino_active = True
@@ -354,6 +351,10 @@ def init_arduino_comms():
 #          \/      \/                 \/                 \/
 
 class ExitHandler:
+    """
+    Manages signals `SIGTERM` and `SIGINT`, and houses the subsequently called
+    `shutdown()` method which exits the Signifier application gracefully.
+    """
     signals = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}
 
     def __init__(self):
@@ -362,7 +363,11 @@ class ExitHandler:
         signal.signal(signal.SIGINT, self.shutdown)
 
     def shutdown(self, *args):
-        global analysis_active, arduino_active
+        """
+        Initiates Signifier shutdown sequence when called by main thread.
+        This is either called via signal callbacks, or explicitly via
+        standard function calls.
+        """
         if mp.current_process() is main_thread:
             if not self.exiting:
                 self.exiting = True
@@ -381,6 +386,9 @@ class ExitHandler:
 
 
 def stop_scheduler():
+    """
+    Simply calls `schedule.clear()`. Placeholder in case more needs to be added.
+    """
     schedule.clear()
 
 
@@ -433,19 +441,18 @@ if __name__ == '__main__':
     print()
 
     with open(CONFIG_FILE) as c:
-        config = json.load(c)
+        config_dict = json.load(c)
 
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
     passthrough_event.clear()
-    time.sleep(1)
 
-    init_audio_system()
-    init_clip_manager()
-    init_arduino_comms()
+    init_arduino(config_dict['arduino'])
+    init_audio_system(config_dict['audio'])
+    init_clip_manager(config_dict['clip_manager'])
     get_collection(restart_jobs=False, pause_leds=False)
     start_job('collection', 'composition', 'volume')
-    automate_composition(start_num=config['jobs']['collection']['parameters']['start_clips'])
+    automate_composition(start_num=config_dict['jobs']['collection']['parameters']['start_clips'])
     if analysis_thread is not None:
         analysis_thread.start()
     if passthrough_thread is not None:

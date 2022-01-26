@@ -851,12 +851,31 @@ The issue appears to be in the source file format! `sounddevice` is a simple wra
 - Original audio source files were in 32bit Stereo @ 44.1KHz, but I since the Signifiers are using a single channel, I converted the files to Mono, which I've been using for most of the development.
 - Since reading about the realtime sample rate conversion issues between PulseAudio and the snd_bcm2835 ALSA driver, I've moved to **32bit Mono @ 48KHz**
 - I batch converted the original files using FFmpeg Batch AV Converter (Windows) and the command: `-vn -c:a pcm_s32le -ar 48000 -sample_fmt s32 -ac 1`
-- I then updated my audio analysis script to use everything default (except forcing mono). The `sounddevice.InputStream` looks like this:
-    ```python
-    with sd.InputStream(channels=1, callback=self.process_audio, finished_callback=self.event.set):
-    ```
-- This appears to have solved the problem
+- I also realised (using `sd.query_devices()` on the default output), that PulseAudio defaults to 44.1KHz! So I needed to add some config to `/etc/pulse/daemon.conf`, and added some extra stuff while I was there:
 
+> More information: <https://www.reddit.com/r/SteamPlay/comments/kw0bws/psa_if_you_have_audio_crackling/>
+
+> And more information: <https://forums.linuxmint.com/viewtopic.php?t=44862>
+
+```yaml
+allow-module-loading = yes
+daemonize = yes
+
+avoid-resampling = true
+default-sample-format = s16le
+default-sample-rate = 48000
+alternate-sample-rate = 48000
+default-sample-channels = 1
+default-fragments = 4
+default-fragment-size-msec = 5
+
+high-priority = yes
+nice-level = -11
+realtime-scheduling = yes
+realtime-priority = 5
+```
+
+avoid-resampling = true
 
 
 ## Arduino-CLI

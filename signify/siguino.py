@@ -106,12 +106,11 @@ class Siguino(Process):
         self.value_q = value_q
         # Serial communication
         self.link = None
-        self.values = {}
+        self.commands = {}
         self.rx_packet = ReceivePacket
         self.tx_period = self.config['update_ms']
-        for k, v in self.config['values'].items():
-            self.values.update({k:LedValue(v, self.tx_period)})
-            logger.debug(f'Added Arduino command: {self.values[k]}')
+        for k, v in self.config['commands'].items():
+            self.commands.update({k:LedValue(v, self.tx_period)})
 
 
     def run(self):
@@ -119,6 +118,8 @@ class Siguino(Process):
         Begin executing Arudino communication thread to control LEDs.
         """
         logger.debug('Starting Arduino comms thread...')
+        for k in self.commands.keys():
+            logger.debug(f' - Arduino command available: {self.commands[k]}')
         self.event.clear()
         self.open_connection()
         self.start_time = time.time()
@@ -158,7 +159,7 @@ class Siguino(Process):
             if self.state not in [ArduinoState.close, ArduinoState.closed]:
                 try:
                     message = self.value_q.get_nowait()
-                    if (value := self.values.get(message[0])) is not None:
+                    if (value := self.commands.get(message[0])) is not None:
                         value.set_value(message[1], None)
                 except Empty:
                     pass
@@ -174,7 +175,7 @@ class Siguino(Process):
         """
         Called by the run thread to process the received serial packet
         """
-        # We can send packets once we get a `r` "ready" message.
+        # Waits for `r` "ready" message before sending packets.
         # The LEDs require precise timing, so inturrupting an LED write
         # sequence would cause issues with the LED output.
         cmd = self.rx_packet.command.decode("utf-8")
@@ -200,7 +201,7 @@ class Siguino(Process):
 
 
     def update_values(self):
-        for k, v in self.values.items():
+        for k, v in self.commands.items():
             v.send(self.send_packet)
 
 
@@ -286,7 +287,7 @@ class Siguino(Process):
         connection.\n If reaches timeout before connection, will disable\
         Arduino/LED portion of the Signifier code.
         """
-        self.set_state(ArduinoState.running)
+        self.set_state(ArduinoState.starting)
         self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=self.baud)
         self.link.open()
         print()

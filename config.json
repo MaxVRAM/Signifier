@@ -5,7 +5,7 @@
         "baud":38400,
         "start_delay":5,
         "update_ms":10,
-        "values":{
+        "commands":{
             "brightness":{"command":"B", "min":3, "max":200, "default":0, "smooth":0},
             "saturation":{"command":"S", "min":0, "max":255, "default":0, "smooth":0},
             "hue":{"command":"H", "min":0, "max":255, "default":195, "smooth":0}
@@ -15,14 +15,10 @@
     {
         "enabled":true,
         "analysis":true,
-        "output_device":"pulse",
-        "loopback_output":"Loopback, Loopback PCM",
-        "loopback_return":"Loopback: PCM (hw:1,1)",
-        "hw_direct_output":"bcm2835 Headphones, bcm2835 Headphones",
-        "hw_loop_output":"bcm2835 Headphones: - (hw:0,0)",
+        "input_device":"Loopback: PCM (hw:1,1)",
         "sample_rate":48000,
         "bit_size":-16,
-        "buffer":4096,
+        "buffer":2048,
         "latency":0.1
     },
     "clip_manager":

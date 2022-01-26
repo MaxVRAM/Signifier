@@ -6,7 +6,9 @@
 #   \______  /____/__|   __/  |______/   |__| |__|____/____  >
 #          \/        |__|                                  \/ 
 
-"""Abstracted static functions to help manage audio clip sets."""
+"""
+Abstracted static functions to help manage audio clip sets.
+"""
 
 import logging, random
 from signify.utils import plural
@@ -15,9 +17,11 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 def init_sounds(clips:set, channels:dict) -> dict:
-    """Initialises a Sound object for each Clip in provided Clip set.\n
+    """
+    Initialises a Sound object for each Clip in provided Clip set.\n
     Sounds are loaded into memory and assigned mixer Channels from the provided argument.
-    Returns a dictionary of any unused channels and clips that failed to build."""
+    Returns a dictionary of any unused channels and clips that failed to build.
+    """
     done = set()
     if len(channels) < len(clips):
         logger.warn(f'Trying to initialise {len(clips)} Sound{plural(clips)} '
@@ -32,14 +36,16 @@ def init_sounds(clips:set, channels:dict) -> dict:
     remaining = list(clips.difference(done))
     logger.info(f'{get_contents(done, True)} initialised.')
     if len(remaining) > 0:
-        logger.warn(f'Unable to build {len(remaining)} Sound object{plural(remaining)}! ')
+        logger.warn(f'Unable to build ({len(remaining)}) Sound object{plural(remaining)}! ')
     print()
     return {'channels':channels, 'clips':remaining}
 
 def get_distributed(clips:set, num_clips:int, strict=False) -> set:
-    """Return an evenly distributed set of clip based on categories."""
+    """
+    Return an evenly distributed set of clip based on categories.
+    """
     if num_clips > len(clips):
-        logger.warn(f'Requesting {num_clips} clip{plural(num_clips)} but only {len(clips)} in set! '
+        logger.warn(f'Requesting ({num_clips}) clip{plural(num_clips)} but only ({len(clips)}) in set! '
                     f'Will return entire set.')
         selection = clips
     else:
@@ -71,8 +77,10 @@ def get_distributed(clips:set, num_clips:int, strict=False) -> set:
     return selection
 
 def get_contents(clips:set, count=False) -> dict:
-    """Return dictionary of category:clips (key:value) pairs from a set of Clips.\n
-    - "count=True" returns number of clips instead of a list of Clips."""
+    """
+    Return dictionary of category:clips (key:value) pairs from a set of Clips.\n
+    - "count=True" returns number of clips instead of a list of Clips.
+    """
     contents = {}
     for clip in clips:
         category = clip.category
@@ -86,15 +94,19 @@ def get_contents(clips:set, count=False) -> dict:
     return contents
 
 def clip_by_name(clips:set, name:str):
-    """Return specific Clip by name from given set of Clips.
-    If no clip is found, will silently return None."""
+    """
+    Return specific Clip by name from given set of Clips.
+    If no clip is found, will silently return None.
+    """
     for clip in clips:
         if clip.name == name:
             return clip
     return None
 
 def clip_by_channel(clips:set, chan) -> set:
-    """Looks for a specific Channel attached to provided set of Clips."""
+    """
+    Looks for a specific Channel attached to provided set of Clips.
+    """
     found = set()
     for clip in clips:
         if clip.channel == chan:
@@ -104,7 +116,9 @@ def clip_by_channel(clips:set, chan) -> set:
     return found
 
 def get_clip(clips:set, name=None, category=None, num_clips=1) -> set:
-    """Return clip(s) by name, category, or total random from provided set of clips."""
+    """
+    Return clip(s) by name, category, or total random from provided set of clips.
+    """
     if name is not None:
         if (clip := clip_by_name(name, clips)) is None:
             logger.warn(f'Requested clip "{name}" not in provided set. Skipping.')
@@ -120,8 +134,8 @@ def get_clip(clips:set, name=None, category=None, num_clips=1) -> set:
         logger.warn(f'No clips available. Skipping request.')
         return None
     if num_clips > available:
-        logger.debug(f'Requested "{num_clips}" clip{plural(num_clips)} from '
+        logger.debug(f'Requested ({num_clips}) clip{plural(num_clips)} from '
                     f'{("[" + category + "] in ") if category is not None else ""} with '
-                    f'"{available}" Clip{plural(available)}. '
-                    f'{("Returning [" + str(available) + "] instead") if available > 0 else "Skipping request"}.')
+                    f'({available}) Clip{plural(available)}. '
+                    f'{("Returning (" + str(available) + ") instead") if available > 0 else "Skipping request"}.')
     return set([clip for clip in random.sample(clips, min(num_clips, available))])
