@@ -788,8 +788,38 @@ realtime-priority = 5
 
 > Uncomment and set alternate-sample-rate to 44100 in `/etc/pulse/daemon.conf` (and remove `~/.asoundrc`).
 
+That didn't do anything.
 
+- Attempting to create a custom ALSA devices for pulse audio:
 
+```cs
+pcm.pulse_test {
+    @args[DEVICE]
+    @args.DEVICE {
+        type string
+        default ""
+    }
+    type pulse
+    device $DEVICE
+    hint {
+        show {
+            @func refer
+            name defaults.namehint.basic
+        }
+        description "TEST PulseAudio Sound Server"
+    }
+}
+
+ctl.pulse_test {
+    @args[DEVICE]
+    @args.DEVICE {
+        type string
+        default ""
+    }
+    type pulse
+    device $DEVICE
+}
+```
 
 
 

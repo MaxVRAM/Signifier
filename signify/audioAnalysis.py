@@ -52,6 +52,7 @@ class Analyser(Process):
         self.analysis_data = {}
         self.analysis_q = return_q
         self.control_q = control_q
+        sd.default.samplerate = self.sample_rate
         print(sd.query_devices())
         for api in sd.query_hostapis():
             if api['name'] == 'ALSA':

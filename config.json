@@ -16,6 +16,7 @@
         "enabled":true,
         "analysis":true,
         "input_device":"Loopback: PCM (hw:1,1)",
+        "default_device":"default",
         "sample_rate":48000,
         "bit_size":-16,
         "buffer":2048,
