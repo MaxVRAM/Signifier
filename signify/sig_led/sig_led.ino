@@ -79,7 +79,7 @@ SerialTransfer sigSerial;
 void setup()
 {
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
-  //startup_sequence();
+  startup_sequence();
 
   // Serial transfer setup
   Serial.begin(BAUD);
@@ -160,8 +160,6 @@ void assignInput(COMMAND input, HSV_PROP &property)
   property.startVal = property.currVal;
   property.stepSize = loopAvg.average / input.duration;
   property.lerpPos = 0.0f;
-
-  sendCommand(COMMAND{input.command, property.currVal, property.targetVal});
 }
 
 // Linearly fade an LED property towards its target value.

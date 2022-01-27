@@ -249,8 +249,8 @@ def process_analysis(audio_q, arduino_q, passthrough_event):
     while not passthrough_event.is_set():
         try:
             value = audio_q.get(timeout=0.01)
-            message = ('brightness', value)
-            print(message)
+            message = ('brightness', value * 5)
+            #print(message)
             try:
                 arduino_q.put(message, timeout=0.01)
             except Full:

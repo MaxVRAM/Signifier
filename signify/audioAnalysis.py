@@ -15,7 +15,6 @@ be sent to the arduino to modulate the LEDs.
 # - https://stackoverflow.com/questions/66964597/python-gui-freezing-problem-of-thread-using-tkinter-and-sounddevice
 
 import logging
-from socket import timeout
 import numpy as np
 
 from queue import Empty, Full, Queue
@@ -87,8 +86,6 @@ class Analyser(Thread):
                         break
                 except Empty:
                     pass
-
-
         logger.info('Audio analysis thread closed.')
         return None
 
@@ -115,22 +112,14 @@ class Analyser(Thread):
 
 
 def analysis(indata, in_peak, in_rms, thread_q, return_q):
-    """Processes incomming audio buffer data and updates analysis values."""
+    """
+    Processes incomming audio buffer data and updates analysis values.
+    """
 
     peak = np.amax(np.abs(indata))
     peak = max(0.0, min(1.0, peak / 10000))
     lerp_peak = lerp(in_peak, peak, 0.5)
-
-
-    # Issues with sqrt negative. Skipping rms
-    # with np.errstate(divide='ignore'):
-    #     rms = 20 * np.log10(np.sqrt(np.mean(indata**2)) / 2e-5)
-    #     rms = rms * 0.01 if np.isfinite(rms) else 0
-    #rms = max(0.0, min(1.0, rms / 2))
-    #lerp_rms = lerp(in_rms, rms, 0.5)
-    
     data = lerp_peak
-
     try:
         thread_q.put_nowait(data)
     except Full:
