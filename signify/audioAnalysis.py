@@ -101,31 +101,31 @@ class Analyser(Thread):
         process_buffer = Process(target=analysis, daemon=True, args=(
             indata, self.peak, self.rms, self.buffer_q, self.return_q))
         process_buffer.start()
-        process_buffer.join(timeout=0.1)
+        process_buffer.join(timeout=0.01)
         if process_buffer.is_alive():
             process_buffer.kill()
         try:
             results = self.buffer_q.get_nowait()
             self.peak = results
         except Empty:
-            pass
+            pass        
 
 
 def analysis(indata, in_peak, in_rms, thread_q, return_q):
     """
     Processes incomming audio buffer data and updates analysis values.
     """
-
     peak = np.amax(np.abs(indata))
     peak = max(0.0, min(1.0, peak / 10000))
     lerp_peak = lerp(in_peak, peak, 0.5)
     data = lerp_peak
     try:
-        thread_q.put_nowait(data)
+        thread_q.put(data, timeout=0.01)
     except Full:
+        print('             !!! ! ! analysis return thread is full')
         pass
     try:
-        return_q.put_nowait(data)
+        return_q.put(data, timeout=0.01)
     except Full:
         pass
 

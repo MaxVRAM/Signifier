@@ -8,7 +8,6 @@
 #
 
 
-import multiprocessing
 import os
 import sys
 import time
@@ -18,7 +17,7 @@ import logging
 import schedule
 from queue import Empty, Full
 from queue import Queue
-import threading
+from threading import Thread
 from multiprocessing import Process, Event
 from multiprocessing import Queue as MpQueue
 import multiprocessing as mp
@@ -28,6 +27,7 @@ import pygame as pg
 from signify.siguino import Siguino, ArduinoState
 from signify.clipManager import ClipManager
 from signify.audioAnalysis import Analyser
+from signify.bluetooth import Bluetooth
 
 
 CLIP_EVENT = pg.USEREVENT + 1
@@ -37,6 +37,10 @@ os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
 config_dict = None
 active_jobs = {}
+
+bluetooth_scanner = Bluetooth
+bluetooth_return_q = MpQueue(maxsize=10)
+bluetooth_control_q = MpQueue(maxsize=1)
 
 arduino_thread = None
 arduino_active = False
@@ -48,7 +52,7 @@ arduino_value_q = MpQueue(maxsize=10)
 audio_active = False
 analysis_thread = None
 analysis_active = False
-analysis_return_q = MpQueue(maxsize=1)
+analysis_return_q = MpQueue(maxsize=10)
 analysis_control_q = Queue(maxsize=1)
 
 passthrough_event = Event()
@@ -248,16 +252,14 @@ def stop_job(*args):
 def process_analysis(audio_q, arduino_q, passthrough_event):
     while not passthrough_event.is_set():
         try:
-            value = audio_q.get(timeout=0.01)
-            message = ('brightness', value * 5)
-            #print(message)
-            try:
-                arduino_q.put(message, timeout=0.01)
-            except Full:
-                pass
+            value = audio_q.get_nowait()
+            message = ('brightness', value * 1)
         except Empty:
+            continue
+        try:
+            arduino_q.put_nowait(message)
+        except Full:
             pass
-        time.sleep(0.01)
 
 
 def set_arduino_value(message:tuple):
@@ -325,7 +327,7 @@ def init_audio_system(config:dict):
                                 control_q=analysis_control_q,
                                 config=config)
             analysis_thread.name = 'Audio Analysis Thread'
-            passthrough_thread = Process(daemon=True,
+            passthrough_thread = Thread(daemon=True,
                 name='Passthrough Thread', target=process_analysis,
                 args=(analysis_return_q, arduino_value_q, passthrough_event))
             passthrough_event.clear()
@@ -350,6 +352,16 @@ def init_arduino(config:dict):
         arduino_thread.start()
         arduino_active = True
         logger.debug(f'{arduino_thread.name} has started.')
+
+
+def init_bluetooth(config:dict):
+    global bluetooth_scanner
+    if config['enabled']:
+        bluetooth_scanner = Bluetooth(bluetooth_return_q, bluetooth_control_q, config_dict['bluetooth'])
+        bluetooth_scanner.start()   
+    else:
+        bluetooth_scanner = None 
+
 
 
 #    _________.__            __      .___
@@ -383,6 +395,7 @@ class ExitHandler:
                 print()
                 logger.info('Shutdown sequence started!')
                 stop_scheduler()
+                close_bluetooth_connection()
                 stop_all_clips()
                 wait_for_silence()
                 close_arduino_connection()
@@ -391,7 +404,7 @@ class ExitHandler:
                 print(f'    Analysis active: {analysis_thread.is_alive()}')
                 print(f'    Arduino active: {arduino_thread.is_alive()}')
                 print(f'    Passthrough active: {passthrough_thread.is_alive()}')
-                print(f'    Subprocesses active: {multiprocessing.active_children()}')
+                print(f'    Subprocesses active: {mp.active_children()}')
                 logger.info('Signifier shutdown complete!')
                 print()
                 sys.exit()
@@ -417,6 +430,17 @@ def close_arduino_connection():
             arduino_thread.join(timeout=1)
         arduino_active = False
         logger.info('Arduino connection inactive!')
+
+
+def close_bluetooth_connection():
+    global bluetooth_scanner
+    if bluetooth_scanner is not None:
+        logger.info('Stopping Bluetooth scanner process...')
+        if bluetooth_scanner.is_alive():
+            logger.info('Requesting Bluetooth thread to stop...')
+            bluetooth_control_q.put('close', timeout=2)
+            bluetooth_scanner.join(timeout=1)
+        logger.info('Bluetooth scanner inactive!')
 
 
 def close_audio_system():
@@ -461,6 +485,7 @@ if __name__ == '__main__':
     exit_handler = ExitHandler()
 
     init_arduino(config_dict['arduino'])
+    init_bluetooth(config_dict['bluetooth'])
     init_audio_system(config_dict['audio'])
     init_clip_manager(config_dict['clip_manager'])
     get_collection(restart_jobs=False, pause_leds=False)

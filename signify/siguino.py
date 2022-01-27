@@ -58,9 +58,9 @@ class LedValue:
         self.max = config.get('max', 255)
         self.default = config.get('default', 0)
         self.smooth = config.get('smooth', 1)
-        self.tx_period = tx_period
+        self.update_ms = tx_period
         self.tx_time = time.time_ns() // 1_000_000
-        self.duration = int(config.get('dur', self.tx_period))
+        self.duration = int(config.get('dur', self.update_ms)) * 2
         self.packet = SendPacket(self.command, self.default, self.duration)
         self.updated = True
 
@@ -81,7 +81,7 @@ class LedValue:
             return False
         if 'force' in args or (self.updated and (
             current_ms := time.time_ns() // 1_000_000)\
-                > self.tx_time + self.tx_period):
+                > self.tx_time + self.update_ms):
             if send_function(self.packet) is None:
                 self.tx_time = current_ms
                 self.updated = False
@@ -108,9 +108,9 @@ class Siguino(Process):
         self.link = None
         self.commands = {}
         self.rx_packet = ReceivePacket
-        self.tx_period = self.config['update_ms']
+        self.update_ms = self.config['update_ms']
         for k, v in self.config['commands'].items():
-            self.commands.update({k:LedValue(v, self.tx_period)})
+            self.commands.update({k:LedValue(v, self.update_ms)})
 
 
     def run(self):
@@ -131,6 +131,16 @@ class Siguino(Process):
                 self.set_state(ArduinoState[state])
             except Empty:
                 pass
+            # Quickly snap up the value queue
+            if self.state != ArduinoState.close:
+                try:
+                    while True:
+                        command = self.value_q.get_nowait()
+                        print(command)
+                        if (value := self.commands.get(command[0])) is not None:
+                            value.set_value(command[1], None)
+                except Empty:
+                    pass
             # Next, check for any available serial packets from the Arduino
             if self.link.available():
                 recSize = 0
@@ -155,14 +165,7 @@ class Siguino(Process):
                         logger.error('Arduino: STOP_BYTE_ERROR')
                     else:
                         logger.error('ERROR: {}'.format(self.link.status))
-            # Finally, push any new Arduino commands that are in the queue
-            if self.state not in [ArduinoState.close, ArduinoState.closed]:
-                try:
-                    command = self.value_q.get_nowait()
-                    if (value := self.commands.get(command[0])) is not None:
-                        value.set_value(command[1], None)
-                except Empty:
-                    pass
+
 
         # Close everything off just in case something got missed
         self.link.close()
@@ -180,10 +183,10 @@ class Siguino(Process):
         # sequence would cause issues with the LED output.
         cmd = self.rx_packet.command.decode("utf-8")
         run_time = round((time.time() - self.start_time) * 1000)
-        print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
         if cmd == 'r':
             # Wait for first Arduino "ready" message before sending LED values
             if self.state == ArduinoState.starting:
+                #print(f'arduino update time send success: {self.send_packet(SendPacket("l", self.update_ms, 0))}')
                 self.set_state(ArduinoState.running)
             # Send any updated LED values if module is "running"
             if self.state == ArduinoState.running:
@@ -198,6 +201,8 @@ class Siguino(Process):
                 logger.debug(f'Arduino connection is {self.state.name}')
                 # self.link.close()
                 self.event.set()
+        else:        
+            print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
 
 
     def update_values(self):

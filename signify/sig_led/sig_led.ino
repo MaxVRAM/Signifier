@@ -24,9 +24,9 @@
 #include <FastLED.h>
 #define BAUD 38400
 #define NUM_LEDS 240
+#define HALF_LEDS 120
+#define QRT_LEDS 60
 #define DATA_PIN 6
-#define LOOP_DELAY 10
-#define TARGET_LOOP_DUR 30
 
 const unsigned int INIT_BRIGHTNESS = 255U;
 const unsigned int INIT_SATURATION = 255U;
@@ -57,11 +57,14 @@ struct AVERAGE
   float average = 0;
 } loopAvg;
 
+unsigned long TARGET_LOOP_DUR = 0;
+
 unsigned long ms = 0;
 unsigned long loopStartTime = 0;
 unsigned long serialStartTime = 0;
 unsigned long loopEndTime = 0;
 unsigned long prevLoopTime = 0;
+
 
 CRGB initRGB = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
 CRGB leds[NUM_LEDS];
@@ -74,6 +77,37 @@ HSV_PROP saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0
 HSV_PROP hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
 
 SerialTransfer sigSerial;
+
+
+unsigned int loopValue(unsigned int min, unsigned int max, unsigned int val)
+{
+  if (val < min) val = max - 1;
+  return val % max;
+}
+
+// Provides remapped pixel assignment. Index should be within 1/4 of total LED count
+void mirrorPixel(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
+{
+  unsigned int UA = loopValue(0, NUM_LEDS, i);
+  unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - i);
+  unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - i);
+  unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + i);
+
+  in_leds[UA] = colour;   // Up, Side A
+//  in_leds[UB] = colour;   // Up, Side B
+//  in_leds[DA] = colour;   // Down, Side A
+//  in_leds[DB] = colour;   // Down, Side B
+}  
+
+// Provides remapped pixel assignment. Index should be within 1/2 of total LED count
+void endToEnd(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
+{
+  unsigned int SA = loopValue(0, NUM_LEDS, QRT_LEDS + i);
+  unsigned int SB = loopValue(0, NUM_LEDS, QRT_LEDS - 1 - i);
+
+  in_leds[SA] = colour;   // Side A
+  in_leds[SB] = colour;   // Side B
+}
 
 
 void setup()
@@ -115,7 +149,6 @@ void loop()
       uint16_t recSize = 0;
       sigSerial.rxObj(inputCommand, recSize);
       processInput(inputCommand);
-      //break; // TODO: Test without to see if multiple commands can be received per loop
     }
   }
 }
@@ -145,6 +178,9 @@ void processInput(COMMAND input)
   case 'H':
     assignInput(input, hue);
     break;
+  case 'l':
+    TARGET_LOOP_DUR = input.value;
+    sendCommand(COMMAND{'L', TARGET_LOOP_DUR, 0});
   default:
     return;
   }
@@ -197,46 +233,84 @@ void resetFade(HSV_PROP &property)
 void startup_sequence()
 {
   FastLED.clear(true);
-  FastLED.setBrightness(main_brightness.currVal);
-
-  // Initial colour population
-  for (unsigned int i = 0; i < NUM_LEDS; i++)
-  {
-    leds[i] = initRGB;
-    FastLED.show();
-    for (unsigned int j = 0; j < NUM_LEDS; j++)
-    {
-      leds[j].nscale8_video(253);
-    }
-  }
-
-  // Shiney demo bit
-  CRGB whiteTarget = CRGB::White;
-  for (unsigned int i = 0; i < NUM_LEDS; i++)
-  {
-    CRGB currentA = leds[i];
-    CRGB currentB = leds[NUM_LEDS - i - 1];
-    whiteTarget.nscale8(253);
-    leds[i] = CRGB::White;
-    leds[NUM_LEDS - i - 1] = CRGB::White;
-    FastLED.show();
-    leds[i] = blend(currentA, initRGB, 1);
-    leds[NUM_LEDS - i - 1] = blend(currentB, initRGB, 1);
-    for (unsigned int j = 0; j < NUM_LEDS; j++)
-    {
-      leds[j].nscale8(253);
-    }
-  }
-  for (unsigned int i = 0; i < NUM_LEDS; i++)
-  {
-    leds[i] = initRGB;
-  }
-
   main_brightness.currVal = 0;
   resetFade(main_brightness);
-  FastLED.setBrightness(main_brightness.currVal);
+  FastLED.setBrightness(255);
+
+  for (unsigned int i = 0; i < NUM_LEDS; i++)
+  {
+    leds[i] = initRGB;
+  }
+
   FastLED.show();
+  
+  for (int i = 255; i > 0; i--)
+  {
+    FastLED.setBrightness(i);
+    FastLED.show();
+  }
+
+  // FastLED.clear(true);
+  // leds[0] = CRGB::White;
+  // leds[QRT_LEDS - 1] = CRGB::White;
+  // leds[QRT_LEDS] = CRGB::White;
+  // leds[HALF_LEDS - 1] = CRGB::White;
+  // leds[NUM_LEDS - 1] = CRGB::White;
+  // leds[HALF_LEDS + QRT_LEDS - 1] = CRGB::White;
+  // leds[HALF_LEDS + QRT_LEDS] = CRGB::White;
+
+  // FastLED.show();
+  // delay(100000);
+
+  // for (int j = 0; j < 100; j++)
+  // {
+  //   // Demo for mirror
+  //   for (unsigned int i = 0; i < QRT_LEDS; i++)
+  //   {
+  //     mirrorPixel(leds, initRGB, i);
+  //     FastLED.show();
+  //     mirrorPixel(leds, CRGB::Black, i - 1);
+  //     delay(10);
+  //   }
+  // }
+
+  // // Demo for end to end
+  // for (unsigned int i = 0; i < HALF_LEDS; i++)
+  // {
+  //   endToEnd(leds, initRGB, i);
+  //   for (unsigned int j = 0; j < NUM_LEDS; j++)
+  //   {
+  //     leds[j].nscale8_video(253);
+  //   }
+  //   FastLED.show();
+  //   delay(1);
+  // }
+
+
+  // for (unsigned int i = 0; i < )
+
+
+
+  // // // Shiney demo bit
+  // CRGB whiteTarget = CRGB::White;
+  // for (unsigned int i = 0; i < NUM_LEDS; i++)
+  // {
+  //   CRGB currentA = leds[i];
+  //   CRGB currentB = leds[NUM_LEDS - i - 1];
+  //   whiteTarget.nscale8(253);
+  //   leds[i] = CRGB::White;
+  //   leds[NUM_LEDS - i - 1] = CRGB::White;
+  //   FastLED.show();
+  //   leds[i] = blend(currentA, initRGB, 1);
+  //   leds[NUM_LEDS - i - 1] = blend(currentB, initRGB, 1);
+  //   for (unsigned int j = 0; j < NUM_LEDS; j++)
+  //   {
+  //     leds[j].nscale8(253);
+  //   }
+  // }
 }
+
+
 
 float smooth(AVERAGE &avgStruct, long newValue) {
   // https://www.aranacorp.com/en/implementation-of-the-moving-average-in-arduino/
@@ -251,3 +325,4 @@ float smooth(AVERAGE &avgStruct, long newValue) {
   avgStruct.average = (float)avgStruct.total / (float)loopNumReadings;
   return avgStruct.average;
 }
+

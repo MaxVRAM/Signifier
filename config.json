@@ -4,12 +4,20 @@
         "enabled":true,
         "baud":38400,
         "start_delay":5,
-        "update_ms":10,
+        "update_ms":30,
         "commands":{
             "brightness":{"command":"B", "min":3, "max":255, "default":0, "smooth":0},
             "saturation":{"command":"S", "min":0, "max":255, "default":0, "smooth":0},
             "hue":{"command":"H", "min":0, "max":255, "default":195, "smooth":0}
         }
+    },
+    "bluetooth":
+    {
+        "enabled":true,
+        "start_delay":2,
+        "scan_dur":3,
+        "remove_after":10,
+        "rate":10
     },
     "audio":
     {
@@ -29,7 +37,7 @@
         "base_path":"/home/pi/Signifier/audio_3",
         "valid_extensions":[".wav"],
         "strict_distribution":false,
-        "volume":0.8,
+        "volume":0.7,
         "fade_in":2000,
         "fade_out":3000,
         "max_playtime":60,

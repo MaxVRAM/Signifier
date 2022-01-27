@@ -557,6 +557,56 @@ The Signifier should now run as expected!
 # Debugging
 
 
+
+## Bluetooth
+
+
+- Using the bleson Python module: <https://bleson.readthedocs.io/en/latest/index.html>
+
+- Recommended to stop the Pi's bluetooth service:
+
+  ```bash
+  sudo service bluetooth stop
+  ```
+
+- Can use BLE commands without sudo!
+
+  ```bash
+  sudo setcap cap_net_raw,cap_net_admin+eip $(eval readlink -f `which python3`)
+  ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Realtime audio streaming
 
 <https://codeberg.org/rtcqs/rtcqs>
