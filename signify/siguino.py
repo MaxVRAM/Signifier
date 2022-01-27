@@ -90,11 +90,11 @@ class LedValue:
 
 
 class Siguino(Process):
-    Process.daemon = True
-    def __init__(
-            self, return_q:Queue, control_q:Queue, value_q:Queue,
+    def __init__(self, 
+            return_q:Queue, control_q:Queue, value_q:Queue,
             config:dict, args=(), kwargs=None) -> None:
         super().__init__()
+        self.daemon = True
         self.config = config
         self.baud = self.config.get('baud', 38400)
         self.start_delay = self.config['start_delay']

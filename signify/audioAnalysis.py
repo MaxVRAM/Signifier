@@ -41,10 +41,11 @@ class Analyser(Thread):
     Supply the audio portion of `config.json`, ie `config=config['audio']`.
     """
 
-    Thread.daemon = True
-
-    def __init__(self, return_q:Queue, control_q:Queue, config=None):
+    def __init__(self,
+            return_q:MpQueue, control_q:Queue,
+            config=None, args=(), kwargs=None):
         super().__init__()
+        self.setDaemon(True)
         if config is None:
             config = DEFAULT_CONF
         self.input = config['input_device']
@@ -55,10 +56,10 @@ class Analyser(Thread):
         self.rms = 0
         self.peak = 0
         self.analysis_data = {}
-        self.analysis_q = return_q
+        self.return_q = return_q
         self.control_q = control_q
         self.buffer_q = MpQueue(maxsize=1)
-        self.process_thread = Process
+        self.process_buffer = Process
 
 
     def run(self):
@@ -75,19 +76,22 @@ class Analyser(Thread):
         sd.default.dtype = self.dtype
         sd.default.blocksize = self.buffer
         sd.default.samplerate = self.sample_rate
-        logger.debug(f'Analysis | device:{sd.default.device},\
-            channels:{sd.default.channels},\
-            bit-depth:{sd.default.dtype},\
-            sample-rate:{sd.default.samplerate},\
-            buffer size:{sd.default.blocksize}.')
+        logger.debug(f'Analysis | device:{sd.default.device}, '
+                     f'channels:{sd.default.channels}, '
+                     f'bit-depth:{sd.default.dtype}, '
+                     f'sample-rate:{sd.default.samplerate}, '
+                     f'buffer size:{sd.default.blocksize}.')
         with sd.InputStream(callback=self.stream_callback):
             while not self.event.is_set():
                 try:
                     if self.control_q.get_nowait() == 'close':
-                        self.process_thread.join()
+                        if self.process_buffer.is_alive():
+                            self.process_buffer.kill()
                         break
                 except Empty:
                     pass
+
+
         logger.info('Audio analysis thread closed.')
         return None
 
@@ -100,37 +104,40 @@ class Analyser(Thread):
         """
         if status:
             logger.debug(status)
-        process_buffer = Process(target=analysis, daemon=True,
-                            args=(indata, self.peak, self.rms, self.buffer_q))
-        print(f'Starting thread "{process_buffer.name}"...')
-        process_buffer.start()
-        process_buffer.join()
+        self.process_buffer = Process(target=analysis, daemon=True, args=(
+            indata, self.peak, self.rms, self.buffer_q, self.return_q))
+        self.process_buffer.start()
+        self.process_buffer.join()
         try:
-            results = self.buffer_q.get(timeout=0.01)
-            print(f'Data retreived from queue: (Peak: {results[0]:.5f}, RMS: {results[1]:.5f})')
-            self.peak = results[0]
-            self.rms = results[1]
+            results = self.buffer_q.get_nowait()
+            self.peak = results
         except Empty:
-            print('Should not be empty, but the analysis queue is empty....')
+            pass
 
 
-
-def analysis(indata, in_peak, in_rms, thread_q):
+def analysis(indata, in_peak, in_rms, thread_q, return_q):
     """Processes incomming audio buffer data and updates analysis values."""
+
     peak = np.amax(np.abs(indata))
-    peak = max(0.0, min(1.0, peak))
+    peak = max(0.0, min(1.0, peak / 10000))
     lerp_peak = lerp(in_peak, peak, 0.5)
 
-    with np.errstate(divide='ignore'):
-        rms = 20 * np.log10(rms_flat(indata) / 2e-5)
-        rms = rms * 0.01 if np.isfinite(rms) else 0
-    rms = max(0.0, min(1.0, rms))
-    lerp_rms = lerp(in_rms, rms, 0.5)
-    data = (lerp_peak, lerp_rms)
-    print(f'InPeak: {in_peak:.5f} | Peak: {peak:.5f} | LerpPeak: {lerp_peak:.5f}        InRMS: {in_rms:.5f} | RMS: {rms:.5f} | LerpRMS: {lerp_rms:.5f}')
+
+    # Issues with sqrt negative. Skipping rms
+    # with np.errstate(divide='ignore'):
+    #     rms = 20 * np.log10(np.sqrt(np.mean(indata**2)) / 2e-5)
+    #     rms = rms * 0.01 if np.isfinite(rms) else 0
+    #rms = max(0.0, min(1.0, rms / 2))
+    #lerp_rms = lerp(in_rms, rms, 0.5)
+    
+    data = lerp_peak
 
     try:
         thread_q.put(data, timeout=0.01)
+    except Full:
+        pass
+    try:
+        return_q.put(data, timeout=0.01)
     except Full:
         pass
 
@@ -140,4 +147,5 @@ def rms_flat(a):
     Return the root mean square of all the elements of *a*, flattened out.
     """
     # https://github.com/SiggiGue/pyfilterbank/issues/17
-    return np.sqrt(np.mean(np.absolute(a)**2))
+    rms = np.sqrt(np.mean(np.absolute(a)**2))
+    return rms

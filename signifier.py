@@ -8,6 +8,7 @@
 #
 
 
+import multiprocessing
 import os
 import sys
 import time
@@ -17,6 +18,7 @@ import logging
 import schedule
 from queue import Empty, Full
 from queue import Queue
+import threading
 from multiprocessing import Process, Event
 from multiprocessing import Queue as MpQueue
 import multiprocessing as mp
@@ -46,7 +48,7 @@ arduino_value_q = MpQueue(maxsize=10)
 audio_active = False
 analysis_thread = None
 analysis_active = False
-analysis_return_q = Queue(maxsize=10)
+analysis_return_q = MpQueue(maxsize=1)
 analysis_control_q = Queue(maxsize=1)
 
 passthrough_event = Event()
@@ -243,18 +245,15 @@ def stop_job(*args):
 #  \_____\ \_/____/  \___  >____/  \___  >
 #         \__>           \/            \/ 
 
-def process_analysis(audio_q, arduino_q):
-    global analysis_missed
+def process_analysis(audio_q, arduino_q, passthrough_event):
     while not passthrough_event.is_set():
         try:
             value = audio_q.get(timeout=0.01)
-            message = ('brightness', value['peak'])
-            print(message)
+            #message = ('brightness', value['peak'])
+            print(value)
             try:
-                arduino_q.put(message, timeout=0.01)
+                arduino_q.put(value, timeout=0.01)
             except Full:
-                analysis_missed += 1
-                print(f'Have now missed ({analysis_missed}) analysis values because of a full queue!')
                 pass
         except Empty:
             pass
@@ -328,7 +327,8 @@ def init_audio_system(config:dict):
             analysis_thread.name = 'Audio Analysis Thread'
             passthrough_thread = Process(daemon=True,
                 name='Passthrough Thread', target=process_analysis,
-                args=(analysis_return_q, arduino_value_q))
+                args=(analysis_return_q, arduino_value_q, passthrough_event))
+            passthrough_event.clear()
             analysis_active = True
             logger.debug(f'{analysis_thread.name} initialised.')
             logger.debug(f'{passthrough_thread.name} initialised.')
@@ -387,6 +387,11 @@ class ExitHandler:
                 wait_for_silence()
                 close_arduino_connection()
                 close_audio_system()
+                time.sleep(2)
+                print(f'    Analysis active: {analysis_thread.is_alive()}')
+                print(f'    Arduino active: {arduino_thread.is_alive()}')
+                print(f'    Passthrough active: {passthrough_thread.is_alive()}')
+                print(f'    Subprocesses active: {multiprocessing.active_children()}')
                 logger.info('Signifier shutdown complete!')
                 print()
                 sys.exit()
@@ -417,13 +422,13 @@ def close_arduino_connection():
 def close_audio_system():
     global audio_active, analysis_thread
     if audio_active:
+        passthrough_event.set()
         logger.info('Closing audio system...')
         if analysis_thread is not None and analysis_thread.is_alive():
             logger.info('Requesting analysis thread to stop...')
             analysis_control_q.put('close', timeout=2)
             analysis_thread.event.set()
             analysis_thread.join(timeout=1)
-        passthrough_event.set()
         if pg.get_init() is True and pg.mixer.get_init() is not None:
             pg.quit()
         audio_active = False
@@ -454,7 +459,6 @@ if __name__ == '__main__':
 
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
-    passthrough_event.clear()
 
     init_arduino(config_dict['arduino'])
     init_audio_system(config_dict['audio'])
