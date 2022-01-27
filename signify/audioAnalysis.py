@@ -59,7 +59,6 @@ class Analyser(Thread):
         self.return_q = return_q
         self.control_q = control_q
         self.buffer_q = MpQueue(maxsize=1)
-        self.process_buffer = Process
 
 
     def run(self):
@@ -85,8 +84,6 @@ class Analyser(Thread):
             while not self.event.is_set():
                 try:
                     if self.control_q.get_nowait() == 'close':
-                        if self.process_buffer.is_alive():
-                            self.process_buffer.kill()
                         break
                 except Empty:
                     pass
@@ -104,10 +101,12 @@ class Analyser(Thread):
         """
         if status:
             logger.debug(status)
-        self.process_buffer = Process(target=analysis, daemon=True, args=(
+        process_buffer = Process(target=analysis, daemon=True, args=(
             indata, self.peak, self.rms, self.buffer_q, self.return_q))
-        self.process_buffer.start()
-        self.process_buffer.join()
+        process_buffer.start()
+        process_buffer.join(timeout=0.1)
+        if process_buffer.is_alive():
+            process_buffer.kill()
         try:
             results = self.buffer_q.get_nowait()
             self.peak = results
@@ -133,11 +132,11 @@ def analysis(indata, in_peak, in_rms, thread_q, return_q):
     data = lerp_peak
 
     try:
-        thread_q.put(data, timeout=0.01)
+        thread_q.put_nowait(data)
     except Full:
         pass
     try:
-        return_q.put(data, timeout=0.01)
+        return_q.put_nowait(data)
     except Full:
         pass
 

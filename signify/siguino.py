@@ -57,7 +57,7 @@ class LedValue:
         self.min = config.get('min', 0)
         self.max = config.get('max', 255)
         self.default = config.get('default', 0)
-        self.smooth = config.get('smooth', 0)
+        self.smooth = config.get('smooth', 1)
         self.tx_period = tx_period
         self.tx_time = time.time_ns() // 1_000_000
         self.duration = int(config.get('dur', self.tx_period))
@@ -155,12 +155,12 @@ class Siguino(Process):
                         logger.error('Arduino: STOP_BYTE_ERROR')
                     else:
                         logger.error('ERROR: {}'.format(self.link.status))
-            # Finally, push any new LED values that are in the queue
+            # Finally, push any new Arduino commands that are in the queue
             if self.state not in [ArduinoState.close, ArduinoState.closed]:
                 try:
-                    message = self.value_q.get_nowait()
-                    if (value := self.commands.get(message[0])) is not None:
-                        value.set_value(message[1], None)
+                    command = self.value_q.get_nowait()
+                    if (value := self.commands.get(command[0])) is not None:
+                        value.set_value(command[1], None)
                 except Empty:
                     pass
 
@@ -180,7 +180,7 @@ class Siguino(Process):
         # sequence would cause issues with the LED output.
         cmd = self.rx_packet.command.decode("utf-8")
         run_time = round((time.time() - self.start_time) * 1000)
-        #print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
+        print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
         if cmd == 'r':
             # Wait for first Arduino "ready" message before sending LED values
             if self.state == ArduinoState.starting:

@@ -152,7 +152,7 @@ void processInput(COMMAND input)
 
 void assignInput(COMMAND input, HSV_PROP &property)
 {
-  //sendCommand(COMMAND{'A', property.currVal, input.value});
+  sendCommand(COMMAND{'A', property.currVal, input.value});
   
   // Reset property, assign start/end values, and calculate step size based on the average loop time
   resetFade(property);
