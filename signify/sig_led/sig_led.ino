@@ -57,7 +57,7 @@ struct AVERAGE
   float average = 0;
 } loopAvg;
 
-unsigned long TARGET_LOOP_DUR = 0;
+unsigned long TARGET_LOOP_DUR = 30;
 
 unsigned long ms = 0;
 unsigned long loopStartTime = 0;

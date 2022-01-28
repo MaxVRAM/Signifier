@@ -137,7 +137,6 @@ class Siguino(Process):
             if self.state != ArduinoState.close:
                 if self.value_pipe.poll():
                     v = self.value_pipe.recv()
-                    print(v)
                     if (value := self.values.get(v[0])) is not None:
                         value.set_value(v[1], None)
             # Next, check for any available serial packets from the Arduino
@@ -200,7 +199,7 @@ class Siguino(Process):
                 logger.debug(f'Arduino connection is {self.state.name}')
                 # self.link.close()
                 self.event.set()
-        else:        
+        else:
             print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
 
 

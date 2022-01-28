@@ -19,8 +19,6 @@ import numpy as np
 
 from queue import Empty, Full, Queue
 from threading import Thread, Event
-from multiprocessing import Process
-import multiprocessing as mp
 
 from signify.utils import lerp
 
@@ -95,28 +93,11 @@ class Analyser(Thread):
         """
         if status:
             logger.debug(status)
-        buffer_send, buffer_receive = mp.Pipe()
-        process_buffer = Process(target=analysis, daemon=True, args=(
-                            indata, self.peak, self.return_pipe, buffer_send))
-        process_buffer.start()
 
-        self.peak = buffer_receive.recv()
-
-        process_buffer.join(timeout=0.01)
-        if process_buffer.is_alive():
-            process_buffer.kill() 
-
-
-def analysis(indata, in_peak, return_pipe, buffer_pipe):
-    """
-    Processes incomming audio buffer data and updates analysis values.
-    """
-    peak = np.amax(np.abs(indata))
-    peak = max(0.0, min(1.0, peak / 10000))
-    lerp_peak = lerp(in_peak, peak, 0.5)
-    data = lerp_peak
-    return_pipe.send(data)
-    buffer_pipe.send(data)
+        peak = np.amax(np.abs(indata))
+        peak = max(0.0, min(1.0, peak / 10000))
+        self.peak = lerp(self.peak, peak, 0.5)
+        self.return_pipe.send(self.peak)
 
 
 def rms_flat(a):

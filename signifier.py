@@ -253,14 +253,11 @@ def process_analysis(receive_pipe:Connection, send_pipe:Connection, passthrough_
     """
     Self-blocking multiprocessor pipeline for passing analysis data to Arudino.
     """
-
     while not passthrough_event.is_set():
         if receive_pipe.poll():
             value = receive_pipe.recv()
-            try:
-                send_pipe.send(tuple(['brightness', value]))
-            except Full:
-                pass
+            send_pipe.send(tuple(['brightness', value]))
+
 
 def set_arduino_value(message:tuple):
     if arduino_thread is not None and arduino_active:
