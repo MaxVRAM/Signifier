@@ -14,6 +14,7 @@ be sent to the arduino to modulate the LEDs.
 # Primary research sources:
 # - https://stackoverflow.com/questions/66964597/python-gui-freezing-problem-of-thread-using-tkinter-and-sounddevice
 
+import time as tm
 import logging
 import numpy as np
 
@@ -26,7 +27,7 @@ DEFAULT_CONF = {
     "default_device":"default",
     "sample_rate":48000,
     "dtype":"int16",
-    "buffer":2048 }
+    "buffer":1024 }
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -53,6 +54,7 @@ class Analyser(Thread):
         self.event = Event()
         self.return_pipe = return_pipe
         self.control_q = control_q
+        self.prev_time = tm.time()
 
 
     def run(self):
@@ -63,17 +65,11 @@ class Analyser(Thread):
         logger.debug('Audio analysis thread now running...')
         self.event.clear()
         import sounddevice as sd
-        logger.debug(f'PulseAudio audio devices:\n{sd.query_devices()}')
         sd.default.channels = 1
         sd.default.device = self.input
         sd.default.dtype = self.dtype
         sd.default.blocksize = self.buffer
         sd.default.samplerate = self.sample_rate
-        # logger.debug(f'Analysis | device:{sd.default.device}, '
-        #              f'channels:{sd.default.channels}, '
-        #              f'bit-depth:{sd.default.dtype}, '
-        #              f'sample-rate:{sd.default.samplerate}, '
-        #              f'buffer size:{sd.default.blocksize}.')
         with sd.InputStream(callback=self.stream_callback):
             while not self.event.is_set():
                 try:
@@ -88,8 +84,7 @@ class Analyser(Thread):
     def stream_callback(self, indata, frames, time, status):
         """
         The primary function called by the Streaming thread. This function\
-        calculates the amplitude of the input signal, then streams it to the\
-        output audio device.
+        calculates the amplitude of the input signal.
         """
         if status:
             logger.debug(status)
@@ -98,6 +93,8 @@ class Analyser(Thread):
         peak = max(0.0, min(1.0, peak / 10000))
         self.peak = lerp(self.peak, peak, 0.5)
         self.return_pipe.send(self.peak)
+        #print(f'Analysis ')
+        self.prev_time = tm.time()
 
 
 def rms_flat(a):

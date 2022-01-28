@@ -13,6 +13,7 @@ from time import sleep, time
 from datetime import datetime as dt
 from multiprocessing import Process, Queue, Event
 from queue import Empty, Full
+import numpy as np
 
 from bleson import get_provider, Observer
 from bleson import logger as blelogger
@@ -26,6 +27,29 @@ logger.setLevel(logging.DEBUG)
 
 # Will need to be adjusted in real-time, socket/api/env var or something similar
 SIG_THRESHOLD = 0.002
+
+
+
+"""Bluetooth dictionary structure"""
+
+bluetooth_data = {
+    'num_devices'
+    'signal':
+    {
+        'total':0.0,
+        'mean':0.0,
+        'std':0.0,
+        'max':0.0
+    },
+    'activity':
+    {
+        'total':0.0,
+        'mean':0.0,
+        'std':0.0,
+        'max':0.0
+    },
+}
+
 
 
 class Bluetooth(Process):
@@ -132,9 +156,7 @@ class Bluetooth(Process):
             except ValueError:
                 pass
 
-            print(' ' * 40)
             print(f'total activity: {total_activity:.4f} | avg activity: {average_activity:.4f} | total signal: {total_signal:.4f} | avg siginal: {average_signal:.4f} | strongest: {strongest:.4f}')
-            print(' ' * 40)
 
         observer.stop()
         logger.info('Bluetooth scanner thread stopped!')

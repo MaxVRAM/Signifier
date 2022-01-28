@@ -61,7 +61,7 @@ class LedValue:
         self.smooth = config.get('smooth', 1)
         self.update_ms = tx_period
         self.tx_time = time.time_ns() // 1_000_000
-        self.duration = int(config.get('dur', self.update_ms)) * 2
+        self.duration = int(config.get('dur', self.update_ms)) * 3
         self.packet = SendPacket(self.command, self.default, self.duration)
         self.updated = True
 
@@ -199,8 +199,8 @@ class Siguino(Process):
                 logger.debug(f'Arduino connection is {self.state.name}')
                 # self.link.close()
                 self.event.set()
-        else:
-            print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
+        # else:
+        #     print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
 
 
     def update_values(self):

@@ -193,7 +193,6 @@ def automate_composition(quiet_level=None, busy_level=None, start_num=1):
             clip_manager.play_clip(num_clips=start_num)
         elif clip_manager.clips_playing() > busy_level:
             clip_manager.stop_clip('balance')
-        print()
 
 
 def modulate_volumes(speed=None, weight=None):
@@ -251,7 +250,7 @@ def stop_job(*args):
 
 def process_analysis(receive_pipe:Connection, send_pipe:Connection, passthrough_event):
     """
-    Self-blocking multiprocessor pipeline for passing analysis data to Arudino.
+    Multiprocessor pipeline for passing analysis data to Arudino.
     """
     while not passthrough_event.is_set():
         if receive_pipe.poll():

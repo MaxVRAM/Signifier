@@ -16,8 +16,7 @@
         "enabled":true,
         "start_delay":2,
         "scan_dur":3,
-        "remove_after":10,
-        "rate":10
+        "remove_after":10
     },
     "audio":
     {
@@ -28,7 +27,7 @@
         "sample_rate":48000,
         "dtype":"int16",
         "bit_size":-16,
-        "buffer":2048,
+        "buffer":1024,
         "latency":0.03
     },
     "clip_manager":
