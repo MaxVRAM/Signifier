@@ -8,7 +8,8 @@
         "values":{
             "brightness":{"command":"B", "min":3, "max":255, "default":0, "smooth":0},
             "saturation":{"command":"S", "min":0, "max":255, "default":0, "smooth":0},
-            "hue":{"command":"H", "min":0, "max":255, "default":195, "smooth":0}
+            "hue":{"command":"H", "min":0, "max":255, "default":195, "smooth":0},
+            "noise":{"command":"N", "min":0, "max":255, "default":0, "smooth":0}
         }
     },
     "bluetooth":
