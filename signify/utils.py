@@ -37,11 +37,12 @@ def scale(value, source_range, dest_range, *args):
         return scaled_value
 
 def lerp(a, b, pos) -> float:
-    """\
-    Basic linear interpolation. This method returns a value between the\
-    given `a`->`b` values.\n\nWhen `pos=0` the return value will be `a`.\
+    """### Basic linear interpolation.
+    
+    This method returns a value between the given `a`->`b` values.\n
+    When `pos=0` the return value will be `a`.\n
     When `pos=1` the turn value will be the value of `b`. `pos=0.5` would be\
-    half-way between `a` and `b`... I think you get the idea.
+    half-way between `a` and `b`.
     """
     lerp_out = a * (1.0 - pos) + (b * pos)
     return lerp_out

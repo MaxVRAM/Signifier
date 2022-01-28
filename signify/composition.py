@@ -1,31 +1,35 @@
 
-#  _________ .__  .__         .____    ._____.                              
-#  \_   ___ \|  | |__|_____   |    |   |__\_ |______________ _______ ___.__.
-#  /    \  \/|  | |  \____ \  |    |   |  || __ \_  __ \__  \\_  __ <   |  |
-#  \     \___|  |_|  |  |_> > |    |___|  || \_\ \  | \// __ \|  | \/\___  |
-#   \______  /____/__|   __/  |_______ \__||___  /__|  (____  /__|   / ____|
-#          \/        |__|             \/       \/           \/       \/     
+#  _________                                    .__  __  .__               
+#  \_   ___ \  ____   _____ ______   ____  _____|__|/  |_|__| ____   ____  
+#  /    \  \/ /  _ \ /     \\____ \ /  _ \/  ___/  \   __\  |/  _ \ /    \ 
+#  \     \___(  <_> )  Y Y  \  |_> >  <_> )___ \|  ||  | |  (  <_> )   |  \
+#   \______  /\____/|__|_|  /   __/ \____/____  >__||__| |__|\____/|___|  /
+#          \/             \/|__|              \/                        \/ 
 
 """
-Module to manage an audio clip library and playback.
+Signifier module to manage the audio clip playback.
 """
 
 import logging, os, random
 
 from signify.utils import plural
 from signify.clipUtils import *
-from signify.audioClip import Clip
+from signify.clip import Clip
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-class ClipManager:
-    """
-    Used to create collections of audio clips for playback.
+
+class Composition:
+    """# Composition
+    This class manages "collections" of audio clips for playback.
+    
+    Audio is sent through the system default output.
     """
     def __init__(self, config:dict, mixer, event:int) -> None:
-        """
-        Create a new clip manager object.\nSee config.json file in project directory for required parameters.
+        """Create a new clip manager object.
+        
+        See `config.json` file in project directory for required parameters.
         """
         if not os.path.isdir(config['base_path']):
             logger.error(f'Invalid root path for library: {config["base_path"]}.')
@@ -39,6 +43,7 @@ class ClipManager:
         self.inactive_pool = set()
         self.active_pool = set()
         pass
+
 
     #----------------------
     # Collection management
@@ -60,6 +65,7 @@ class ClipManager:
                 self.collections[title] = {'path':path, 'names':names}
         logger.info(f'Audio clip library initialised with ({len(self.collections)}) '
                     f'collection{plural(self.collections)}.')
+
 
     def select_collection(self, name=None, num_clips=12):
         """
@@ -88,6 +94,7 @@ class ClipManager:
             logger.error(f'Failed to retrieve a collection "{name}"! Audio files might be corrupted.')
             return None
 
+
     def get_channels(self, clip_set:set) -> dict:
         """
         Return dict with Channel indexes keys and Channel objects as values.
@@ -106,6 +113,7 @@ class ClipManager:
             channels[i] = self.mixer.Channel(i)
         return channels
 
+
     #----------------
     # Clip management
     #----------------
@@ -118,6 +126,7 @@ class ClipManager:
             self.inactive_pool.add(clip)
             logger.debug(f'MOVED: {clip.name} | active >>> INACTIVE.')
 
+
     def move_to_active(self, clips:set):
         """
         Supplied list of Clip(s) are moved from inactive to active pool.
@@ -126,6 +135,7 @@ class ClipManager:
             self.inactive_pool.remove(clip)
             self.active_pool.add(clip)
             logger.debug(f'MOVED: {clip.name} | inactive >>> ACTIVE.')
+
 
     def check_finished(self) -> set:
         """
@@ -139,6 +149,7 @@ class ClipManager:
         if len(finished) > 0:
             self.move_to_inactive(finished)
         return finished
+
 
     def play_clip(self, clips=set(), name=None, category=None, num_clips=1, volume=None, fade=None, event=None) -> set:
         """
@@ -154,6 +165,7 @@ class ClipManager:
         self.move_to_active(started)
         return started
 
+
     def stop_clip(self, clips=set(), name=None, category=None, num_clips=1, fade=None, *args) -> set:
         """
         Stop playback of Clip(s) from the active pool, selected by object, name, category, or at random.
@@ -163,7 +175,6 @@ class ClipManager:
         fade = self.config['fade_out'] if fade is None else fade
         if len(clips) == 0:
             if 'balance' in args:
-                # Find the most active category and supply its set of clips to `get_clip()` 
                 cats = get_contents(self.active_pool)
                 clips = cats[max(cats, key = cats.get)]
                 category = None
@@ -171,6 +182,7 @@ class ClipManager:
         stopped = set([c for c in clips if c.stop(fade) is not None])
         self.move_to_inactive(stopped)
         return stopped
+
 
     def modulate_volumes(self, speed, weight):
         """
@@ -188,14 +200,14 @@ class ClipManager:
             vol = max(min(vol,0.999),0.1)
             clip.channel.set_volume(vol)
             new_volumes.append(f'({clip.index}) @ {clip.channel.get_volume():.2f}')
-        # if len(new_volumes) > 0:
-        #     logger.debug(f'Volumes updated: {new_volumes})')
+
 
     def clips_playing(self) -> int:
         """
         Return number of active clips.
         """
         return len(self.active_pool)
+
 
     def clear_events(self):
         """

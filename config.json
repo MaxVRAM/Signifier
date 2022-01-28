@@ -1,7 +1,7 @@
 {
     "arduino":
     {
-        "enabled":true,
+        "enabled":false,
         "baud":38400,
         "start_delay":5,
         "update_ms":30,
@@ -17,19 +17,19 @@
         "enabled":true,
         "start_delay":2,
         "scan_dur":3,
-        "remove_after":10
+        "remove_after":15
     },
     "audio":
     {
-        "enabled":true,
+        "enabled":false,
         "analysis":true,
         "input_device":"Loopback: PCM (hw:1,1)",
         "default_device":"default",
         "sample_rate":48000,
         "dtype":"int16",
         "bit_size":-16,
-        "buffer":1024,
-        "latency":0.03
+        "buffer":2048,
+        "latency":0.04
     },
     "clip_manager":
     {

@@ -6,7 +6,9 @@
 #   \______  /____/__|   __/ 
 #          \/        |__|    
 
-"""Module hosting the audio clip object."""
+"""
+Signifier Clip class.
+"""
 
 from __future__ import annotations
 import logging, os, random, bisect, time
@@ -41,6 +43,7 @@ class Clip:
             logger.info(f'Playing clip "{self.name}" on channel ({self.index}) (volume={self.get_volume()}, '
                         f'loops={loop_num}, fade={fade}ms).')
             return self
+
 
     def stop(self, fade) -> Clip:
         """Stops the sound playing from the Clip immediately, otherwise supply "fade_time=(int)" in ms."""

@@ -18,6 +18,8 @@ import numpy as np
 from bleson import get_provider, Observer
 from bleson import logger as blelogger
 
+from signify.utils import lerp
+
 # Silencing the bleson module because of all the logged warnings
 blelogger.set_level(blelogger.ERROR)
 
@@ -33,7 +35,7 @@ SIG_THRESHOLD = 0.002
 """Bluetooth dictionary structure"""
 
 bluetooth_data = {
-    'num_devices'
+    'num_devices':0,
     'signal':
     {
         'total':0.0,
@@ -47,9 +49,8 @@ bluetooth_data = {
         'mean':0.0,
         'std':0.0,
         'max':0.0
-    },
+    }
 }
-
 
 
 class Bluetooth(Process):
@@ -59,18 +60,53 @@ class Bluetooth(Process):
         super().__init__()
         self.daemon = True
         self.config = config
+        self.active = False
         self.enabled = self.config['enabled']
         self.remove_after = self.config['remove_after']
-        self.active = False
         self.start_delay = self.config['start_delay']
         self.duration = self.config['scan_dur']
-        self.updated_devices = []
-        self.active_devices = {}
+        self.devices = {}
+        self.bluetooth_data = {}
         # Thread/state management
         self.event = Event()
         self.return_q = return_q
         self.control_q = control_q
         logger.info('Bluetooth scanner thread initialised!')
+
+
+    class Device():
+        def __init__(self, parent:Bluetooth, mac, signal) -> None:
+            self.parent = parent
+            self.mac = mac
+            self.scanned_signal = signal
+            self.current_signal = signal
+            self.activity = signal
+            self.difference = 0
+            self.updated = True
+            self.updated_at = time()
+            pass
+
+        def update_signal(self, new_signal):
+            self.difference = new_signal - self.current_signal
+            self.scanned_signal = new_signal
+            self.current_signal = new_signal
+            self.updated = True
+            self.updated_at = time()
+            pass
+
+        def post_scan(self):
+            if self.updated:
+                self.activity = abs(self.difference)
+                self.updated = False
+            else:
+                fraction = (time() - self.updated_at) / (
+                    self.parent.remove_after - self.parent.duration)
+                self.current_signal = lerp(self.scanned_signal, 0, fraction)
+                self.difference = self.current_signal - self.scanned_signal
+                self.activity = 0
+            if time() > self.updated_at + self.parent.remove_after\
+                    or self.current_signal < 0:
+                return self
 
 
     # (Callback) On each BLE device signal report
@@ -81,19 +117,14 @@ class Bluetooth(Process):
         mac = device.address.address
         sig = db_to_amp(device.rssi)
         if sig >= SIG_THRESHOLD:
-            # Update existing device values
-            if (dev := self.active_devices.get(mac)) is not None:
-                dev['sig_previous'] = self.active_devices[mac]['sig_current']
-                dev['sig_current'] = sig
-                dev['activity'] = abs(dev['sig_current'] - dev['sig_previous'])
-                dev['last_seen'] = time()
-            # Add new device with initial values
-            else:
-                self.active_devices[mac] = {'sig_previous': 0, 'sig_current': sig, 'activty': 0, 'last_seen':time()}
+            if (dev := self.devices.get(mac)) is not None:
+                dev.update_signal(sig)
+                return
+            self.devices[mac] = self.Device(self, mac, sig)
         else:
             # Remove existing device with weak signal
-            if mac in self.active_devices:
-                self.active_devices.pop(mac)
+            if mac in self.devices:
+                self.devices.pop(mac)
                 print(f'Removed device: {mac}')
 
 
@@ -106,6 +137,7 @@ class Bluetooth(Process):
         observer = Observer(adapter)
         observer.on_advertising_data = self.got_blip
         sleep(self.start_delay)
+
         while not self.event.is_set():
             observer.start()
             try:
@@ -114,50 +146,43 @@ class Bluetooth(Process):
                     break
             except Empty:
                 pass
+
             observer.stop()
 
-            strongest = 0
-            most_active = 0
+            inactive_list = []
+            for k, v in self.devices.items():
+                if v.post_scan() is not None:
+                    inactive_list.append(k)
+            for i in inactive_list:
+                print(f'removed {self.devices.pop(i)}')
 
-            signal_array = []
-            total_signal = 0
-            average_signal = 0
+            signal_array = [d.current_signal for d in self.devices.values()]
+            #print(f'Siginal array: {signal_array}')
+            activity_array = [d.activity for d in self.devices.values()]
+            #print(f'Activity array: {activity_array}')
 
-            activity_array = []
-            total_activity = 0
-            average_activity = 0
-
-            remove_devices = []
-            current_time = time()
+            self.bluetooth_data = {
+                'num_devices':len(self.devices),
+                'signal':
+                {
+                    'total': np.sum(signal_array),
+                    'mean':np.mean(signal_array),
+                    'std':np.std(signal_array),
+                    'max':np.amax(signal_array)
+                },
+                'activity':
+                {
+                    'total': np.sum(activity_array),
+                    'mean':np.mean(activity_array),
+                    'std':np.std(activity_array),
+                    'max':np.amax(activity_array)
+                }
+            }
+            print()
+            print(f'Signal: {self.bluetooth_data["signal"]}')
+            print(f'Activity: {self.bluetooth_data["activity"]}')
+            print()
             
-            for k, v in self.active_devices.items():
-                if current_time - v['last_seen'] > self.remove_after:
-                    remove_devices.append(k)
-                    continue
-                signal_array.append(v['sig_current'])
-                total_signal = sum(signal_array)
-                try:
-                    activity_array.append(v['activity'])
-                    total_activity = sum(activity_array)
-                except KeyError:
-                    pass
-
-            for d in remove_devices:
-                self.active_devices.pop(d)
-
-            try:
-                average_signal = total_signal / len(signal_array)
-                average_activity = total_activity / len(activity_array)
-            except ZeroDivisionError:
-                pass
-            try:
-                strongest = max(signal_array)
-                most_active = max(activity_array)
-            except ValueError:
-                pass
-
-            print(f'total activity: {total_activity:.4f} | avg activity: {average_activity:.4f} | total signal: {total_signal:.4f} | avg siginal: {average_signal:.4f} | strongest: {strongest:.4f}')
-
         observer.stop()
         logger.info('Bluetooth scanner thread stopped!')
 

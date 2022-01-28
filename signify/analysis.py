@@ -7,12 +7,8 @@
 #          \/     \/     \/     \/         \/        \/ 
 
 """
-This module performs analyise on the Signifier audio stream, which can
-be sent to the arduino to modulate the LEDs.
+Signifier module to process audio streams, sending values to the input pool.
 """
-
-# Primary research sources:
-# - https://stackoverflow.com/questions/66964597/python-gui-freezing-problem-of-thread-using-tkinter-and-sounddevice
 
 import time as tm
 import logging
@@ -22,12 +18,6 @@ from queue import Empty, Full, Queue
 from threading import Thread, Event
 
 from signify.utils import lerp
-
-DEFAULT_CONF = {
-    "default_device":"default",
-    "sample_rate":48000,
-    "dtype":"int16",
-    "buffer":1024 }
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -40,11 +30,9 @@ class Analyser(Thread):
     """
 
     def __init__(self,
-            return_pipe, control_q:Queue, config=None, args=(), kwargs=None):
+            return_pipe, control_q:Queue, config:dict, args=(), kwargs=None):
         super().__init__()
         self.daemon = True
-        if config is None:
-            config = DEFAULT_CONF
         self.input = config['default_device']
         self.sample_rate = config['sample_rate']
         self.dtype = config['dtype']

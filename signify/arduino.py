@@ -1,15 +1,15 @@
 
-#    _________.__             .__               
-#   /   _____/|__| ____  __ __|__| ____   ____  
-#   \_____  \ |  |/ ___\|  |  \  |/    \ /  _ \ 
-#   /        \|  / /_/  >  |  /  |   |  (  <_> )
-#  /_______  /|__\___  /|____/|__|___|  /\____/ 
-#          \/   /_____/               \/        
+#     _____            .___    .__               
+#    /  _  \_______  __| _/_ __|__| ____   ____  
+#   /  /_\  \_  __ \/ __ |  |  \  |/    \ /  _ \ 
+#  /    |    \  | \/ /_/ |  |  /  |   |  (  <_> )
+#  \____|__  /__|  \____ |____/|__|___|  /\____/ 
+#          \/           \/             \/        
 
 """
-A module for the Signify system to control the LED system hosted on a
-connected Arduino Nano Every.
+Signifier module to manage communication with the Arduino LED system.
 """
+
 
 from __future__ import annotations
 import time
@@ -90,7 +90,7 @@ class LedValue:
         return False
 
 
-class Siguino(Process):
+class Arduino(Process):
     def __init__(self, 
             return_q:mp.Queue, control_q:mp.Queue, value_pipe,
             config:dict, args=(), kwargs=None) -> None:

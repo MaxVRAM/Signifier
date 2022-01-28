@@ -23,9 +23,9 @@ from multiprocessing.connection import Connection
 
 import pygame as pg
 
-from signify.siguino import Siguino, ArduinoState
-from signify.clipManager import ClipManager
-from signify.audioAnalysis import Analyser
+from signify.arduino import Arduino, ArduinoState
+from signify.composition import Composition
+from signify.analysis import Analyser
 from signify.bluetooth import Bluetooth
 
 
@@ -59,7 +59,7 @@ passthrough_event = mp.Event()
 passthrough_thread = None
 
 descriptors = {}
-clip_manager: ClipManager
+clip_manager: Composition
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -294,7 +294,7 @@ def init_clip_manager(config:dict):
     if audio_active:
         logger.info('Initialising Clip Mananger...')
         try:
-            clip_manager = ClipManager(
+            clip_manager = Composition(
                 config, pg.mixer, CLIP_EVENT)
         except OSError:
             exit_handler.shutdown()
@@ -343,7 +343,7 @@ def init_arduino(config:dict):
     """
     global arduino_active, arduino_thread
     if config['enabled']:
-        arduino_thread = Siguino(
+        arduino_thread = Arduino(
                             return_q=arduino_return_q,
                             control_q=arduino_control_q,
                             value_pipe=arduino_pipe_recv,
@@ -500,3 +500,4 @@ if __name__ == '__main__':
         schedule.run_pending()
         manage_audio_events()
         time.sleep(0.1)
+
