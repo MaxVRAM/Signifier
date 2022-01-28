@@ -5,7 +5,7 @@
         "baud":38400,
         "start_delay":5,
         "update_ms":30,
-        "commands":{
+        "values":{
             "brightness":{"command":"B", "min":3, "max":255, "default":0, "smooth":0},
             "saturation":{"command":"S", "min":0, "max":255, "default":0, "smooth":0},
             "hue":{"command":"H", "min":0, "max":255, "default":195, "smooth":0}

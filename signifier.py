@@ -18,9 +18,8 @@ import schedule
 from queue import Empty, Full
 from queue import Queue
 from threading import Thread
-from multiprocessing import Process, Event
-from multiprocessing import Queue as MpQueue
 import multiprocessing as mp
+from multiprocessing.connection import Connection
 
 import pygame as pg
 
@@ -39,23 +38,24 @@ config_dict = None
 active_jobs = {}
 
 bluetooth_scanner = Bluetooth
-bluetooth_return_q = MpQueue(maxsize=10)
-bluetooth_control_q = MpQueue(maxsize=1)
+bluetooth_return_q = mp.Queue(maxsize=10)
+bluetooth_control_q = mp.Queue(maxsize=1)
 
 arduino_thread = None
 arduino_active = False
 arduino_state = ArduinoState
-arduino_return_q = MpQueue(maxsize=10)
-arduino_control_q = MpQueue(maxsize=1)
-arduino_value_q = MpQueue(maxsize=10)
+arduino_return_q = mp.Queue(maxsize=10)
+arduino_control_q = mp.Queue(maxsize=1)
+arduino_pipe_send, arduino_pipe_recv = mp.Pipe()
 
 audio_active = False
 analysis_thread = None
 analysis_active = False
-analysis_return_q = MpQueue(maxsize=10)
+analysis_pipe_send, analysis_pipe_recv = mp.Pipe()
+analysis_return_q = mp.Queue(maxsize=10)
 analysis_control_q = Queue(maxsize=1)
 
-passthrough_event = Event()
+passthrough_event = mp.Event()
 passthrough_thread = None
 
 descriptors = {}
@@ -242,30 +242,30 @@ def stop_job(*args):
         schedule.cancel_job(active_jobs.pop(job))
 
 
-#  ________                               
-#  \_____  \  __ __   ____  __ __   ____  
-#   /  / \  \|  |  \_/ __ \|  |  \_/ __ \ 
-#  /   \_/.  \  |  /\  ___/|  |  /\  ___/ 
+#  ________
+#  \_____  \  __ __   ____  __ __   ____
+#   /  / \  \|  |  \_/ __ \|  |  \_/ __ \
+#  /   \_/.  \  |  /\  ___/|  |  /\  ___/
 #  \_____\ \_/____/  \___  >____/  \___  >
-#         \__>           \/            \/ 
+#         \__>           \/            \/
 
-def process_analysis(audio_q, arduino_q, passthrough_event):
+def process_analysis(receive_pipe:Connection, send_pipe:Connection, passthrough_event):
+    """
+    Self-blocking multiprocessor pipeline for passing analysis data to Arudino.
+    """
+
     while not passthrough_event.is_set():
-        try:
-            value = audio_q.get_nowait()
-            message = ('brightness', value * 1)
-        except Empty:
-            continue
-        try:
-            arduino_q.put_nowait(message)
-        except Full:
-            pass
-
+        if receive_pipe.poll():
+            value = receive_pipe.recv()
+            try:
+                send_pipe.send(tuple(['brightness', value]))
+            except Full:
+                pass
 
 def set_arduino_value(message:tuple):
     if arduino_thread is not None and arduino_active:
         try:
-            arduino_value_q.put_nowait(message)
+            arduino_pipe_send.put_nowait(message)
         except Full:
             pass
 
@@ -323,13 +323,17 @@ def init_audio_system(config:dict):
         logger.debug(f'Audio output mixer set: {pg.mixer.get_init()}')
         if config['analysis']:
             analysis_thread = Analyser(
-                                return_q=analysis_return_q,
+                                analysis_pipe_send,
                                 control_q=analysis_control_q,
                                 config=config)
             analysis_thread.name = 'Audio Analysis Thread'
-            passthrough_thread = Thread(daemon=True,
-                name='Passthrough Thread', target=process_analysis,
-                args=(analysis_return_q, arduino_value_q, passthrough_event))
+            passthrough_thread = Thread(
+                                daemon=True,
+                                name='Passthrough Thread',
+                                target=process_analysis,
+                                args=(analysis_pipe_recv,
+                                arduino_pipe_send,
+                                passthrough_event))
             passthrough_event.clear()
             analysis_active = True
             logger.debug(f'{analysis_thread.name} initialised.')
@@ -344,10 +348,10 @@ def init_arduino(config:dict):
     global arduino_active, arduino_thread
     if config['enabled']:
         arduino_thread = Siguino(
-            return_q=arduino_return_q,
-            control_q=arduino_control_q,
-            value_q=arduino_value_q,
-            config=config)
+                            return_q=arduino_return_q,
+                            control_q=arduino_control_q,
+                            value_pipe=arduino_pipe_recv,
+                            config=config)
         arduino_thread.name = 'Arduino Comms Thread'
         arduino_thread.start()
         arduino_active = True

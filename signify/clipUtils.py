@@ -61,7 +61,7 @@ def get_distributed(clips:set, num_clips:int, strict=False) -> set:
             try:
                 selection.update(random.sample(contents[category], clips_per_category))
             except ValueError as exception:
-                logger.error(f'Could not obtain ({clips_per_category}) clip{plural(clips_per_category)} from '
+                logger.warning(f'Could not obtain ({clips_per_category}) clip{plural(clips_per_category)} from '
                             f'"{category}" with ({len(contents[category])}) clip{plural(contents[category])}! '
                             f'Exception: "{exception}"')
                 if strict is True:

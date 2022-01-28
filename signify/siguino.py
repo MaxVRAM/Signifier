@@ -17,6 +17,7 @@ import enum
 import logging
 from queue import Empty, Full
 from multiprocessing import Process, Queue, Event
+import multiprocessing as mp
 
 from pySerialTransfer import pySerialTransfer as txfer
 
@@ -91,7 +92,7 @@ class LedValue:
 
 class Siguino(Process):
     def __init__(self, 
-            return_q:Queue, control_q:Queue, value_q:Queue,
+            return_q:mp.Queue, control_q:mp.Queue, value_pipe,
             config:dict, args=(), kwargs=None) -> None:
         super().__init__()
         self.daemon = True
@@ -103,14 +104,14 @@ class Siguino(Process):
         self.event = Event()
         self.return_q = return_q
         self.control_q = control_q
-        self.value_q = value_q
+        self.value_pipe = value_pipe
         # Serial communication
         self.link = None
-        self.commands = {}
+        self.values = {}
         self.rx_packet = ReceivePacket
         self.update_ms = self.config['update_ms']
-        for k, v in self.config['commands'].items():
-            self.commands.update({k:LedValue(v, self.update_ms)})
+        for k, v in self.config['values'].items():
+            self.values.update({k:LedValue(v, self.update_ms)})
 
 
     def run(self):
@@ -118,8 +119,8 @@ class Siguino(Process):
         Begin executing Arudino communication thread to control LEDs.
         """
         logger.debug('Starting Arduino comms thread...')
-        for k in self.commands.keys():
-            logger.debug(f' - Arduino command available: {self.commands[k]}')
+        for k in self.values.keys():
+            logger.debug(f' - Arduino values available: {self.values[k]}')
         self.event.clear()
         self.open_connection()
         self.start_time = time.time()
@@ -127,20 +128,18 @@ class Siguino(Process):
         while self.state != ArduinoState.closed:
             # Prioritise apply a new state if one is in the queue
             try:
+                #state = self.control_q.recv()
                 state = self.control_q.get_nowait()
                 self.set_state(ArduinoState[state])
             except Empty:
                 pass
             # Quickly snap up the value queue
             if self.state != ArduinoState.close:
-                try:
-                    while True:
-                        command = self.value_q.get_nowait()
-                        print(command)
-                        if (value := self.commands.get(command[0])) is not None:
-                            value.set_value(command[1], None)
-                except Empty:
-                    pass
+                if self.value_pipe.poll():
+                    v = self.value_pipe.recv()
+                    print(v)
+                    if (value := self.values.get(v[0])) is not None:
+                        value.set_value(v[1], None)
             # Next, check for any available serial packets from the Arduino
             if self.link.available():
                 recSize = 0
@@ -206,7 +205,7 @@ class Siguino(Process):
 
 
     def update_values(self):
-        for k, v in self.commands.items():
+        for k, v in self.values.items():
             v.send(self.send_packet)
 
 

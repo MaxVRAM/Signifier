@@ -20,12 +20,12 @@ import numpy as np
 from queue import Empty, Full, Queue
 from threading import Thread, Event
 from multiprocessing import Process
-from multiprocessing import Queue as MpQueue
+import multiprocessing as mp
 
 from signify.utils import lerp
 
 DEFAULT_CONF = {
-    "input_device":"Loopback: PCM (hw:1,1)",
+    "default_device":"default",
     "sample_rate":48000,
     "dtype":"int16",
     "buffer":2048 }
@@ -41,23 +41,20 @@ class Analyser(Thread):
     """
 
     def __init__(self,
-            return_q:MpQueue, control_q:Queue,
-            config=None, args=(), kwargs=None):
+            return_pipe, control_q:Queue, config=None, args=(), kwargs=None):
         super().__init__()
-        self.setDaemon(True)
+        self.daemon = True
         if config is None:
             config = DEFAULT_CONF
-        self.input = config['input_device']
+        self.input = config['default_device']
         self.sample_rate = config['sample_rate']
         self.dtype = config['dtype']
         self.buffer = config['buffer']
-        self.event = Event()
-        self.rms = 0
         self.peak = 0
-        self.analysis_data = {}
-        self.return_q = return_q
+        # Thread management
+        self.event = Event()
+        self.return_pipe = return_pipe
         self.control_q = control_q
-        self.buffer_q = MpQueue(maxsize=1)
 
 
     def run(self):
@@ -70,15 +67,15 @@ class Analyser(Thread):
         import sounddevice as sd
         logger.debug(f'PulseAudio audio devices:\n{sd.query_devices()}')
         sd.default.channels = 1
-        #sd.default.device = self.input
+        sd.default.device = self.input
         sd.default.dtype = self.dtype
         sd.default.blocksize = self.buffer
         sd.default.samplerate = self.sample_rate
-        logger.debug(f'Analysis | device:{sd.default.device}, '
-                     f'channels:{sd.default.channels}, '
-                     f'bit-depth:{sd.default.dtype}, '
-                     f'sample-rate:{sd.default.samplerate}, '
-                     f'buffer size:{sd.default.blocksize}.')
+        # logger.debug(f'Analysis | device:{sd.default.device}, '
+        #              f'channels:{sd.default.channels}, '
+        #              f'bit-depth:{sd.default.dtype}, '
+        #              f'sample-rate:{sd.default.samplerate}, '
+        #              f'buffer size:{sd.default.blocksize}.')
         with sd.InputStream(callback=self.stream_callback):
             while not self.event.is_set():
                 try:
@@ -98,20 +95,19 @@ class Analyser(Thread):
         """
         if status:
             logger.debug(status)
+        buffer_send, buffer_receive = mp.Pipe()
         process_buffer = Process(target=analysis, daemon=True, args=(
-            indata, self.peak, self.rms, self.buffer_q, self.return_q))
+                            indata, self.peak, self.return_pipe, buffer_send))
         process_buffer.start()
+
+        self.peak = buffer_receive.recv()
+
         process_buffer.join(timeout=0.01)
         if process_buffer.is_alive():
-            process_buffer.kill()
-        try:
-            results = self.buffer_q.get_nowait()
-            self.peak = results
-        except Empty:
-            pass        
+            process_buffer.kill() 
 
 
-def analysis(indata, in_peak, in_rms, thread_q, return_q):
+def analysis(indata, in_peak, return_pipe, buffer_pipe):
     """
     Processes incomming audio buffer data and updates analysis values.
     """
@@ -119,15 +115,8 @@ def analysis(indata, in_peak, in_rms, thread_q, return_q):
     peak = max(0.0, min(1.0, peak / 10000))
     lerp_peak = lerp(in_peak, peak, 0.5)
     data = lerp_peak
-    try:
-        thread_q.put(data, timeout=0.01)
-    except Full:
-        print('             !!! ! ! analysis return thread is full')
-        pass
-    try:
-        return_q.put(data, timeout=0.01)
-    except Full:
-        pass
+    return_pipe.send(data)
+    buffer_pipe.send(data)
 
 
 def rms_flat(a):
