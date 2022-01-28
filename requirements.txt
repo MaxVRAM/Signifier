@@ -3,3 +3,4 @@ pySerialTransfer
 bleson
 sounddevice
 schedule
+prometheus-client
