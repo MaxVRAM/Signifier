@@ -175,7 +175,7 @@ class Arduino():
             else:
                 logger.warning(f'Trying to start Arduino process but module not initialised!')
         else:
-            logger.info(f'Ignoring request to start Arduino process, module is not enabled.')
+            logger.debug(f'Ignoring request to start Arduino process, module is not enabled.')
 
 
     def stop(self):
@@ -184,7 +184,7 @@ class Arduino():
         """
         if self.process is not None:
             if self.process.is_alive():
-                logger.info(f'Arduino process shutting down...')
+                logger.debug(f'Arduino process shutting down...')
                 self.set_state('close', timeout=2)
                 #self.arduino_process.event.set()
                 self.process.join(timeout=1)
@@ -193,7 +193,7 @@ class Arduino():
             else:
                 logger.debug(f'Cannot stop Arduino process, not running.')
         else:
-            logger.info(f'Ignoring request to stop Arduino process, module is not enabled.')
+            logger.debug(f'Ignoring request to stop Arduino process, module is not enabled.')
 
 
     def set_state(self, state:str, timeout=0.5):

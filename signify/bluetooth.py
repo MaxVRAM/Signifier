@@ -76,7 +76,7 @@ class Bluetooth():
         if self.enabled:
             if self.process is None:
                 self.process = self.BluetoothProcess(self)
-                logger.info(f'Bluetooth module initialised.')
+                logger.debug(f'Bluetooth module initialised.')
             else:
                 logger.warning(f'Bluetooth module already initialised!')
         else:
@@ -91,13 +91,13 @@ class Bluetooth():
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
-                    logger.info(f'Bluetooth process started!')
+                    logger.info(f'Bluetooth process started.')
                 else:
                     logger.warning(f'Cannot start Bluetooth process, already running!')
             else:
                 logger.warning(f'Trying to start Bluetooth process but module not initialised!')
         else:
-            logger.info(f'Ignoring request to start Bluetooth process, module is not enabled.')
+            logger.debug(f'Ignoring request to start Bluetooth process, module is not enabled.')
 
 
     def stop(self):
@@ -106,7 +106,7 @@ class Bluetooth():
         """
         if self.process is not None:
             if self.process.is_alive():
-                logger.info(f'Bluetooth process shutting down...')
+                logger.debug(f'Bluetooth process shutting down...')
                 self.set_state_q.put('close', timeout=2)
                 self.process.join(timeout=1)
                 self.process = None
@@ -114,7 +114,7 @@ class Bluetooth():
             else:
                 logger.debug(f'Cannot stop Bluetooth process, not running.')
         else:
-            logger.info('Ignoring request to stop Bluetooth process, module is not enabled.')
+            logger.debug('Ignoring request to stop Bluetooth process, module is not enabled.')
 
 
 

@@ -20,7 +20,7 @@
         "remove_after":15
     },
     "analysis":{
-        "enabled":true,
+        "enabled":false,
         "input_device":"default",
         "sample_rate":48000,
         "dtype":"int16",
@@ -31,12 +31,11 @@
         }
     },
     "composition":{
-        "enabled":false,
+        "enabled":true,
         "output_device":"default",
         "sample_rate":48000,
         "bit_size":-16,
         "buffer":2048,
-        "fail_retry_delay":5,
         "base_path":"/home/pi/Signifier/audio_3",
         "valid_extensions":[".wav"],
         "strict_distribution":false,
@@ -54,6 +53,7 @@
             "collection":{
                 "enabled":true,
                 "timer":128,
+                "fail_retry_delay":5,
                 "parameters": {"pool_size":12, "start_clips":1}
             },
             "clip_selection":{

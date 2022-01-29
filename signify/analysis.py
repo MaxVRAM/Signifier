@@ -72,7 +72,7 @@ class Analysis():
         if self.enabled:
             if self.thread is None:
                 self.thread = self.AnalysisThread(self)
-                logger.info(f'Analysis module initialised.')
+                logger.debug(f'Analysis module initialised.')
             else:
                 logger.warning(f'Analysis module already initialised!')
         else:
@@ -87,13 +87,13 @@ class Analysis():
             if self.thread is not None:
                 if not self.thread.is_alive():
                     self.thread.start()
-                    logger.info(f'Analysis thread started!')
+                    logger.info(f'Analysis thread started.')
                 else:
                     logger.warning(f'Cannot start Analysis thread, already running!')
             else:
                 logger.warning(f'Trying to start Analysis thread but module not initialised!')
         else:
-            logger.info(f'Ignoring request to start Analysis thread, module is not enabled.')
+            logger.debug(f'Ignoring request to start Analysis thread, module is not enabled.')
 
 
     def stop(self):
@@ -102,7 +102,7 @@ class Analysis():
         """
         if self.thread is not None:
             if self.thread.is_alive():
-                logger.info(f'Analysis thread shutting down...')
+                logger.debug(f'Analysis thread shutting down...')
                 self.set_state_q.put('close', timeout=2)
                 self.thread.join(timeout=1)
                 self.thread = None
@@ -110,7 +110,7 @@ class Analysis():
             else:
                 logger.debug(f'Cannot stop Analysis process, not running.')
         else:
-            logger.info('Ignoring request to stop Analysis process, module is not enabled.')
+            logger.debug('Ignoring request to stop Analysis process, module is not enabled.')
 
 
 
@@ -144,7 +144,6 @@ class Analysis():
             Begin executing Analyser thread to produce audio descriptors.\
             These are returned to the `analysis_return_q` in the main thread.
             """
-            logger.debug('Audio analysis thread now running...')
             self.event.clear()
             import sounddevice as sd
             sd.default.channels = 1
