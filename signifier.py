@@ -37,16 +37,19 @@ os.environ['SDL_VIDEODRIVER'] = 'dummy'
 config_dict = None
 active_jobs = {}
 
+
+arduino_module = Arduino
+
+
 bluetooth_scanner = Bluetooth
 bluetooth_return_q = mp.Queue(maxsize=10)
 bluetooth_control_q = mp.Queue(maxsize=1)
 
-arduino_thread = None
-arduino_active = False
-arduino_state = ArduinoState
-arduino_return_q = mp.Queue(maxsize=10)
-arduino_control_q = mp.Queue(maxsize=1)
-arduino_pipe_send, arduino_pipe_recv = mp.Pipe()
+# arduino_thread = None
+# arduino_active = False
+# arduino_return_q = mp.Queue(maxsize=10)
+# arduino_control_q = mp.Queue(maxsize=1)
+# arduino_pipe_send, arduino_pipe_recv = mp.Pipe()
 
 audio_active = False
 analysis_thread = None
@@ -153,7 +156,7 @@ def get_collection(pool_size=None, restart_jobs=True, pause_leds=True):
         if restart_jobs:
             stop_job('composition', 'volume')
         if pause_leds:
-            set_arduino_state('pause')
+            arduino_module.set_state('paused')
         stop_all_clips()
         wait_for_silence()
         print()
@@ -165,7 +168,7 @@ def get_collection(pool_size=None, restart_jobs=True, pause_leds=True):
         logger.info('NEW COLLECTION JOB DONE.')
         print()
         if pause_leds:
-            set_arduino_state('starting')
+            arduino_module.set_state('starting')
         if restart_jobs:
             time.sleep(1)
             automate_composition(
@@ -248,35 +251,17 @@ def stop_job(*args):
 #  \_____\ \_/____/  \___  >____/  \___  >
 #         \__>           \/            \/
 
-def process_analysis(receive_pipe:Connection, send_pipe:Connection, passthrough_event):
+def led_value_updater(receive_pipe:Connection, send_pipe:Connection, led_updater_event):
     """
-    Multiprocessor pipeline for passing analysis data to Arudino.
+    Multiprocessor pipeline for passing LED value updates to the Arudino.
     """
-    while not passthrough_event.is_set():
+    while not led_updater_event.is_set():
         if receive_pipe.poll():
             value = receive_pipe.recv()
-            send_pipe.send(tuple(['brightness', value]))
+            arduino_module.set_value(value)
+    receive_pipe.close()
+    send_pipe.close()
 
-
-def set_arduino_value(message:tuple):
-    if arduino_thread is not None and arduino_active:
-        try:
-            arduino_pipe_send.put_nowait(message)
-        except Full:
-            pass
-
-
-def set_arduino_state(state:str, timeout=0.5):
-    if arduino_thread is not None and arduino_active:
-        try:
-            logger.debug(f'Trying to send Arduino thread "{state}" state.')
-            arduino_control_q.put(state, timeout=timeout)
-            logger.debug(f'Sent state "{state}" to Arduino thread!')
-            return True
-        except Full:
-            logger.error(f'Timed out sending "{state}" state to Arduino thread!')
-            return False
-    return False
 
 
 #    _________       __
@@ -326,7 +311,7 @@ def init_audio_system(config:dict):
             passthrough_thread = Thread(
                                 daemon=True,
                                 name='Passthrough Thread',
-                                target=process_analysis,
+                                target=led_value_updater,
                                 args=(analysis_pipe_recv,
                                 arduino_pipe_send,
                                 passthrough_event))
@@ -337,21 +322,21 @@ def init_audio_system(config:dict):
         time.sleep(1)
 
 
-def init_arduino(config:dict):
-    """
-    Initialise the Arduino serial communication thread.
-    """
-    global arduino_active, arduino_thread
-    if config['enabled']:
-        arduino_thread = Arduino(
-                            return_q=arduino_return_q,
-                            control_q=arduino_control_q,
-                            value_pipe=arduino_pipe_recv,
-                            config=config)
-        arduino_thread.name = 'Arduino Comms Thread'
-        arduino_thread.start()
-        arduino_active = True
-        logger.debug(f'{arduino_thread.name} has started.')
+# def init_arduino(config:dict):
+#     """
+#     Initialise the Arduino serial communication thread.
+#     """
+#     global arduino_active, arduino_thread
+#     if config['enabled']:
+#         arduino_thread = Arduino(
+#                             return_q=arduino_return_q,
+#                             control_q=arduino_control_q,
+#                             value_pipe=arduino_pipe_recv,
+#                             config=config)
+#         arduino_thread.name = 'Arduino Comms Thread'
+#         arduino_thread.start()
+#         arduino_active = True
+#         logger.debug(f'{arduino_thread.name} has started.')
 
 
 def init_bluetooth(config:dict):
@@ -398,13 +383,14 @@ class ExitHandler:
                 close_bluetooth_connection()
                 stop_all_clips()
                 wait_for_silence()
-                close_arduino_connection()
+                arduino_module.stop()
+                #close_arduino_connection()
                 close_audio_system()
                 time.sleep(2)
-                print(f'    Analysis active: {analysis_thread.is_alive()}')
-                print(f'    Arduino active: {arduino_thread.is_alive()}')
-                print(f'    Passthrough active: {passthrough_thread.is_alive()}')
-                print(f'    Subprocesses active: {mp.active_children()}')
+                # print(f'    Analysis active: {analysis_thread.is_alive()}')
+                # print(f'    Arduino active: {arduino_thread.is_alive()}')
+                # print(f'    Passthrough active: {passthrough_thread.is_alive()}')
+                # print(f'    Subprocesses active: {mp.active_children()}')
                 logger.info('Signifier shutdown complete!')
                 print()
                 sys.exit()
@@ -419,17 +405,17 @@ def stop_scheduler():
     schedule.clear()
 
 
-def close_arduino_connection():
-    global arduino_thread, arduino_active
-    if arduino_active:
-        logger.info('Closing Arduino system...')
-        if arduino_thread is not None and arduino_thread.is_alive():
-            logger.info('Requesting Arduino thread to stop...')
-            arduino_control_q.put('close', timeout=2)
-            arduino_thread.event.set()
-            arduino_thread.join(timeout=1)
-        arduino_active = False
-        logger.info('Arduino connection inactive!')
+# def close_arduino_connection():
+#     global arduino_thread, arduino_active
+#     if arduino_active:
+#         logger.info('Closing Arduino system...')
+#         if arduino_thread is not None and arduino_thread.is_alive():
+#             logger.info('Requesting Arduino thread to stop...')
+#             arduino_control_q.put('close', timeout=2)
+#             arduino_thread.event.set()
+#             arduino_thread.join(timeout=1)
+#         arduino_active = False
+#         logger.info('Arduino connection inactive!')
 
 
 def close_bluetooth_connection():
@@ -484,7 +470,11 @@ if __name__ == '__main__':
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
 
-    init_arduino(config_dict['arduino'])
+
+    arduino_module = Arduino(config_dict['arduino'])
+    arduino_module.start()
+    #init_arduino(config_dict['arduino'])
+    
     init_bluetooth(config_dict['bluetooth'])
     init_audio_system(config_dict['audio'])
     init_clip_manager(config_dict['clip_manager'])

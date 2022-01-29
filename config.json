@@ -1,9 +1,9 @@
 {
     "arduino":
     {
-        "enabled":false,
+        "enabled":true,
         "baud":38400,
-        "start_delay":5,
+        "start_delay":2,
         "update_ms":30,
         "values":{
             "brightness":{"command":"B", "min":3, "max":255, "default":0, "smooth":0},
@@ -14,7 +14,7 @@
     },
     "bluetooth":
     {
-        "enabled":true,
+        "enabled":false,
         "start_delay":2,
         "scan_dur":3,
         "remove_after":15
