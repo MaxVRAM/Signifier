@@ -24,7 +24,7 @@ from multiprocessing.connection import Connection
 import pygame as pg
 
 from signify.arduino import Arduino
-from signify.analysis import Analyser
+from signify.analysis import Analysis
 from signify.bluetooth import Bluetooth
 from signify.composition import Composition
 
@@ -39,6 +39,7 @@ active_jobs = {}
 
 
 arduino_module = Arduino
+analysis_module = Analysis
 bluetooth_module = Bluetooth
 
 
@@ -476,21 +477,25 @@ if __name__ == '__main__':
     arduino_module = Arduino(config_dict['arduino'])
     arduino_module.start()
 
+    analysis_module = Analysis(config_dict['analysis'])
+    analysis_module.start()
+
     bluetooth_module = Bluetooth(config_dict['bluetooth'])
     bluetooth_module.start()
 
 
+
     # init_arduino(config_dict['arduino'])
     # init_bluetooth(config_dict['bluetooth'])
-    init_audio_system(config_dict['audio'])
-    init_clip_manager(config_dict['composition'])
-    get_collection(restart_jobs=False, pause_leds=False)
-    start_job('collection', 'clip_selection', 'volume')
-    automate_composition(start_num=config_dict['jobs']['collection']['parameters']['start_clips'])
-    if analysis_thread is not None:
-        analysis_thread.start()
-    if passthrough_thread is not None:
-        passthrough_thread.start()
+    # init_audio_system(config_dict['audio'])
+    # init_clip_manager(config_dict['composition'])
+    # get_collection(restart_jobs=False, pause_leds=False)
+    # start_job('collection', 'clip_selection', 'volume')
+    # automate_composition(start_num=config_dict['jobs']['collection']['parameters']['start_clips'])
+    # if analysis_thread is not None:
+    #     analysis_thread.start()
+    # if passthrough_thread is not None:
+    #     passthrough_thread.start()
 
     while True:
         schedule.run_pending()

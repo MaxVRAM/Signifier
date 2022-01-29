@@ -20,12 +20,15 @@
         "remove_after":15
     },
     "analysis":{
-        "enabled":false,
+        "enabled":true,
         "input_device":"default",
         "sample_rate":48000,
         "dtype":"int16",
         "buffer":2048,
-        "latency":0.04
+        "latency":0.04,
+        "values":{
+            "peak":{"enabled":true, "smooth":0.5}
+        }
     },
     "composition":{
         "enabled":false,
