@@ -75,7 +75,7 @@ class LedValue:
 
 
     def __str__(self) -> str:
-        return f'"{self.command}", min/max: ({self.min}/{self.max}), default: ({self.default})'
+        return f'"{self.command}"'
 
 
     def set_value(self, value, duration=None):
@@ -166,7 +166,7 @@ class Arduino():
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
-                    logger.info(f'Arduino process started!')
+                    logger.info(f'Arduino process started.')
                     if self.start_delay > 0:
                         logger.debug(f'Pausing for {self.start_delay} '
                                      f'second{plural(self.start_delay)}...')
@@ -175,7 +175,7 @@ class Arduino():
             else:
                 logger.warning(f'Trying to start Arduino process but module not initialised!')
         else:
-            logger.warning(f'Arduino process cannot be started, module is not enabled!')
+            logger.info(f'Ignoring request to start Arduino process, module is not enabled.')
 
 
     def stop(self):
@@ -189,11 +189,11 @@ class Arduino():
                 #self.arduino_process.event.set()
                 self.process.join(timeout=1)
                 self.process = None
-                logger.info(f'Arduino process joined main thread...')
+                logger.info(f'Arduino process stopped and joined main thread.')
             else:
                 logger.debug(f'Cannot stop Arduino process, not running.')
         else:
-            logger.debug(f'Ignoring request to stop Arduino process, module is not enabled.')
+            logger.info(f'Ignoring request to stop Arduino process, module is not enabled.')
 
 
     def set_state(self, state:str, timeout=0.5):
@@ -204,7 +204,7 @@ class Arduino():
             try:
                 logger.debug(f'Trying to send Arduino thread "{state}" state.')
                 self.set_state_q.put(state, timeout=timeout)
-                logger.debug(f'Sent state "{state}" to Arduino thread!')
+                logger.debug(f'Sent state "{state}" to Arduino thread.')
                 return True
             except Full:
                 logger.warning(f'Timed out sending "{state}" state to Arduino thread!')
@@ -240,22 +240,22 @@ class Arduino():
             self.set_state_q = parent.set_state_q
             # Serial communication
             self.link = None
-            self.values = {}
+            self.state = ArduinoState.idle
+            self.port = parent.config.get('port', '/dev/ttyACM0')
+            self.baud = parent.config.get('baud', 38400)
             self.rx_packet = ReceivePacket
             self.update_ms = parent.config['update_ms']
+            self.values = {}
             for k, v in parent.config['values'].items():
                 self.values.update({k:LedValue(v, self.update_ms)})
-            self.baud = parent.config.get('baud', 38400)
-            self.state = ArduinoState.idle
 
 
         def run(self):
             """
             Begin executing Arudino communication thread to control LEDs.
             """
-            logger.debug('Starting Arduino comms thread...')
             for k in self.values.keys():
-                logger.debug(f' - Arduino values available: {self.values[k]}')
+                logger.debug(f'Arduino value available: {self.values[k]}')
             self.event.clear()
             self.open_connection()
             self.start_time = time.time()
@@ -303,7 +303,6 @@ class Arduino():
             self.link.close()
             self.event.set()
             self.state = ArduinoState.closed
-            logger.info('Arduino comms closed.')
 
 
         def process_packet(self):
@@ -409,5 +408,5 @@ class Arduino():
             Arduino/LED portion of the Signifier code.
             """
             self.set_state(ArduinoState.starting)
-            self.link = txfer.SerialTransfer('/dev/ttyACM0', baud=self.baud)
+            self.link = txfer.SerialTransfer(self.port, baud=self.baud)
             self.link.open()

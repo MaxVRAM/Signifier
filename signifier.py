@@ -23,10 +23,10 @@ from multiprocessing.connection import Connection
 
 import pygame as pg
 
-from signify.arduino import Arduino, ArduinoState
-from signify.composition import Composition
+from signify.arduino import Arduino
 from signify.analysis import Analyser
 from signify.bluetooth import Bluetooth
+from signify.composition import Composition
 
 
 CLIP_EVENT = pg.USEREVENT + 1
@@ -39,11 +39,12 @@ active_jobs = {}
 
 
 arduino_module = Arduino
+bluetooth_module = Bluetooth
 
 
-bluetooth_scanner = Bluetooth
-bluetooth_return_q = mp.Queue(maxsize=10)
-bluetooth_control_q = mp.Queue(maxsize=1)
+# bluetooth_scanner = Bluetooth
+# bluetooth_return_q = mp.Queue(maxsize=10)
+# bluetooth_control_q = mp.Queue(maxsize=1)
 
 # arduino_thread = None
 # arduino_active = False
@@ -302,23 +303,23 @@ def init_audio_system(config:dict):
         pg.init()
         audio_active = True
         logger.debug(f'Audio output mixer set: {pg.mixer.get_init()}')
-        if config['analysis']:
-            analysis_thread = Analyser(
-                                analysis_pipe_send,
-                                control_q=analysis_control_q,
-                                config=config)
-            analysis_thread.name = 'Audio Analysis Thread'
-            passthrough_thread = Thread(
-                                daemon=True,
-                                name='Passthrough Thread',
-                                target=led_value_updater,
-                                args=(analysis_pipe_recv,
-                                arduino_pipe_send,
-                                passthrough_event))
-            passthrough_event.clear()
-            analysis_active = True
-            logger.debug(f'{analysis_thread.name} initialised.')
-            logger.debug(f'{passthrough_thread.name} initialised.')
+        # if config['analysis']:
+        #     analysis_thread = Analyser(
+        #                         analysis_pipe_send,
+        #                         control_q=analysis_control_q,
+        #                         config=config)
+        #     analysis_thread.name = 'Audio Analysis Thread'
+        #     passthrough_thread = Thread(
+        #                         daemon=True,
+        #                         name='Passthrough Thread',
+        #                         target=led_value_updater,
+        #                         args=(analysis_pipe_recv,
+        #                         arduino_pipe_send,
+        #                         passthrough_event))
+        #     passthrough_event.clear()
+        #     analysis_active = True
+        #     logger.debug(f'{analysis_thread.name} initialised.')
+        #     logger.debug(f'{passthrough_thread.name} initialised.')
         time.sleep(1)
 
 
@@ -339,13 +340,13 @@ def init_audio_system(config:dict):
 #         logger.debug(f'{arduino_thread.name} has started.')
 
 
-def init_bluetooth(config:dict):
-    global bluetooth_scanner
-    if config['enabled']:
-        bluetooth_scanner = Bluetooth(bluetooth_return_q, bluetooth_control_q, config_dict['bluetooth'])
-        bluetooth_scanner.start()   
-    else:
-        bluetooth_scanner = None 
+# def init_bluetooth(config:dict):
+#     global bluetooth_scanner
+#     if config['enabled']:
+#         bluetooth_scanner = Bluetooth(bluetooth_return_q, bluetooth_control_q, config_dict['bluetooth'])
+#         bluetooth_scanner.start()   
+#     else:
+#         bluetooth_scanner = None 
 
 
 
@@ -380,7 +381,8 @@ class ExitHandler:
                 print()
                 logger.info('Shutdown sequence started!')
                 stop_scheduler()
-                close_bluetooth_connection()
+                #close_bluetooth_connection()
+                bluetooth_module.stop()
                 stop_all_clips()
                 wait_for_silence()
                 arduino_module.stop()
@@ -418,15 +420,15 @@ def stop_scheduler():
 #         logger.info('Arduino connection inactive!')
 
 
-def close_bluetooth_connection():
-    global bluetooth_scanner
-    if bluetooth_scanner is not None:
-        logger.info('Stopping Bluetooth scanner process...')
-        if bluetooth_scanner.is_alive():
-            logger.info('Requesting Bluetooth thread to stop...')
-            bluetooth_control_q.put('close', timeout=2)
-            bluetooth_scanner.join(timeout=1)
-        logger.info('Bluetooth scanner inactive!')
+# def close_bluetooth_connection():
+#     global bluetooth_scanner
+#     if bluetooth_scanner is not None:
+#         logger.info('Stopping Bluetooth scanner process...')
+#         if bluetooth_scanner.is_alive():
+#             logger.info('Requesting Bluetooth thread to stop...')
+#             bluetooth_control_q.put('close', timeout=2)
+#             bluetooth_scanner.join(timeout=1)
+#         logger.info('Bluetooth scanner inactive!')
 
 
 def close_audio_system():
@@ -473,9 +475,13 @@ if __name__ == '__main__':
 
     arduino_module = Arduino(config_dict['arduino'])
     arduino_module.start()
-    #init_arduino(config_dict['arduino'])
-    
-    init_bluetooth(config_dict['bluetooth'])
+
+    bluetooth_module = Bluetooth(config_dict['bluetooth'])
+    bluetooth_module.start()
+
+
+    # init_arduino(config_dict['arduino'])
+    # init_bluetooth(config_dict['bluetooth'])
     init_audio_system(config_dict['audio'])
     init_clip_manager(config_dict['clip_manager'])
     get_collection(restart_jobs=False, pause_leds=False)
