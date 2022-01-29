@@ -211,6 +211,7 @@ class Arduino():
                 return False
         return False
 
+
     def set_value(self, value:tuple):
         """
         Accepts an input value as a tuple `(name(str), value(float))` that\
@@ -218,8 +219,9 @@ class Arduino():
         the Arduino process via pipe.
         """
         # TODO add section in config to manage input > output mapping of values
-        value = value[1]
-        self.value_pipe[0].send(tuple(['brightness', value]))
+        if self.process is not None:
+            value = value[1]
+            self.value_pipe[0].send(tuple(['brightness', value]))
 
 
 
