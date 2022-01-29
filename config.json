@@ -1,6 +1,5 @@
 {
-    "arduino":
-    {
+    "arduino":{
         "enabled":false,
         "port":"/dev/ttyACM0",
         "baud":38400,
@@ -13,28 +12,27 @@
             "noise":{"command":"N", "min":0, "max":255, "default":0, "smooth":0}
         }
     },
-    "bluetooth":
-    {
+    "bluetooth":{
         "enabled":false,
         "start_delay":2,
         "scan_dur":3,
         "signal_threshold":0.002,
         "remove_after":15
     },
-    "audio":
-    {
+    "analysis":{
         "enabled":false,
-        "analysis":true,
-        "input_device":"Loopback: PCM (hw:1,1)",
-        "default_device":"default",
+        "input_device":"default",
         "sample_rate":48000,
         "dtype":"int16",
-        "bit_size":-16,
         "buffer":2048,
         "latency":0.04
     },
-    "clip_manager":
-    {
+    "composition":{
+        "enabled":false,
+        "output_device":"default",
+        "sample_rate":48000,
+        "bit_size":-16,
+        "buffer":2048,
         "fail_retry_delay":5,
         "base_path":"/home/pi/Signifier/audio_3",
         "valid_extensions":[".wav"],
@@ -43,36 +41,28 @@
         "fade_in":2000,
         "fade_out":3000,
         "max_playtime":60,
-        "categories":
-        {
+        "categories":{
             "oneshot":{"threshold":0, "is_loop":false, "loop_range":[4,8]},
             "short":{"threshold":5, "is_loop":false, "loop_range":[2,4]},
             "medium":{"threshold":10, "is_loop":false, "loop_range":[2,4]},
             "loop":{"threshold":30, "is_loop":false, "loop_range":[0,2]}
-        }
-    },
-    "jobs":
-    {
-        "collection":
-        {
-            "enabled":true,
-            "service":"audio",
-            "timer":128,
-            "parameters": {"pool_size":12, "start_clips":1}
         },
-        "composition":
-        {
-            "enabled":true,
-            "service":"audio",
-            "timer":16,
-            "parameters": {"quiet_level":3, "busy_level":8}
-        },
-        "volume":
-        {
-            "enabled":true,
-            "service":"audio",
-            "timer":1,
-            "parameters": {"speed":10, "weight":0}
+        "jobs":{
+            "collection":{
+                "enabled":true,
+                "timer":128,
+                "parameters": {"pool_size":12, "start_clips":1}
+            },
+            "clip_selection":{
+                "enabled":true,
+                "timer":16,
+                "parameters": {"quiet_level":3, "busy_level":8}
+            },
+            "volume":{
+                "enabled":true,
+                "timer":1,
+                "parameters": {"speed":10, "weight":0}
+            }
         }
     }
 }

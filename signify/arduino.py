@@ -10,8 +10,8 @@
 Signifier module to manage communication with the Arduino LED system.
 """
 
-
 from __future__ import annotations
+
 import time
 import enum
 import logging

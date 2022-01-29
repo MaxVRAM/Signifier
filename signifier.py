@@ -449,7 +449,7 @@ def close_audio_system():
 
 jobs_dict = {
     'collection': get_collection,
-    'composition': automate_composition,
+    'clip_selection': automate_composition,
     'volume': modulate_volumes
 }
 
@@ -483,9 +483,9 @@ if __name__ == '__main__':
     # init_arduino(config_dict['arduino'])
     # init_bluetooth(config_dict['bluetooth'])
     init_audio_system(config_dict['audio'])
-    init_clip_manager(config_dict['clip_manager'])
+    init_clip_manager(config_dict['composition'])
     get_collection(restart_jobs=False, pause_leds=False)
-    start_job('collection', 'composition', 'volume')
+    start_job('collection', 'clip_selection', 'volume')
     automate_composition(start_num=config_dict['jobs']['collection']['parameters']['start_clips'])
     if analysis_thread is not None:
         analysis_thread.start()

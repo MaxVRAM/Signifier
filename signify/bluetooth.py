@@ -6,6 +6,9 @@
 #   |______  /____/____/  \___  >__|  \____/ \____/|__| |___|  /
 #          \/                 \/                             \/ 
 
+"""
+Signifier module to manage Bluetooth scanner system.
+"""
 
 from __future__ import annotations
 
