@@ -40,8 +40,7 @@ class Clip:
             self.started = time.time()
             if event is not None:
                 self.channel.set_endevent(event)
-            logger.info(f'Playing clip "{self.name}" on channel ({self.index}) (volume={self.get_volume()}, '
-                        f'loops={loop_num}, fade={fade}ms).')
+            logger.info(f'Playing clip "{self.name}" on channel ({self.index}).')
             return self
 
 

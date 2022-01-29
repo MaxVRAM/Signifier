@@ -190,7 +190,7 @@ class Bluetooth():
                 # Remove existing device with weak signal
                 if mac in self.devices:
                     self.devices.pop(mac)
-                    print(f'Removed device: {mac}')
+                    # print(f'Removed device: {mac}')
 
 
         def run(self):
@@ -218,7 +218,7 @@ class Bluetooth():
                     if v.post_scan() is not None:
                         inactive_list.append(k)
                 for i in inactive_list:
-                    print(f'removed {self.devices.pop(i)}')
+                    self.devices.pop(i)
 
                 signal_array = [d.current_signal for d in self.devices.values()]
                 #print(f'Siginal array: {signal_array}')
@@ -242,10 +242,10 @@ class Bluetooth():
                         'max':np.amax(activity_array)
                     }
                 }
-                print()
-                print(f'Signal: {self.bluetooth_data["signal"]}')
-                print(f'Activity: {self.bluetooth_data["activity"]}')
-                print()
+                # print()
+                # print(f'Signal: {self.bluetooth_data["signal"]}')
+                # print(f'Activity: {self.bluetooth_data["activity"]}')
+                # print()
             observer.stop()
 
 

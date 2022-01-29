@@ -34,10 +34,17 @@ class Composition():
     def __init__(self, config:dict, args=(), kwargs=None) -> None:
         self.config = config
         self.enabled = self.config.get('enabled', False)
-        self.event = pg.USEREVENT + 1
+        self.clip_event = pg.USEREVENT + 1
         self.manager = None
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
         if self.enabled:
             self.initialise()
+
+
+    def tick(self):
+        if self.enabled and self.manager is not None:
+            schedule.run_pending()
+            self.manager.manage_audio_events()
 
 
     def update_config(self, config:dict):
@@ -73,7 +80,7 @@ class Composition():
             else:
                 logger.warning(f'Clip Manager module already initialised!')
         else:
-            logger.warning(f'Cannot create Clip Manager process, module not enabled!')
+            logger.warning(f'Cannot create Clip Manager, module not enabled!')
 
 
     def start(self):
@@ -83,7 +90,7 @@ class Composition():
         if self.enabled:
             if self.manager is not None:
                 if self.manager is not None:
-                    self.get_collection()
+                    self.manager.collection_job()
                     logger.info(f'Clip Manager started.')
                 else:
                     logger.warning(f'Cannot start Clip Manager, already running!')
@@ -100,15 +107,16 @@ class Composition():
         if self.manager is not None:
             logger.debug(f'Composition module shutting down...')
             self.stop_scheduler()
-            self.stop_all_clips()
-            self.wait_for_silence()
+            self.manager.stop_all_clips()
+            self.manager.wait_for_silence()
+            pg.quit()
             self.manager = None
             logger.info(f'Composition module stopped.')
         else:
             logger.debug('Ignoring request to stop Composition, module is not enabled.')
 
 
-    def stop_scheduler():
+    def stop_scheduler(self):
         """
         Simply calls `schedule.clear()`. Placeholder in case more needs to be added.
         """
@@ -129,7 +137,7 @@ class Composition():
                 raise OSError
             self.config = parent.config
             self.mixer = pg.mixer
-            self.event = parent.event
+            self.event = parent.clip_event
             self.channels = None
             self.collections = {}
             self.current_collection = {}
@@ -138,11 +146,10 @@ class Composition():
             self.active_jobs = {}
             self.jobs = parent.config['jobs']
             self.jobs_dict = {
-                'collection': self.get_collection,
-                'clip_selection': self.automate_composition,
-                'volume': self.modulate_volumes
+                'collection': self.collection_job,
+                'clip_selection': self.clip_selection_job,
+                'volume': self.volume_job
             }
-
             self.init_mixer()
             self.init_library()
 
@@ -222,7 +229,6 @@ class Composition():
                 self.mixer.set_num_channels(num_wanted)
                 num_chans = self.mixer.get_num_channels()
                 logger.debug(f'Mixer now has {num_chans} channels.')
-                print()
             for i in range(num_chans):
                 channels[i] = self.mixer.Channel(i)
             return channels
@@ -278,7 +284,6 @@ class Composition():
             while pg.mixer.get_busy():
                 time.sleep(0.1)
             logger.info('Mixer empty.')
-
 
 
         def move_to_inactive(self, clips:set):
@@ -382,9 +387,6 @@ class Composition():
 
 
 
-
-
-
         #       ____.     ___.
         #      |    | ____\_ |__   ______
         #      |    |/  _ \| __ \ /  ___/
@@ -392,25 +394,26 @@ class Composition():
         #  \________|\____/|___  /____  >
         #                      \/     \/
 
-        def get_collection(self):
+        def collection_job(self, **kwargs):
             """
             Select a new collection from the clip manager, replacing any\
             currently loaded collection.
             """
             job_params = self.jobs['collection']['parameters']
-            pool_size = job_params['pool_size']
-            self.stop_job([j for j in self.jobs_dict if j != 'collection'])
+            pool_size = kwargs.get('pool_size', job_params['pool_size'])
+            start_clips = kwargs.get('start_clips', job_params['start_clips'])
+            self.stop_job(*[j for j in self.jobs_dict if j != 'collection'])
             self.stop_all_clips()
             self.wait_for_silence()
-            while self.select_collection() is None:
+            while self.select_collection(kwargs.get('collection'), pool_size) is None:
                 logger.warning('Trying another collection in 2 seconds.')
                 time.sleep(2)
-                self.select_collection()
-            self.start_job([j for j in self.jobs_dict if j != 'collection'])
-            self.automate_composition(start_num=job_params['start_clips'])
+                self.select_collection(None, pool_size)
+            self.start_job(*[j for j in self.jobs_dict if j != 'collection'])
+            self.clip_selection_job(start_num=start_clips)
 
 
-        def automate_composition(self, quiet_level=None, busy_level=None, start_num=1):
+        def clip_selection_job(self, **kwargs):
             """
             Ensure the clip manager is playing an appropriate number of clips,\
             and move any finished clips still lingering in the active pool to
@@ -420,10 +423,9 @@ class Composition():
             before stopping active clips.
             """
             job_params = self.jobs['clip_selection']['parameters']
-            quiet_level = job_params['quiet_level']\
-                if quiet_level is None else quiet_level
-            busy_level = job_params['busy_level']\
-                if busy_level is None else busy_level
+            quiet_level = kwargs.get('quiet_level', job_params['quiet_level'])
+            busy_level = kwargs.get('busy_level', job_params['busy_level'])
+            start_num = kwargs.get('start_num', 1)
             self.check_finished()
             if self.clips_playing() < quiet_level:
                 self.play_clip(num_clips=start_num)
@@ -431,7 +433,7 @@ class Composition():
                 self.stop_clip('balance')
 
 
-        def modulate_volumes(self, speed=None, weight=None):
+        def volume_job(self, **kwargs):
             """
             Randomly modulate the Channel volumes for all Clip(s) in the\
             active pool.\n - `speed=(int)` is the maximum volume jump per tick
@@ -439,10 +441,9 @@ class Composition():
             "weight=(float)" is a signed normalised float (-1.0 to 1.0) that
             weighs the random steps towards either direction.
             """
-            speed = self.jobs['volume']['parameters']['speed']\
-                if speed is None else speed
-            weight = self.jobs['volume']['parameters']['weight']\
-                if weight is None else weight
+            job_params = self.jobs['volume']['parameters']
+            speed = kwargs.get('speed', job_params['speed'])
+            weight = kwargs.get('weight', job_params['weight'])
             self.modulate_volumes(speed, weight)
 
 

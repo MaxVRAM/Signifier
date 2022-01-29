@@ -36,8 +36,7 @@ def init_sounds(clips:set, channels:dict) -> dict:
     remaining = list(clips.difference(done))
     logger.info(f'{get_contents(done, True)} initialised.')
     if len(remaining) > 0:
-        logger.warn(f'Unable to build ({len(remaining)}) Sound object{plural(remaining)}! ')
-    print()
+        logger.warn(f'Unable to build ({len(remaining)}) Sound object{plural(remaining)}! ')   
     return {'channels':channels, 'clips':remaining}
 
 def get_distributed(clips:set, num_clips:int, strict=False) -> set:
@@ -50,7 +49,7 @@ def get_distributed(clips:set, num_clips:int, strict=False) -> set:
         selection = clips
     else:
         contents = get_contents(clips)
-        logger.debug(f'Attempting to get ({num_clips}) clips from set of {get_contents(clips, True)}')
+        logger.debug(f'Requesting ({num_clips}) clips from {get_contents(clips, True)}')
         selection = set()
         clips_per_category = int(num_clips / len(contents))
         if clips_per_category == 0:

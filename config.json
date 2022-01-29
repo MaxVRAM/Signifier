@@ -1,6 +1,6 @@
 {
     "arduino":{
-        "enabled":false,
+        "enabled":true,
         "port":"/dev/ttyACM0",
         "baud":38400,
         "start_delay":2,
@@ -13,14 +13,14 @@
         }
     },
     "bluetooth":{
-        "enabled":false,
+        "enabled":true,
         "start_delay":2,
         "scan_dur":3,
         "signal_threshold":0.002,
         "remove_after":15
     },
     "analysis":{
-        "enabled":false,
+        "enabled":true,
         "input_device":"default",
         "sample_rate":48000,
         "dtype":"int16",
