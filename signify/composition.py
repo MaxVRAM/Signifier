@@ -31,25 +31,23 @@ class Composition():
     """
     Audio playback composition manager module.
     """
-    def __init__(self, config:dict, args=(), kwargs=None) -> None:
-        logger.setLevel(logging.DEBUG if config.get('debug', True) else logging.INFO)
-        schedule.logger.setLevel(logging.INFO)
-        self.config = config
+    def __init__(self, name:str, config:dict, args=(), kwargs=None) -> None:
+        self.module_name = name
+        self.config = config[self.module_name]
+        logger.setLevel(logging.DEBUG if self.config.get(
+                        'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
         self.clip_event = pg.USEREVENT + 1
-        self.manager = None
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
         # Process management
-        self.input_value_in, self.input_value_out = mp.Pipe()
+        self.manager = None
         self.state_q = mp.Queue(maxsize=1)
+        self.destination_in, self.destination_out = mp.Pipe()
+
+        schedule.logger.setLevel(logging.INFO)
+
         if self.enabled:
             self.initialise()
-
-
-    def tick(self):
-        if self.enabled and self.manager is not None:
-            schedule.run_pending()
-            self.manager.manage_audio_events()
 
 
     def update_config(self, config:dict):
@@ -58,21 +56,19 @@ class Composition():
         """
         logger.info(f'Updating Composition module configuration...')
         if self.enabled:
-            if config.get('enabled', False) is False:
-                self.config = config
+            self.config = config[self.module_name]
+            if self.config.get('enabled', False) is False:
                 self.stop()
             else:
                 self.stop()
-                self.config = config
                 self.initialise()
                 self.start()
         else:
-            if config.get('enabled', False) is True:
-                self.config = config
+            self.config = config[self.module_name]
+            if self.config.get('enabled', False) is True:
                 self.start()
             else:
-                self.config = config
-
+                pass
 
     def initialise(self):
         """
@@ -128,6 +124,13 @@ class Composition():
         schedule.clear()
 
 
+    def tick(self):
+        """
+        Call regularly to execute the scheduled jobs and clean up old clips.
+        """
+        if self.enabled and self.manager is not None:
+            schedule.run_pending()
+            self.manager.manage_audio_events()
 
 
     #  _________ .__  .__            _____                                             

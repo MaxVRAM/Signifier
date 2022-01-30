@@ -1,9 +1,14 @@
+
 #  ____   ____      .__                     _____                       .__                
 #  \   \ /   /____  |  |  __ __   ____     /     \ _____  ______ ______ |__| ____    ____  
 #   \   Y   /\__  \ |  | |  |  \_/ __ \   /  \ /  \\__  \ \____ \\____ \|  |/    \  / ___\ 
 #    \     /  / __ \|  |_|  |  /\  ___/  /    Y    \/ __ \|  |_> >  |_> >  |   |  \/ /_/  >
 #     \___/  (____  /____/____/  \___  > \____|__  (____  /   __/|   __/|__|___|  /\___  / 
 #                 \/                 \/          \/     \/|__|   |__|           \//_____/  
+
+"""
+Signifier module to process module outputs and send them to module inputs.
+"""
 
 from __future__ import annotations
 
@@ -13,25 +18,32 @@ import multiprocessing as mp
 from multiprocessing.connection import Connection
 from queue import Empty, Full
 
+from signify.utils import scale
+
 logger = logging.getLogger(__name__)
 
 
 class ValueMapper():
+    """# ValueMapper
+
+    Multi-threaded value mapping module for processing output values from
+    modules and assigning the values to input parameters of other modules. 
     """
-    Multi-threaded value mapping module.
-    """
-    def __init__(self, config:dict, input_pipes:dict,
-                output_pipes:dict, args=(), kwargs=None) -> None:
-        logger.setLevel(logging.DEBUG if config.get('debug', True) else logging.INFO)
-        self.config = config
+    def __init__(self, name:str, config:dict, destination_pipes:dict,
+                source_value_pipes:dict, args=(), kwargs=None) -> None:
+        self.module_name = name
+        self.config = config[self.module_name]
+        logger.setLevel(logging.DEBUG if self.config.get(
+                        'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
         # Pipes
-        self.input_pipes = input_pipes
-        self.output_pipes = output_pipes
+        self.destination_pipes = destination_pipes
+        self.source_value_pipes = source_value_pipes
         # Process management
         self.process = None
         self.state_q = mp.Queue(maxsize=1)
         self.output_value_pool = {}
+
         if self.enabled:
             self.initialise()
 
@@ -42,21 +54,19 @@ class ValueMapper():
         """
         logger.info(f'Updating Mapping module configuration...')
         if self.enabled:
-            if config.get('enabled', False) is False:
-                self.config = config
+            self.config = config[self.module_name]
+            if self.config.get('enabled', False) is False:
                 self.stop()
             else:
                 self.stop()
-                self.process.join()
-                self.config = config
                 self.initialise()
                 self.start()
         else:
-            if config.get('enabled', False) is True:
-                self.config = config
+            self.config = config[self.module_name]
+            if self.config.get('enabled', False) is True:
                 self.start()
             else:
-                self.config = config
+                pass
 
 
     def initialise(self):
@@ -119,52 +129,61 @@ class ValueMapper():
             self.event = mp.Event()
             self.state_q = parent.state_q
             # Pipes
-            self.input_pipes = parent.input_pipes
-            self.output_pipes = parent.output_pipes
+            self.destination_pipes = parent.destination_pipes
+            self.source_value_pipes = parent.source_value_pipes
             # Mapping parameters
-            self.mappings = parent.config.get('rules', {})
-            self.output_values = {}
-            self.mapping_inputs = {}
-            self.mapping_outputs = {}
+            self.rules = parent.config.get('rules', {})
+            
+            self.source_values = {}
+            for m in self.source_value_pipes.keys():
+                self.source_values[m] = {}
 
-
-        def unpack_mappings(self):
-            self.mapping_inputs = ()
-            self.mapping_outputs = {}
-            for m in self.mappings:
-                module = m['input']['module']
-                value = m['input']['value']
-                self.mapping_inputs[m['input']]['module']
+            self.destination_values = {}
+            for m in self.destination_pipes.keys():
+                self.destination_values[m] = {}
 
 
         def run(self):
             """
-            Begin executing Mapping process.
+            Start processing output values and mapping configurations.
             """
             while not self.event.is_set():
                 try:
-                    if self.state_q.get_nowait()() == 'close':
+                    if self.state_q.get_nowait() == 'close':
                         self.event.set()
                         break
                 except Empty:
                     pass
 
-                self.get_output_values()
+                self.process_outputs()
+                self.process_inputs()
 
 
-        def get_output_values(self):
-            for k, v in self.output_pipes.items():
-                if v.poll():
-                    (key, value), = v.recv().items()
-                    if self.output_values.get(k) is None:
-                        self.output_values[k] = {key:value}
-                    self.output_values[k][key] = value
+        def process_outputs(self):
+            for module, data in self.source_value_pipes.items():
+                if data.poll():
+                    sources = data.recv()
+                    keys = list(sources.keys())
+                    values = list(sources.values())
+                    if self.source_values.get(module) is None:
+                        self.source_values[module] = {}
+                    for r in range(len(keys)):
+                        self.source_values[module].update({keys[r]:values[r]})
 
-# TODO Add output compoenent to mapping system.... something like this:
 
-        # def push_input_values(self):
-        #     for k, v in self.input_pipes.items():
-        #         (key, value), = v.recv().items()
-        #         if self.output_values.get(k) is None:
-        #             self.output_values[k] = {key:value}
-        #         self.output_values[k][key] = value
+        def process_inputs(self):
+            for r in self.rules:
+                # try:
+                dest = r['destination']
+                source = r['source_value']
+                if (source_values := self.source_values.get(source['module'])) is not None:
+                    if (value := source_values.get(source['param'])) is not None:
+                        value = {'value':scale(value, source['range'], dest['range'])}
+                        if (duration := dest.get('duration')) is not None:
+                            value.update({'duration':duration})
+                        if (curr_value := self.destination_values.get(dest['param']))\
+                            is None or value['value'] != curr_value['value']:
+                                command = {dest['param']:value}
+                                self.destination_values[dest['param']] = value
+                                self.destination_pipes[dest['module']].send(command)
+

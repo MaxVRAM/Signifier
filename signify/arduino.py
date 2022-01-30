@@ -30,15 +30,18 @@ class Arduino():
     """
     Arduino serial communications manager module.
     """
-    def __init__(self, config:dict, args=(), kwargs=None) -> None:
-        logger.setLevel(logging.DEBUG if config.get('debug', True) else logging.INFO)
-        self.config = config
+    def __init__(self, name:str, config:dict, args=(), kwargs=None) -> None:
+        self.module_name = name
+        self.config = config[self.module_name]
+        logger.setLevel(logging.DEBUG if self.config.get(
+                        'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
         self.start_delay = self.config.get('start_delay', 2)
         self.process = None
         # Process management
-        self.input_value_in, self.input_value_out = mp.Pipe()
         self.state_q = mp.Queue(maxsize=1)
+        self.destination_in, self.destination_out = mp.Pipe()
+
         if self.enabled:
             self.initialise()
 
@@ -49,21 +52,19 @@ class Arduino():
         """
         logger.info(f'Updating Arduino module configuration...')
         if self.enabled:
-            if config.get('enabled', False) is False:
-                self.config = config
+            self.config = config[self.module_name]
+            if self.config.get('enabled', False) is False:
                 self.stop()
             else:
                 self.stop()
-                self.process.join()
-                self.config = config
                 self.initialise()
                 self.start()
         else:
-            if config.get('enabled', False) is True:
-                self.config = config
+            self.config = config[self.module_name]
+            if self.config.get('enabled', False) is True:
                 self.start()
             else:
-                self.config = config
+                pass
 
 
     def initialise(self):
@@ -134,18 +135,6 @@ class Arduino():
         return False
 
 
-    def set_value(self, value:tuple):
-        """
-        Accepts an input value as a tuple `(name(str), value(float))` that\
-        is assigned an LED value (defined in `config.json`), and passed to\
-        the Arduino process via queue.
-        """
-        if self.process is not None:
-            value = value[1]
-            self.input_pipe_out.send(tuple(['brightness', value]))
-
-
-
     class ArduinoProcess(mp.Process):
         """
         Multiprocessing Process to handle threaded serial communication
@@ -156,7 +145,7 @@ class Arduino():
             # Process management
             self.daemon = True
             self.event = mp.Event()
-            self.input_value_in = parent.input_value_in
+            self.destination_out = parent.destination_out
             self.set_state_q = parent.state_q
             # Serial communication
             self.link = None
@@ -165,18 +154,18 @@ class Arduino():
             self.baud = parent.config.get('baud', 38400)
             self.rx_packet = ReceivePacket
             self.update_ms = parent.config.get('update_ms', 30)
-            self.default_duration = parent.config.get('default_duration', 90)
-            self.values = {}
-            for k, v in parent.config['input_values'].items():
-                self.values.update({k:LedValue(v, self.default_duration)})
+            self.duration_multiplier = parent.config.get('duration_multiplier', 3)
+            self.commands = {}
+            for k, v in parent.config['dest_config'].items():
+                self.commands.update({k:LedValue(
+                    v, self.update_ms, self.duration_multiplier)})
 
 
         def run(self):
             """
             Begin executing Arudino communication thread to control LEDs.
             """
-            for k in self.values.keys():
-                logger.debug(f'Arduino value available: {self.values[k]}')
+            logger.debug(f'Arduino commands: {[c for c in self.commands.keys()]}')
             self.event.clear()
             self.open_connection()
             self.start_time = time.time()
@@ -189,16 +178,15 @@ class Arduino():
                     self.set_state(ArduinoState[state])
                 except Empty:
                     pass
-                # Snap up the input value pipe dict, update any new values
-                if self.state != ArduinoState.close:
-                    if self.input_value_in.poll():
-                        for k, v in self.input_value_in.recv():
-                            if k in self.values:
-                                self.values[k].set_value(v['value'], v)
-                        # v = self.input_value_in.recv()
-                        # if (value := self.values.get(v[0])) is not None:
-                        #     value.set_value(v[1], None)
-                # Next, check for any available serial packets from the Arduino
+                # Snap up the input value pipe dict, update new values
+                if self.state not in [ArduinoState.close, ArduinoState.closed]:
+                    if self.destination_out.poll():
+                        dest_values = self.destination_out.recv()
+                        for k in dest_values.keys():
+                            print(dest_values[k])
+                            if k in self.commands:
+                                self.commands[k].set_value(**dest_values[k])
+                # Check for any available serial packets from the Arduino
                 if self.link.available():
                     recSize = 0
                     self.rx_packet.command = self.link.rx_obj(
@@ -265,7 +253,7 @@ class Arduino():
 
 
         def update_values(self):
-            for k, v in self.values.items():
+            for k, v in self.commands.items():
                 v.send(self.send_packet)
 
 
@@ -369,7 +357,7 @@ class LedValue():
     """
     Generic class for holding and managing LED parameter states for the Arduino.
     """
-    def __init__(self, config:dict, duration:int) -> None:
+    def __init__(self, config:dict, update_ms:float, duration:int) -> None:
         self.command = config['command']
         self.min = config.get('min', 0)
         self.max = config.get('max', 255)
@@ -384,14 +372,15 @@ class LedValue():
         return f'"{self.command}"'
 
 
-    def set_value(self, value, **kwargs):
+    def set_value(self, **kwargs):
         """
         Updates the LED parameter and prepares a serial packet to send.
         """
-        dur = kwargs.get('duration', self.duration)
+        value = kwargs.get('value', self.default)
         value = int(scale(value, (0, 1), (self.min, self.max), 'clamp'))
+        duration = kwargs.get('duration', self.duration)
         if value != self.packet.value:
-            self.packet = SendPacket(self.command, value, dur)
+            self.packet = SendPacket(self.command, value, duration)
             self.updated = True
 
 

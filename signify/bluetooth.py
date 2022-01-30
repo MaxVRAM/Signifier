@@ -23,7 +23,6 @@ from bleson import logger as blelogger
 
 from signify.utils import lerp
 
-# Silencing the bleson module because of all the logged warnings
 blelogger.set_level(blelogger.ERROR)
 logger = logging.getLogger(__name__)
 
@@ -32,14 +31,16 @@ class Bluetooth():
     """
     Bluetooth scanner manager module.
     """
-    def __init__(self, config:dict, args=(), kwargs=None) -> None:
-        logger.setLevel(logging.DEBUG if config.get('debug', True) else logging.INFO)
-        self.config = config
+    def __init__(self, name:str, config:dict, args=(), kwargs=None) -> None:
+        self.module_name = name
+        self.config = config[self.module_name]
+        logger.setLevel(logging.DEBUG if self.config.get(
+                        'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
-        self.process = None
         # Process management
+        self.process = None
         self.state_q = mp.Queue(maxsize=1)
-        self.output_value_in, self.output_value_out = mp.Pipe()
+        self.source_value_in, self.source_value_out = mp.Pipe()
 
         if self.enabled:
             self.initialise()
@@ -51,22 +52,19 @@ class Bluetooth():
         """
         logger.info(f'Updating Bluetooth module configuration...')
         if self.enabled:
-            if config.get('enabled', False) is False:
-                self.config = config
+            self.config = config[self.module_name]
+            if self.config.get('enabled', False) is False:
                 self.stop()
             else:
                 self.stop()
-                self.process.join()
-                self.config = config
                 self.initialise()
                 self.start()
         else:
-            if config.get('enabled', False) is True:
-                self.config = config
+            self.config = config[self.module_name]
+            if self.config.get('enabled', False) is True:
                 self.start()
             else:
-                self.config = config
-
+                pass
 
     def initialise(self):
         """
@@ -127,7 +125,7 @@ class Bluetooth():
             self.daemon = True
             self.event = mp.Event()
             self.set_state_q = parent.state_q
-            self.output_value_in = parent.output_value_in
+            self.source_value_in = parent.source_value_in
             # Bluetooth configuration
             self.remove_after = parent.config.get('remove_after', 15)
             self.start_delay = parent.config.get('start_delay', 2)
@@ -135,7 +133,7 @@ class Bluetooth():
             self.signal_threshold = parent.config.get('signal_threshold', 0.002)
             # Scanner data
             self.devices = {}
-            self.output_values = {}
+            self.source_values = {}
 
 
         class Device():
@@ -221,7 +219,7 @@ class Bluetooth():
                 signal_array = [d.current_signal for d in self.devices.values()]
                 activity_array = [d.activity for d in self.devices.values()]
 
-                self.output_values = {
+                self.source_values = {
                     'num_devices':len(self.devices),
                     'signal_total': np.sum(signal_array),
                     'signal_mean':np.mean(signal_array),
@@ -233,7 +231,7 @@ class Bluetooth():
                     'activity_max':np.amax(activity_array)
                 }
 
-                self.output_value_in.send(self.output_values)
+                self.source_value_in.send(self.source_values)
 
             observer.stop()
 
