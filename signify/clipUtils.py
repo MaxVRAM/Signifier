@@ -10,23 +10,28 @@
 Abstracted static functions to help manage audio clip sets.
 """
 
-import logging, random
+from __future__ import annotations
+
+import random
+import logging
+
 from signify.utils import plural
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
-def init_sounds(clips:set, channels:dict) -> dict:
+
+def init_sounds(clips: set, channels: dict) -> dict:
     """
     Initialises a Sound object for each Clip in provided Clip set.\n
-    Sounds are loaded into memory and assigned mixer Channels from the provided argument.
-    Returns a dictionary of any unused channels and clips that failed to build.
+    Sounds are loaded into memory and assigned mixer Channels from the
+    provided argument. Returns a dictionary of any unused channels
+    and clips that failed to build.
     """
     done = set()
     if len(channels) < len(clips):
         logger.warn(f'Trying to initialise {len(clips)} Sound{plural(clips)} '
-                    f'from {len(channels)} Channel{plural(channels)}. Clips not assigned a '
-                    f'channel will be pulled from this collection!')
+                    f'from {len(channels)} Channel{plural(channels)}. Clips not'
+                    f' assigned a channel will be pulled from this collection!')
     for clip in clips:
         if len(channels) == 0:
             logger.warn(f'Ran out of channels to assign!')
@@ -34,48 +39,60 @@ def init_sounds(clips:set, channels:dict) -> dict:
         if clip.build_sound(channels.popitem()) is not None:
             done.add(clip)
     remaining = list(clips.difference(done))
-    logger.info(f'{get_contents(done, True)} initialised.')
+    logger.info(f'{get_contents(done, count=True)} initialised.')
     if len(remaining) > 0:
-        logger.warn(f'Unable to build ({len(remaining)}) Sound object{plural(remaining)}! ')   
+        logger.warn(f'Unable to build ({len(remaining)}) '
+                    f'Sound object{plural(remaining)}! ')   
     return {'channels':channels, 'clips':remaining}
 
-def get_distributed(clips:set, num_clips:int, strict=False) -> set:
+
+def get_distributed(clips: set, num_clips: int, **kwargs) -> set:
     """
     Return an evenly distributed set of clip based on categories.
+    Use `strict=True` to abort and return None if an even distribution
+    of clips can not be allocated from the supplied set of clips.
     """
     if num_clips > len(clips):
-        logger.warn(f'Requesting ({num_clips}) clip{plural(num_clips)} but only ({len(clips)}) in set! '
-                    f'Will return entire set.')
+        logger.warn(f'Requesting ({num_clips}) clip{plural(num_clips)} but '
+                    f'only ({len(clips)}) in set! Will return entire set.')
         selection = clips
     else:
         contents = get_contents(clips)
-        logger.debug(f'Requesting ({num_clips}) clips from {get_contents(clips, True)}')
+        logger.debug(f'Requesting ({num_clips}) clips from '
+                     f'{get_contents(clips, count=True)}')
         selection = set()
         clips_per_category = int(num_clips / len(contents))
         if clips_per_category == 0:
-            logger.info(f'Cannot select number of clips less than the number of categories. '
-                        f'Rounding up to {len(contents)}.')
+            logger.info(f'Cannot select number of clips less than the number '
+                        f'of categories. Rounding up to {len(contents)}.')
             clips_per_category = 1
         for category in contents:
             try:
-                selection.update(random.sample(contents[category], clips_per_category))
+                selection.update(random.sample(
+                    contents[category],
+                    clips_per_category))
             except ValueError as exception:
-                logger.warning(f'Could not obtain ({clips_per_category}) clip{plural(clips_per_category)} from '
-                            f'"{category}" with ({len(contents[category])}) clip{plural(contents[category])}! '
-                            f'Exception: "{exception}"')
-                if strict is True:
+                logger.info(
+                    f'"{category}" only has ({len(contents[category])}) '
+                    f'clip{plural(clips_per_category)}, but was asked for '
+                    f'({clips_per_category}).')
+                if kwargs.get('strict', False):
                     return None
                 else:
                     failed = clips_per_category - len(contents[category])
-                    logger.info(f'Clip distribution not set to "strict" mode. ({failed}) unassigned clip '
-                                f'slot{plural(failed)} will be selected at random.')
-                    selection.update(random.sample(contents[category], len(contents[category])))
+                    logger.debug(f'{plural(failed)} will be selected at random. '
+                                 f'Set "strict" mode to enforse distribution.')
+                    selection.update(random.sample(
+                        contents[category],
+                        len(contents[category])))
         if (unassigned := num_clips - len(selection)) > 0:
-            selection.update(random.sample(clips.difference(selection), unassigned))
+            selection.update(random.sample(
+                clips.difference(selection), unassigned))
     logger.info(f'Returned: {get_contents(selection, count=True)}".')
     return selection
 
-def get_contents(clips:set, count=False) -> dict:
+
+def get_contents(clips: set, **kwargs) -> dict:
     """
     Return dictionary of category:clips (key:value) pairs from a set of Clips.\n
     - "count=True" returns number of clips instead of a list of Clips.
@@ -83,7 +100,7 @@ def get_contents(clips:set, count=False) -> dict:
     contents = {}
     for clip in clips:
         category = clip.category
-        if count:
+        if kwargs.get('count', False):
             contents[category] = contents.get(category, 0) + 1
         else:
             if category in contents:
@@ -92,49 +109,38 @@ def get_contents(clips:set, count=False) -> dict:
                 contents[category] = [clip]
     return contents
 
-def clip_by_name(clips:set, name:str):
-    """
-    Return specific Clip by name from given set of Clips.
-    If no clip is found, will silently return None.
-    """
-    for clip in clips:
-        if clip.name == name:
-            return clip
-    return None
 
-def clip_by_channel(clips:set, chan) -> set:
+def get_clip(clips: set, **kwargs) -> set:
+    """### Return random or specific clip(s).\n
+    to return can be defined with `num_clips=1`.
+    Random clip(s) will be selected unless one of the
+    following kwargs are supplied to specify the request:
+    
+    - `name=(str)`\n- `channel=(Channel object)`\n- `category=(str)`
     """
-    Looks for a specific Channel attached to provided set of Clips.
-    """
-    found = set()
-    for clip in clips:
-        if clip.channel == chan:
-            found.add(clip)
-    if len(found) > 1:
-        logger.warn(f'Channel {chan} is assigned to multiple Clip objects: {[c.name for c in found]}')
-    return found
-
-def get_clip(clips:set, name=None, category=None, num_clips=1) -> set:
-    """
-    Return clip(s) by name, category, or total random from provided set of clips.
-    """
-    if name is not None:
-        if (clip := clip_by_name(name, clips)) is None:
-            logger.warn(f'Requested clip "{name}" not in provided set. Skipping.')
+    if (name := kwargs.get('name', None)) is not None:
+        if (clip := next((c for c in clips if c.name == name), None)) is None:
+            logger.warn(f'Requested clip "{name}" not in provided set.')
             return None
         return set(clip)
-    if category:
-        contents = get_contents(clips)
-        if (clips := contents.get(category)) is None:
-            logger.warn(f'Category "{category}" not found in set. Ignoring request.')
+    if (channel:= kwargs.get('channel', None)) is not None:
+        if (clip := next((c for c in clips if c.channel == channel), None)) is None:
+            logger.warn(f'Requested clip "{name}" not in provided set.')
             return None
-    available = len(clips)
-    if available == 0:
+        return set(clip)
+    if (category := kwargs.get('category', None)) is not None:
+        if (clips := get_contents(clips).get(category, None)) is None:
+            logger.warn(f'Category "{category}" not found in set. Ignoring.')
+            return None
+    in_set = len(clips)
+    if in_set == 0:
         logger.warn(f'No clips available. Skipping request.')
         return None
-    if num_clips > available:
-        logger.debug(f'Requested ({num_clips}) clip{plural(num_clips)} from '
-                    f'{("[" + category + "] in ") if category is not None else ""} with '
-                    f'({available}) Clip{plural(available)}. '
-                    f'{("Returning (" + str(available) + ") instead") if available > 0 else "Skipping request"}.')
-    return set([clip for clip in random.sample(clips, min(num_clips, available))])
+    to_get = kwargs.get('num_clips', 1)
+    if to_get > in_set:
+        logger.debug(
+            f'Requested ({to_get}) clip{plural(to_get)} from '
+            f'{("[" + category + "] in ") if category is not None else ""}'
+            f' with ({in_set}) Clip{plural(in_set)}. '
+            f'"Returning {str(in_set)}) instead.')
+    return set([clip for clip in random.sample(clips, min(to_get, in_set))])

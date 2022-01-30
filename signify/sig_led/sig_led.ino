@@ -71,7 +71,6 @@ CRGB leds[NUM_LEDS];
 CRGB noise[NUM_LEDS];
 //fill_noise8(noise, NUM_LEDS, 4, 0, 1, 4, 0, 1, 0);
 
-HSV_PROP main_brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
 HSV_PROP brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
 HSV_PROP saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0UL};
 HSV_PROP hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
@@ -130,9 +129,9 @@ void loop()
   smooth(loopAvg, prevLoopTime);
   //sendCommand(COMMAND{'L', loopStartTime, loopAvg.average});
 
-  fadeToTarget(main_brightness);
+  fadeToTarget(brightness);
 
-  FastLED.setBrightness(main_brightness.currVal);
+  FastLED.setBrightness(brightness.currVal);
   FastLED.show();
 
   // Calculates the remaining time to wait for a response based on the target loop time
@@ -167,9 +166,6 @@ void processInput(COMMAND input)
   switch (input.command)
   {
   case 'B':
-    assignInput(input, main_brightness);
-    break;
-  case 'b':
     assignInput(input, brightness);
     break;
   case 'S':
@@ -180,7 +176,7 @@ void processInput(COMMAND input)
     break;
   case 'l':
     TARGET_LOOP_DUR = input.value;
-    sendCommand(COMMAND{'L', TARGET_LOOP_DUR, 0});
+    sendCommand(COMMAND{'l', TARGET_LOOP_DUR, 0});
   default:
     return;
   }
@@ -233,8 +229,8 @@ void resetFade(HSV_PROP &property)
 void startup_sequence()
 {
   FastLED.clear(true);
-  main_brightness.currVal = 0;
-  resetFade(main_brightness);
+  brightness.currVal = 0;
+  resetFade(brightness);
   FastLED.setBrightness(255);
 
   for (unsigned int i = 0; i < NUM_LEDS; i++)

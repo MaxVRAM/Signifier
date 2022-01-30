@@ -18,13 +18,13 @@ import random
 import logging
 import schedule
 import pygame as pg
+import multiprocessing as mp
 
 from signify.utils import plural
 from signify.clipUtils import *
 from signify.clip import Clip
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class Composition():
@@ -32,11 +32,16 @@ class Composition():
     Audio playback composition manager module.
     """
     def __init__(self, config:dict, args=(), kwargs=None) -> None:
+        logger.setLevel(logging.DEBUG if config.get('debug', True) else logging.INFO)
+        schedule.logger.setLevel(logging.INFO)
         self.config = config
         self.enabled = self.config.get('enabled', False)
         self.clip_event = pg.USEREVENT + 1
         self.manager = None
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        # Process management
+        self.input_value_in, self.input_value_out = mp.Pipe()
+        self.state_q = mp.Queue(maxsize=1)
         if self.enabled:
             self.initialise()
 
@@ -124,6 +129,14 @@ class Composition():
 
 
 
+
+    #  _________ .__  .__            _____                                             
+    #  \_   ___ \|  | |__|_____     /     \ _____    ____ _____     ____   ___________ 
+    #  /    \  \/|  | |  \____ \   /  \ /  \\__  \  /    \\__  \   / ___\_/ __ \_  __ \
+    #  \     \___|  |_|  |  |_> > /    Y    \/ __ \|   |  \/ __ \_/ /_/  >  ___/|  | \/
+    #   \______  /____/__|   __/  \____|__  (____  /___|  (____  /\___  / \___  >__|   
+    #          \/        |__|             \/     \/     \/     \//_____/      \/       
+
     class ClipManager():
         """
         Clip Manager class to manage "collections" of audio clips for playback.
@@ -137,7 +150,7 @@ class Composition():
                 raise OSError
             self.config = parent.config
             self.mixer = pg.mixer
-            self.event = parent.clip_event
+            self.clip_event = parent.clip_event
             self.channels = None
             self.collections = {}
             self.current_collection = {}
@@ -173,7 +186,7 @@ class Composition():
             """
             Initialises the Clip Manager with a library of Clips.
             """
-            logger.debug(f'Building clip library from base path {self.config["base_path"]}...')
+            logger.debug(f'Library path: {self.config["base_path"]}...')
             titles = [d for d in os.listdir(self.config['base_path']) \
                 if os.path.isdir(os.path.join(self.config['base_path'], d))]
             for title in sorted(titles):
@@ -196,20 +209,26 @@ class Composition():
             logger.debug(f'Importing {"random " if name is None else ""}collection '
                         f'{(str(name) + " ") if name is not None else ""}from library.')
             if name is not None and name not in self.collections:
-                logger.warn('Requested collection name does not exist. One will be randomly selected.')
+                logger.warning('Requested collection name does not exist. '
+                               'One will be randomly selected.')
                 name = None
             if name is None:
                 name = random.choice(list(self.collections.keys()))
             path, names = (self.collections[name]['path'], self.collections[name]['names'])
-            logger.info(f'Collection "{name}" selected with ({len(names)}) audio file{plural(names)} from: {path}')
+            logger.info(f'Collection "{name}" selected with ({len(names)}) '
+                        f'audio file{plural(names)}')
             self.current_collection = {'title':name, 'path':path, 'names':names}
-            # Build clips from collection to populate clip manager and initialise the clip pools 
-            self.clips = set([Clip(path, name, self.config['categories']) for name in names])
+            # Build clips from collection to populate clip manager
+            self.clips = set([Clip(path, name,
+                                    self.config['categories']) for name in names])
             self.active_pool = set()
-            if (pool := get_distributed(self.clips, num_clips, self.config['strict_distribution'])) is not None:
+            if (pool := get_distributed(
+                            self.clips, num_clips,
+                            strict=self.config.get(
+                            'strict_distribution', False))) is not None:
                 self.inactive_pool = pool
                 self.channels = self.get_channels(self.inactive_pool)
-                failed = init_sounds(self.inactive_pool, self.channels) # TODO Keeping failed in case they're useful
+                init_sounds(self.inactive_pool, self.channels)
                 return self.current_collection
             else:
                 logger.error(f'Failed to retrieve a collection "{name}"! Audio files might be corrupted.')
@@ -238,7 +257,6 @@ class Composition():
         # Clip management
         #----------------
 
-
         def stop_random_clip(self):
             """
             Stop a randomly selected audio clip from the active pool.
@@ -246,7 +264,7 @@ class Composition():
             self.stop_clip()
 
 
-        def stop_all_clips(self, fade_time=None, disable_events=True):
+        def stop_all_clips(self, **kwargs):
             """
             Tell all active clips to stop playing, emptying the mixer of\
             active channels.\n `fade_time=(int)` the number of milliseconds active\
@@ -255,12 +273,11 @@ class Composition():
             value from the config.json will be used.\n Use 'disable_events=True'\
             to prevent misfiring audio jobs that use clip end events to launch more.
             """
-            fade_time = self.config['fade_out'] if fade_time is None\
-                else fade_time
+            fade_time = kwargs.get('fade_time', self.config.get('fade_out', 0))
             if pg.mixer.get_init():
                 if pg.mixer.get_busy():
                     logger.info(f'Stopping audio clips: {fade_time}ms fade...')
-                    if disable_events is True:
+                    if kwargs.get('disable_events', False) is True:
                         self.clear_events()
                     pg.mixer.fadeout(fade_time)
 
@@ -271,7 +288,7 @@ class Composition():
             call the clip manager to clean them up.
             """
             for event in pg.event.get():
-                if event.type == self.event:
+                if event.type == self.clip_event:
                     logger.info(f'Clip end event: {event}')
                     self.check_finished()
 
@@ -283,7 +300,7 @@ class Composition():
             logger.debug('Waiting for audio mixer to release all channels...')
             while pg.mixer.get_busy():
                 time.sleep(0.1)
-            logger.info('Mixer empty.')
+            logger.debug('Mixer empty.')
 
 
         def move_to_inactive(self, clips:set):
@@ -296,7 +313,7 @@ class Composition():
                 logger.debug(f'MOVED: {clip.name} | active >>> INACTIVE.')
 
 
-        def move_to_active(self, clips:set):
+        def move_to_active(self, clips: set):
             """
             Supplied list of Clip(s) are moved from inactive to active pool.
             """
@@ -320,48 +337,47 @@ class Composition():
             return finished
 
 
-        def play_clip(self, clips=set(), name=None, category=None, num_clips=1, volume=None, fade=None, event=None) -> set:
+        def play_clip(self, clips=set(), **kwargs) -> set:
             """
             Start playback of Clip(s) from the inactive pool, selected by object, name, category, or at random.
             Clips started are moved to the active pool and are returned as a set.
             """
-            volume = self.config['volume'] if volume is None else volume
-            fade = self.config['fade_in'] if fade is None else fade
-            event = self.event if event is None else event
             if len(clips) == 0:
-                clips = get_clip(self.inactive_pool, name=name, category=category, num_clips=num_clips)
-            started = set([c for c in clips if c.play(volume, event, fade) is not None])
+                clips = get_clip(self.inactive_pool, **kwargs)
+            started = set([c for c in clips if c.play(**kwargs) is not None])
             self.move_to_active(started)
             return started
 
 
-        def stop_clip(self, clips=set(), name=None, category=None, num_clips=1, fade=None, *args) -> set:
+        def stop_clip(self, clips=set(), *args, **kwargs) -> set:
             """
             Stop playback of Clip(s) from the active pool, selected by object, name, category, or at random.
             Clips stopped are moved to the inactive pool and are returned as a set. `'balance'` in args will
             remove clips based on the most active category, overriding category in arguments if provided.
             """
-            fade = self.config['fade_out'] if fade is None else fade
+            fade = kwargs.get('fade', self.config.get('fade_out', 0))
             if len(clips) == 0:
+                # Finds the catgeory with the greatest number of active clips.
                 if 'balance' in args:
-                    cats = get_contents(self.active_pool)
-                    clips = cats[max(cats, key = cats.get)]
-                    category = None
-                clips = get_clip(self.active_pool, name=name, category=category, num_clips=num_clips)
-            stopped = set([c for c in clips if c.stop(fade) is not None])
+                    contents = get_contents(self.active_pool)
+                    clips = contents[max(contents, key = contents.get)]
+                    kwargs.update('category', None)
+                clips = get_clip(self.active_pool, kwargs)
+            stopped = set([c for c in clips if c.stop(kwargs.get('fade',
+                        self.config.get('fade_out', 0))) is not None])
             self.move_to_inactive(stopped)
             return stopped
 
 
-        def modulate_volumes(self, speed, weight):
+        def modulate_volumes(self, **kwargs):
             """
             Randomly modulate the Channel volumes for all Clip(s) in the active pool.\n 
             - "speed=(int)" is the maximum volume jump per tick as a percentage of the total 
             volume. 1 is slow, 10 is very quick.\n - "weight=(float)" is a signed normalised 
             float (-1.0 to 1.0) that weighs the random steps towards either direction.
             """
-            speed = speed / 100
-            weight = weight * speed
+            speed = kwargs.get('speed', 5) / 100
+            weight = kwargs.get('weight', 1) * speed
             new_volumes = []
             for clip in self.active_pool:
                 vol = clip.channel.get_volume()
@@ -444,7 +460,7 @@ class Composition():
             job_params = self.jobs['volume']['parameters']
             speed = kwargs.get('speed', job_params['speed'])
             weight = kwargs.get('weight', job_params['weight'])
-            self.modulate_volumes(speed, weight)
+            self.modulate_volumes(speed=speed, weight=weight)
 
 
         def start_job(self, *args):

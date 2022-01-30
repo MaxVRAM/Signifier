@@ -1,24 +1,38 @@
 
-#    _________.__              .__  _____       
-#   /   _____/|__| ____   ____ |__|/ ____\__.__.
-#   \_____  \ |  |/ ___\ /    \|  \   __<   |  |
-#   /        \|  / /_/  >   |  \  ||  |  \___  |
-#  /_______  /|__\___  /|___|  /__||__|  / ____|
-#          \/   /_____/      \/          \/     
-#
+#    _________.__              .__  _____.__              
+#   /   _____/|__| ____   ____ |__|/ ____\__| ___________ 
+#   \_____  \ |  |/ ___\ /    \|  \   __\|  |/ __ \_  __ \
+#   /        \|  / /_/  >   |  \  ||  |  |  \  ___/|  | \/
+#  /_______  /|__\___  /|___|  /__||__|  |__|\___  >__|   
+#          \/   /_____/      \/                  \/       
 
 
+
+import logging
+
+log_time_format = "%d-%b-%y %H:%M:%S"
+log_message_format = "%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(funcName)20s: %(message)s"
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format=log_message_format,
+    datefmt=log_time_format)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 import sys
 import time
 import json
 import signal
-import logging
+
+from queue import Empty, Full
 import multiprocessing as mp
 from multiprocessing.connection import Connection
 
 from signify.arduino import Arduino
 from signify.analysis import Analysis
+from signify.mapping import ValueMapper
 from signify.bluetooth import Bluetooth
 from signify.composition import Composition
 
@@ -26,33 +40,14 @@ from signify.composition import Composition
 CONFIG_FILE = 'config.json'
 config_dict = None
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
 arduino_module = Arduino
 analysis_module = Analysis
 bluetooth_module = Bluetooth
 composition_module = Composition
 
+input_pipes = {'arduino':None,'composition':None}
+output_pipes = {'analysis':None,'bluetooth':None}
 
-#  ________
-#  \_____  \  __ __   ____  __ __   ____
-#   /  / \  \|  |  \_/ __ \|  |  \_/ __ \
-#  /   \_/.  \  |  /\  ___/|  |  /\  ___/
-#  \_____\ \_/____/  \___  >____/  \___  >
-#         \__>           \/            \/
-
-def led_value_updater(receive_pipe:Connection, send_pipe:Connection, led_updater_event):
-    """
-    Multiprocessor pipeline for passing LED value updates to the Arudino.
-    """
-    while not led_updater_event.is_set():
-        if receive_pipe.poll():
-            value = receive_pipe.recv()
-            arduino_module.set_value(value)
-    receive_pipe.close()
-    send_pipe.close()
 
 
 #    _________.__            __      .___
@@ -88,6 +83,7 @@ class ExitHandler:
                 composition_module.stop()
                 bluetooth_module.stop()
                 analysis_module.stop()
+                mapping_module.stop()
                 arduino_module.stop()
                 time.sleep(2)
                 logger.info('Signifier shutdown complete!')
@@ -123,6 +119,16 @@ if __name__ == '__main__':
     bluetooth_module.start()
     composition_module = Composition(config_dict['composition'])
     composition_module.start()
+
+    input_pipes = {
+        'arduino':arduino_module.input_value_out,
+        'composition':composition_module.input_value_out}
+    output_pipes = {
+        'analysis':analysis_module.output_value_out,
+        'bluetooth':bluetooth_module.output_value_out}
+    
+    mapping_module = ValueMapper(config_dict['mapping'], input_pipes, output_pipes)
+    mapping_module.start()
 
     while True:
         composition_module.tick()

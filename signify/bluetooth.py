@@ -25,10 +25,7 @@ from signify.utils import lerp
 
 # Silencing the bleson module because of all the logged warnings
 blelogger.set_level(blelogger.ERROR)
-
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
 
 
 class Bluetooth():
@@ -36,12 +33,14 @@ class Bluetooth():
     Bluetooth scanner manager module.
     """
     def __init__(self, config:dict, args=(), kwargs=None) -> None:
+        logger.setLevel(logging.DEBUG if config.get('debug', True) else logging.INFO)
         self.config = config
         self.enabled = self.config.get('enabled', False)
         self.process = None
         # Process management
-        self.return_q = mp.Queue(maxsize=10)
-        self.set_state_q = mp.Queue(maxsize=1)
+        self.state_q = mp.Queue(maxsize=1)
+        self.output_value_in, self.output_value_out = mp.Pipe()
+
         if self.enabled:
             self.initialise()
 
@@ -107,7 +106,7 @@ class Bluetooth():
         if self.process is not None:
             if self.process.is_alive():
                 logger.debug(f'Bluetooth process shutting down...')
-                self.set_state_q.put('close', timeout=2)
+                self.state_q.put('close', timeout=2)
                 self.process.join(timeout=1)
                 self.process = None
                 logger.info(f'Bluetooth process stopped and joined main thread.')
@@ -127,8 +126,8 @@ class Bluetooth():
             # Process management
             self.daemon = True
             self.event = mp.Event()
-            self.return_q = parent.return_q
-            self.set_state_q = parent.set_state_q
+            self.set_state_q = parent.state_q
+            self.output_value_in = parent.output_value_in
             # Bluetooth configuration
             self.remove_after = parent.config.get('remove_after', 15)
             self.start_delay = parent.config.get('start_delay', 2)
@@ -136,7 +135,7 @@ class Bluetooth():
             self.signal_threshold = parent.config.get('signal_threshold', 0.002)
             # Scanner data
             self.devices = {}
-            self.bluetooth_data = {}
+            self.output_values = {}
 
 
         class Device():
@@ -190,7 +189,6 @@ class Bluetooth():
                 # Remove existing device with weak signal
                 if mac in self.devices:
                     self.devices.pop(mac)
-                    # print(f'Removed device: {mac}')
 
 
         def run(self):
@@ -221,31 +219,22 @@ class Bluetooth():
                     self.devices.pop(i)
 
                 signal_array = [d.current_signal for d in self.devices.values()]
-                #print(f'Siginal array: {signal_array}')
                 activity_array = [d.activity for d in self.devices.values()]
-                #print(f'Activity array: {activity_array}')
 
-                self.bluetooth_data = {
+                self.output_values = {
                     'num_devices':len(self.devices),
-                    'signal':
-                    {
-                        'total': np.sum(signal_array),
-                        'mean':np.mean(signal_array),
-                        'std':np.std(signal_array),
-                        'max':np.amax(signal_array)
-                    },
-                    'activity':
-                    {
-                        'total': np.sum(activity_array),
-                        'mean':np.mean(activity_array),
-                        'std':np.std(activity_array),
-                        'max':np.amax(activity_array)
-                    }
+                    'signal_total': np.sum(signal_array),
+                    'signal_mean':np.mean(signal_array),
+                    'signal_std':np.std(signal_array),
+                    'signal_max':np.amax(signal_array),
+                    'activity_total': np.sum(activity_array),
+                    'activity_mean':np.mean(activity_array),
+                    'activity_std':np.std(activity_array),
+                    'activity_max':np.amax(activity_array)
                 }
-                # print()
-                # print(f'Signal: {self.bluetooth_data["signal"]}')
-                # print(f'Activity: {self.bluetooth_data["activity"]}')
-                # print()
+
+                self.output_value_in.send(self.output_values)
+
             observer.stop()
 
 

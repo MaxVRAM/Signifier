@@ -23,8 +23,6 @@ import multiprocessing as mp
 from signify.utils import lerp
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
 
 
 class Analysis():
@@ -32,12 +30,13 @@ class Analysis():
     Audio analysis manager module.
     """
     def __init__(self, config:dict, args=(), kwargs=None) -> None:
+        logger.setLevel(logging.DEBUG if config.get('debug', True) else logging.INFO)
         self.config = config
         self.enabled = self.config.get('enabled', False)
-        self.thread = None
         # Process management
-        self.return_q = Queue(maxsize=1)
-        self.set_state_q = Queue(maxsize=1)
+        self.thread = None
+        self.state_q = Queue(maxsize=1)
+        self.output_value_in, self.output_value_out = mp.Pipe()
         if self.enabled:
             self.initialise()
 
@@ -103,7 +102,7 @@ class Analysis():
         if self.thread is not None:
             if self.thread.is_alive():
                 logger.debug(f'Analysis thread shutting down...')
-                self.set_state_q.put('close', timeout=2)
+                self.state_q.put('close', timeout=2)
                 self.thread.join(timeout=1)
                 self.thread = None
                 logger.info(f'Analysis thread stopped and joined main thread.')
@@ -123,31 +122,28 @@ class Analysis():
             # Process management
             self.daemon = True
             self.event = Event()
-            self.return_q = parent.return_q
-            self.set_state_q = parent.set_state_q
+            self.output_value_in = parent.output_value_in
+            self.state_q = parent.state_q
             # Analysis configuration
-            self.input = parent.config.get('input_device', 'default')
+            self.input_device = parent.config.get('input_device', 'default')
             self.sample_rate = parent.config.get('sample_rate', 48000)
             self.dtype = parent.config.get('dtype', 'int16')
             self.buffer = parent.config.get('buffer', 2048)
             # Analysis data
-            self.data = {'peak': 0}
             self.prev_process_time = time.time()
-            value_config = parent.config.get('values', {})
-            peak_config = value_config.get('peak', {})
-            self.peak_enabled = peak_config.get('enabled', False)
-            self.peak_smooth = peak_config.get('smooth', 0.5)
+            self.output_config = parent.config.get('output_values', {})
+            self.peak_config = parent.config.get('peak', {})
+            self.output_values = {'peak': 0} 
 
 
         def run(self):
             """
-            Begin executing Analyser thread to produce audio descriptors.\
-            These are returned to the `analysis_return_q` in the main thread.
+            Begin executing Analyser thread to produce audio descriptors.
             """
             self.event.clear()
             import sounddevice as sd
             sd.default.channels = 1
-            sd.default.device = self.input
+            sd.default.device = self.input_device
             sd.default.dtype = self.dtype
             sd.default.blocksize = self.buffer
             sd.default.samplerate = self.sample_rate
@@ -155,16 +151,12 @@ class Analysis():
             with sd.InputStream(callback=self.stream_callback):
                 while not self.event.is_set():
                     try:
-                        if self.set_state_q.get_nowait() == 'close':
+                        if self.state_q.get_nowait() == 'close':
                             break
                     except Empty:
                         pass
                     try:
-                        self.return_q.get_nowait()
-                    except Empty:
-                        pass
-                    try:
-                        self.return_q.put_nowait(self.data)
+                        self.output_value_in.send(self.output_values)
                     except Full:
                         pass
             return None
@@ -176,12 +168,13 @@ class Analysis():
             calculates the amplitude of the input signal.
             """
             if status:
-                logger.debug(status)
+                logger.warning(status)
 
-            if self.peak_enabled:
+            if self.peak_config.get('enabled', False):
                 peak = np.amax(np.abs(indata))
                 peak = max(0.0, min(1.0, peak / 10000))
-                self.data['peak'] = lerp(self.data['peak'], peak, 0.5)
+                self.output_values['peak'] = lerp(self.output_values['peak'],
+                                    peak, self.peak_config.get('smooth', 0.5))
 
             self.prev_process_time = time.time()
 

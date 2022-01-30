@@ -15,93 +15,15 @@ from __future__ import annotations
 import time
 import enum
 import logging
-from queue import Empty, Full
 import multiprocessing as mp
+from queue import Empty, Full
 
 from pySerialTransfer import pySerialTransfer as txfer
 
-from signify.utils import scale as scale, plural as plural
+from signify.utils import scale
+from signify.utils import plural
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-
-class ArduinoState(enum.Enum):
-    starting = 1
-    running = 2
-    idle = 3
-    pause = 4
-    paused = 5
-    close = 6
-    closed = 7
-
-
-class ReceivePacket(object):
-    """
-    Simple base static class for reading serial packets from Arduino.
-    """
-    command = ''
-    valA = 0.0
-    valB = 0.0
-
-
-class SendPacket():
-    """
-    Class to holding serial packets for sending to Arduino.
-    """
-    def __init__(self, command:str, val:int, dur:int) -> None:
-        self.command = command
-        self.value = val
-        self.duration = dur
-    def __str__(self) -> str:
-        return f'Serial Send Packet | "{self.command}", value: ({self.value}), duration ({self.duration})ms.'
-
-
-class LedValue:
-    """
-    Generic class for holding and managing LED parameter states for the Arduino.
-    """
-    def __init__(self, config:dict, tx_period:int) -> None:
-        self.command = config['command']
-        self.min = config.get('min', 0)
-        self.max = config.get('max', 255)
-        self.default = config.get('default', 0)
-        self.smooth = config.get('smooth', 1)
-        self.update_ms = tx_period
-        self.tx_time = time.time_ns() // 1_000_000
-        self.duration = int(config.get('dur', self.update_ms)) * 3
-        self.packet = SendPacket(self.command, self.default, self.duration)
-        self.updated = True
-
-
-    def __str__(self) -> str:
-        return f'"{self.command}"'
-
-
-    def set_value(self, value, duration=None):
-        """
-        Updates the LED parameter and prepares a serial packet to send.
-        """
-        dur = duration if duration is not None else self.duration
-        value = int(scale(value, (0, 1), (self.min, self.max), 'clamp'))
-        self.packet = SendPacket(self.command, value, dur)
-        self.updated = True
-
-
-    def send(self, send_function, *args) -> bool:
-        """
-        Returns the serial packet command for the Arduino process to send.
-        """
-        if self.packet is None:
-            return False
-        if 'force' in args or (self.updated and (
-            current_ms := time.time_ns() // 1_000_000)\
-                > self.tx_time + self.update_ms):
-            if send_function(self.packet) is None:
-                self.tx_time = current_ms
-                self.updated = False
-                return True
-        return False
 
 
 class Arduino():
@@ -109,14 +31,14 @@ class Arduino():
     Arduino serial communications manager module.
     """
     def __init__(self, config:dict, args=(), kwargs=None) -> None:
+        logger.setLevel(logging.DEBUG if config.get('debug', True) else logging.INFO)
         self.config = config
         self.enabled = self.config.get('enabled', False)
         self.start_delay = self.config.get('start_delay', 2)
         self.process = None
         # Process management
-        self.value_pipe = mp.Pipe()
-        self.return_q = mp.Queue(maxsize=10)
-        self.set_state_q = mp.Queue(maxsize=1)
+        self.input_value_in, self.input_value_out = mp.Pipe()
+        self.state_q = mp.Queue(maxsize=1)
         if self.enabled:
             self.initialise()
 
@@ -203,7 +125,7 @@ class Arduino():
         if self.process is not None:
             try:
                 logger.debug(f'Trying to send Arduino thread "{state}" state.')
-                self.set_state_q.put(state, timeout=timeout)
+                self.state_q.put(state, timeout=timeout)
                 logger.debug(f'Sent state "{state}" to Arduino thread.')
                 return True
             except Full:
@@ -216,12 +138,11 @@ class Arduino():
         """
         Accepts an input value as a tuple `(name(str), value(float))` that\
         is assigned an LED value (defined in `config.json`), and passed to\
-        the Arduino process via pipe.
+        the Arduino process via queue.
         """
-        # TODO add section in config to manage input > output mapping of values
         if self.process is not None:
             value = value[1]
-            self.value_pipe[0].send(tuple(['brightness', value]))
+            self.input_pipe_out.send(tuple(['brightness', value]))
 
 
 
@@ -235,19 +156,19 @@ class Arduino():
             # Process management
             self.daemon = True
             self.event = mp.Event()
-            self.value_pipe = parent.value_pipe[1]
-            self.return_q = parent.return_q
-            self.set_state_q = parent.set_state_q
+            self.input_value_in = parent.input_value_in
+            self.set_state_q = parent.state_q
             # Serial communication
             self.link = None
             self.state = ArduinoState.idle
             self.port = parent.config.get('port', '/dev/ttyACM0')
             self.baud = parent.config.get('baud', 38400)
             self.rx_packet = ReceivePacket
-            self.update_ms = parent.config['update_ms']
+            self.update_ms = parent.config.get('update_ms', 30)
+            self.default_duration = parent.config.get('default_duration', 90)
             self.values = {}
-            for k, v in parent.config['values'].items():
-                self.values.update({k:LedValue(v, self.update_ms)})
+            for k, v in parent.config['input_values'].items():
+                self.values.update({k:LedValue(v, self.default_duration)})
 
 
         def run(self):
@@ -268,12 +189,15 @@ class Arduino():
                     self.set_state(ArduinoState[state])
                 except Empty:
                     pass
-                # Quickly snap up the value queue
+                # Snap up the input value pipe dict, update any new values
                 if self.state != ArduinoState.close:
-                    if self.value_pipe.poll():
-                        v = self.value_pipe.recv()
-                        if (value := self.values.get(v[0])) is not None:
-                            value.set_value(v[1], None)
+                    if self.input_value_in.poll():
+                        for k, v in self.input_value_in.recv():
+                            if k in self.values:
+                                self.values[k].set_value(v['value'], v)
+                        # v = self.input_value_in.recv()
+                        # if (value := self.values.get(v[0])) is not None:
+                        #     value.set_value(v[1], None)
                 # Next, check for any available serial packets from the Arduino
                 if self.link.available():
                     recSize = 0
@@ -317,7 +241,6 @@ class Arduino():
             if cmd == 'r':
                 # Wait for first Arduino "ready" message before sending LED values
                 if self.state == ArduinoState.starting:
-                    #print(f'arduino update time send success: {self.send_packet(SendPacket("l", self.update_ms, 0))}')
                     self.set_state(ArduinoState.running)
                 # Send any updated LED values if module is "running"
                 if self.state == ArduinoState.running:
@@ -332,8 +255,6 @@ class Arduino():
                     logger.debug(f'Arduino connection is {self.state.name}')
                     # self.link.close()
                     self.event.set()
-            # else:
-            #     print(f'{run_time} Got "{cmd}" from Arduino with {self.rx_packet.valA}, {self.rx_packet.valB}')
 
 
         def set_state(self, state:ArduinoState):
@@ -367,9 +288,10 @@ class Arduino():
             while time.time() < timeout_start + 1:
                 if self.link.available():
                     if self.send_packet(SendPacket('B', 0, 1000)) is None:
-                        logger.debug(f'Arduino received shutdown request, terminating connection.')
+                        logger.debug(f'Arduino received shutdown request.')
                         self.state = ArduinoState.closed
                         self.link.close()
+                        logger.debug(f'Arduino connection terminated.')
                         self.event.set()
                         timeout_start = 0
                         return True
@@ -410,3 +332,77 @@ class Arduino():
             self.set_state(ArduinoState.starting)
             self.link = txfer.SerialTransfer(self.port, baud=self.baud)
             self.link.open()
+
+
+class ArduinoState(enum.Enum):
+    starting = 1
+    running = 2
+    idle = 3
+    pause = 4
+    paused = 5
+    close = 6
+    closed = 7
+
+
+class ReceivePacket(object):
+    """
+    Simple base static class for reading serial packets from Arduino.
+    """
+    command = ''
+    valA = 0.0
+    valB = 0.0
+
+
+class SendPacket():
+    """
+    Class to holding serial packets for sending to Arduino.
+    """
+    def __init__(self, command:str, val:int, dur:int) -> None:
+        self.command = command
+        self.value = val
+        self.duration = dur
+    def __str__(self) -> str:
+        return f'Serial Send Packet | "{self.command}", value: ({self.value}), duration ({self.duration})ms.'
+
+
+class LedValue():
+    """
+    Generic class for holding and managing LED parameter states for the Arduino.
+    """
+    def __init__(self, config:dict, duration:int) -> None:
+        self.command = config['command']
+        self.min = config.get('min', 0)
+        self.max = config.get('max', 255)
+        self.default = config.get('default', 0)
+        self.smooth = config.get('smooth', 0)
+        self.duration = duration
+        self.packet = SendPacket(self.command, self.default, self.duration)
+        self.updated = True
+
+
+    def __str__(self) -> str:
+        return f'"{self.command}"'
+
+
+    def set_value(self, value, **kwargs):
+        """
+        Updates the LED parameter and prepares a serial packet to send.
+        """
+        dur = kwargs.get('duration', self.duration)
+        value = int(scale(value, (0, 1), (self.min, self.max), 'clamp'))
+        if value != self.packet.value:
+            self.packet = SendPacket(self.command, value, dur)
+            self.updated = True
+
+
+    def send(self, send_function, *args) -> bool:
+        """
+        Returns the serial packet command for the Arduino process to send.
+        """
+        if self.packet is None:
+            return False
+        if 'force' in args or self.updated:
+            if send_function(self.packet) is None:
+                self.updated = False
+                return True
+        return False
