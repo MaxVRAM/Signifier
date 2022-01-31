@@ -14,7 +14,7 @@ scrape_configs:
     static_configs:
       - targets: ['nodeexporter:9100']
 
-  - job_name: 'pushgateway'
+  - job_name: 'signifier'
     scrape_interval: 1s
     honor_labels: true
     static_configs:

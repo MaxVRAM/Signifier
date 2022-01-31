@@ -20,6 +20,10 @@ from queue import Empty, Full
 
 from pySerialTransfer import pySerialTransfer as txfer
 
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+
+registry = CollectorRegistry()
+
 from signify.utils import scale
 from signify.utils import plural
 
@@ -144,6 +148,7 @@ class Arduino():
             super().__init__()
             # Process management
             self.daemon = True
+            self.parent = parent
             self.event = mp.Event()
             self.destination_out = parent.destination_out
             self.set_state_q = parent.state_q
@@ -157,7 +162,7 @@ class Arduino():
             self.duration_multiplier = parent.config.get('duration_multiplier', 3)
             self.commands = {}
             for k, v in parent.config['dest_config'].items():
-                self.commands.update({k:LedValue(
+                self.commands.update({k:LedValue(f'{self.parent.module_name}_{k}',
                     v, self.update_ms, self.duration_multiplier)})
 
 
@@ -210,6 +215,8 @@ class Arduino():
                             logger.error('Arduino: STOP_BYTE_ERROR')
                         else:
                             logger.error('ERROR: {}'.format(self.link.status))
+                # Push updated values to Prometheus push gateway
+                push_to_gateway('localhost:9091', job='signifier', timeout=None, registry=registry)
 
             # Close everything off just in case something got missed
             self.link.close()
@@ -357,15 +364,18 @@ class LedValue():
     """
     Generic class for holding and managing LED parameter states for the Arduino.
     """
-    def __init__(self, config:dict, update_ms:float, duration:int) -> None:
+    def __init__(self, name:str, config:dict, update_ms:float, multiplier:int) -> None:
+        self.name = name
         self.command = config['command']
         self.min = config.get('min', 0)
         self.max = config.get('max', 255)
         self.default = config.get('default', 0)
         self.smooth = config.get('smooth', 0)
-        self.duration = duration
+        self.description = config.get('description', 'Description not defined.')
+        self.duration = update_ms * multiplier
         self.packet = SendPacket(self.command, self.default, self.duration)
         self.updated = True
+        self.gauge = Gauge(self.name, self.description, registry=registry)
 
 
     def __str__(self) -> str:
@@ -392,6 +402,7 @@ class LedValue():
             return False
         if 'force' in args or self.updated:
             if send_function(self.packet) is None:
+                self.gauge.set(self.packet.value)
                 self.updated = False
                 return True
         return False

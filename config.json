@@ -28,11 +28,16 @@
         "update_ms":30,
         "duration_multiplier":3,
         "dest_config":{
-            "update_ms":{"command":"l", "min":10, "max":200, "default":30},
-            "brightness":{"command":"B", "min":3, "max":255, "default":0},
-            "saturation":{"command":"S", "min":0, "max":255, "default":0},
-            "hue":{"command":"H", "min":0, "max":255, "default":195},
-            "noise":{"command":"N", "min":0, "max":255, "default":0}
+            "update_ms":{"command":"l", "min":10, "max":200, "default":30,
+                "description":"Target Arduino loop length in ms."},
+            "brightness":{"command":"B", "min":3, "max":255, "default":0,
+                "description":"Brightness level of entire LED strip."},
+            "saturation":{"command":"S", "min":0, "max":255, "default":0,
+                "description":"Saturation amount of the following pixel writes."},
+            "hue":{"command":"H", "min":0, "max":255, "default":195,
+                "description":"Hue value of the following pixel writes."},
+            "noise":{"command":"N", "min":0, "max":255, "default":0,
+                "description":"Amount of white pixel noise blended over the strip."}
         }
     },
     "bluetooth":{
@@ -43,15 +48,24 @@
         "signal_threshold":0.002,
         "remove_after":15,
         "source_config":{
-            "num_devices":{"enabled":true},
-            "signal_total":{"enabled":true},
-            "signal_mean":{"enabled":true},
-            "signal_std":{"enabled":true},
-            "signal_max":{"enabled":true},
-            "activity_total":{"enabled":true},
-            "activity_mean":{"enabled":true},
-            "activity_std":{"enabled":true},
-            "activity_max":{"enabled":true}
+            "num_devices":{"enabled":true,
+                "description":"Total number of nearby BLE devices."},
+            "signal_total":{"enabled":true,
+                "description":"Sum of nearby BLE signal strengths."},
+            "signal_mean":{"enabled":true,
+                "description":"Mean of nearby BLE signal strengths."},
+            "signal_std":{"enabled":true,
+                "description":"Standard deviation of BLE signal strength."},
+            "signal_max":{"enabled":true,
+                "description":"Value of strongest BLE device signal."},
+            "activity_total":{"enabled":true,
+                "description":"Total absolute difference of BLE device signals each tick."},
+            "activity_mean":{"enabled":true,
+                "description":"Average activity of nearby BLE devices."},
+            "activity_std":{"enabled":true,
+                "description":"Standard deviation of BLE device activity."},
+            "activity_max":{"enabled":true,
+                "description":"Activity value of most active BLE device."}
         }
     },
     "analysis":{
@@ -64,7 +78,8 @@
         "latency":0.1,
         "gain":1.0,
         "source_config":{
-            "peak":{"enabled":true, "smooth":0.5}
+            "peak":{"enabled":true, "smooth":0.5,
+                "description":"Peak amplitude of audio signal in each buffer."}
         }
     },
     "composition":{
