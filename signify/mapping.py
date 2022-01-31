@@ -12,10 +12,8 @@ Signifier module to process module outputs and send them to module inputs.
 
 from __future__ import annotations
 
-import time
 import logging
 import multiprocessing as mp
-from multiprocessing.connection import Connection
 from queue import Empty, Full
 
 from signify.utils import scale
@@ -120,7 +118,7 @@ class ValueMapper():
 
     class Mapping(mp.Process):
         """
-        Multiprocessing Process to process and deliver Signifier modulation values.
+        Multiprocessing Process to compute and deliver Signifier modulation values.
         """
         def __init__(self, parent:ValueMapper) -> None:
             super().__init__()
@@ -147,6 +145,7 @@ class ValueMapper():
             """
             Start processing output values and mapping configurations.
             """
+            counter = 0
             while not self.event.is_set():
                 try:
                     if self.state_q.get_nowait() == 'close':
@@ -154,12 +153,15 @@ class ValueMapper():
                         break
                 except Empty:
                     pass
+                counter += 1
+                self.process_source_values()
+                self.process_destinations()
 
-                self.process_outputs()
-                self.process_inputs()
+                # if counter % 1000 == 0:
+                #     print(self.source_values)
 
 
-        def process_outputs(self):
+        def process_source_values(self):
             for module, data in self.source_value_pipes.items():
                 if data.poll():
                     sources = data.recv()
@@ -171,7 +173,7 @@ class ValueMapper():
                         self.source_values[module].update({keys[r]:values[r]})
 
 
-        def process_inputs(self):
+        def process_destinations(self):
             for r in self.rules:
                 # try:
                 dest = r['destination']

@@ -55,10 +55,10 @@ class Clip:
         """Starts playback of Clip's Sound object with optional "fade=(int)" in ms
         and "event=(int)" to produce an end of clip callback. Returns itself if successful."""
         if self.channel is None:
-            logger.warn(f'Cannot play Clip "{self.name}". Not assigned to Channel.')
+            logger.warning(f'Cannot play Clip "{self.name}". Not assigned to Channel.')
             return None
         elif self.channel.get_busy():
-            logger.warn(f'Cannot play Channel "{self.index}" assigned to "{self.name}". Already playing audio.')
+            logger.warning(f'Cannot play Channel "{self.index}" assigned to "{self.name}". Already playing audio.')
             return None
         else:
             loop_num = -1 if self.looping else random.randint(self.loop_range[0], self.loop_range[1])
@@ -74,10 +74,10 @@ class Clip:
     def stop(self, **kwargs) -> Clip:
         """Stops the sound playing from the Clip immediately, otherwise supply "fade_time=(int)" in ms."""
         if self.channel is None:
-            logger.warn(f'Cannot stop "{self.name}". Not assigned to Channel.')
+            logger.warning(f'Cannot stop "{self.name}". Not assigned to Channel.')
             return None
         elif not self.channel.get_busy():
-            logger.warn(f'Cannot stop "{self.name}". Channel ({self.index}) reporting idle state.')
+            logger.warning(f'Cannot stop "{self.name}". Channel ({self.index}) reporting idle state.')
             return None
         else:
             if (fade := kwargs.get('fade', 0)) > 0:
@@ -92,14 +92,14 @@ class Clip:
 
     def get_volume(self) -> float:
         if self.sound is None:
-            logger.warn(f'Cannot get volume of "{self.name}". Not assigned to Sound object.')
+            logger.warning(f'Cannot get volume of "{self.name}". Not assigned to Sound object.')
         else:
             return self.channel.get_volume()
 
 
     def set_volume(self, volume:float):
         if self.sound is None:
-            logger.warn(f'Cannot set volume of "{self.name}". Not assigned to Sound object.')
+            logger.warning(f'Cannot set volume of "{self.name}". Not assigned to Sound object.')
         else:
             self.channel.set_volume(volume)
 
@@ -109,7 +109,7 @@ class Clip:
     def set_channel(self, chan:tuple) -> Channel:
         """Binds supplied (index, Channel) tuple to Clip."""
         if chan[1].get_sound():
-            logger.warn(f'Channel "{chan[0]}" already assigned to "{chan[1].get_sound()}".')
+            logger.warning(f'Channel "{chan[0]}" already assigned to "{chan[1].get_sound()}".')
             return None
         self.index = chan[0]
         self.channel = chan[1]
@@ -119,7 +119,7 @@ class Clip:
     def remove_channel(self) -> Channel:
         """Removes Channel and index number from Clip, returning the Channel object."""
         if (chan := self.channel) is None:
-            logger.warn(f'No Channel object assigned to "{self.name}", cannot remove. Skipping request.')
+            logger.warning(f'No Channel object assigned to "{self.name}", cannot remove. Skipping request.')
             return None
         self.index = None
         self.channel = None
@@ -133,7 +133,7 @@ class Clip:
         self.index = chan[0]
         self.set_channel(chan)
         if not self.sound or not self.channel:
-            logger.warn(f'Could not build "{self.name}"!')
+            logger.warning(f'Could not build "{self.name}"!')
             return None
         #logger.debug(f'Loaded clip: {self}.')
         return self

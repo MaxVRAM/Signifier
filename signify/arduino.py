@@ -183,7 +183,7 @@ class Arduino():
                     if self.destination_out.poll():
                         dest_values = self.destination_out.recv()
                         for k in dest_values.keys():
-                            print(dest_values[k])
+                            #print(dest_values[k])
                             if k in self.commands:
                                 self.commands[k].set_value(**dest_values[k])
                 # Check for any available serial packets from the Arduino

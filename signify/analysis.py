@@ -130,6 +130,7 @@ class Analysis():
             self.sample_rate = parent.config.get('sample_rate', 48000)
             self.dtype = parent.config.get('dtype', 'int16')
             self.buffer = parent.config.get('buffer', 2048)
+            self.latency = parent.config.get('latency', 0.4)
             # Analysis data
             self.prev_process_time = time.time()
             self.source_config = parent.config.get('source_config', {})
@@ -148,6 +149,7 @@ class Analysis():
             sd.default.dtype = self.dtype
             sd.default.blocksize = self.buffer
             sd.default.samplerate = self.sample_rate
+            sd.default.latency = self.latency
 
             with sd.InputStream(callback=self.stream_callback):
                 while not self.event.is_set():
