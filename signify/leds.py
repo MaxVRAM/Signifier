@@ -20,9 +20,8 @@ from queue import Empty, Full
 
 from pySerialTransfer import pySerialTransfer as txfer
 
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
-
-registry = CollectorRegistry()
+from prometheus_client import Gauge
+from serial import SerialException
 
 from signify.utils import scale
 from signify.utils import plural
@@ -30,11 +29,11 @@ from signify.utils import plural
 logger = logging.getLogger(__name__)
 
 
-class Arduino():
+class Leds():
     """
     Arduino serial communications manager module.
     """
-    def __init__(self, name:str, config:dict, args=(), kwargs=None) -> None:
+    def __init__(self, name:str, config:dict, *args, **kwargs) -> None:
         self.module_name = name
         self.config = config[self.module_name]
         logger.setLevel(logging.DEBUG if self.config.get(
@@ -45,6 +44,7 @@ class Arduino():
         # Process management
         self.state_q = mp.Queue(maxsize=1)
         self.destination_in, self.destination_out = mp.Pipe()
+        self.registry = kwargs.get('prom_registry', None)
 
         if self.enabled:
             self.initialise()
@@ -54,7 +54,7 @@ class Arduino():
         """
         Updates the state and parameters which drive the Arduino LED processes.
         """
-        logger.info(f'Updating Arduino module configuration...')
+        logger.info(f'Updating LED module configuration...')
         if self.enabled:
             self.config = config[self.module_name]
             if self.config.get('enabled', False) is False:
@@ -73,36 +73,36 @@ class Arduino():
 
     def initialise(self):
         """
-        Creates a new Arduino multiprocessor process for Arduino communications.
+        Creates a new LED process for Arduino communications.
         """
         if self.enabled:
             if self.process is None:
                 self.process = self.ArduinoProcess(self)
-                logger.info(f'Arduino module initialised.')
+                logger.info(f'LED module initialised.')
             else:
-                logger.warning(f'Arduino module already initialised!')
+                logger.warning(f'LED module already initialised!')
         else:
-            logger.warning(f'Cannot create Arduino process, module not enabled!')
+            logger.warning(f'Cannot create LED process, module not enabled!')
 
 
     def start(self):
         """
-        Creating a multi-core Arduino process and starts the routine.
+        Creating a multi-core LED process and starts the routine.
         """
         if self.enabled:
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
-                    logger.info(f'Arduino process started.')
+                    logger.info(f'LED process started.')
                     if self.start_delay > 0:
                         logger.debug(f'Pausing for {self.start_delay} '
                                      f'second{plural(self.start_delay)}...')
                 else:
-                    logger.warning(f'Cannot start Arduino process, already running!')
+                    logger.warning(f'Cannot start LED process, already running!')
             else:
-                logger.warning(f'Trying to start Arduino process but module not initialised!')
+                logger.warning(f'Trying to start LED process but module not initialised!')
         else:
-            logger.debug(f'Ignoring request to start Arduino process, module is not enabled.')
+            logger.debug(f'Ignoring request to start LED process, module is not enabled.')
 
 
     def stop(self):
@@ -111,30 +111,30 @@ class Arduino():
         """
         if self.process is not None:
             if self.process.is_alive():
-                logger.debug(f'Arduino process shutting down...')
+                logger.debug(f'LED process shutting down...')
                 self.set_state('close', timeout=2)
                 #self.arduino_process.event.set()
                 self.process.join(timeout=1)
                 self.process = None
-                logger.info(f'Arduino process stopped and joined main thread.')
+                logger.info(f'LED process stopped and joined main thread.')
             else:
-                logger.debug(f'Cannot stop Arduino process, not running.')
+                logger.debug(f'Cannot stop LED process, not running.')
         else:
-            logger.debug(f'Ignoring request to stop Arduino process, module is not enabled.')
+            logger.debug(f'Ignoring request to stop LED process, module is not enabled.')
 
 
     def set_state(self, state:str, timeout=0.5):
         """
-        Accepts Arduino state (str) and sends to Arduino process via a queue.
+        Sends a new `state=(str)` to LED process via a queue.
         """
         if self.process is not None:
             try:
-                logger.debug(f'Trying to send Arduino thread "{state}" state.')
+                logger.debug(f'Trying to send LED thread "{state}" state.')
                 self.state_q.put(state, timeout=timeout)
-                logger.debug(f'Sent state "{state}" to Arduino thread.')
+                logger.debug(f'Sent state "{state}" to LED thread.')
                 return True
             except Full:
-                logger.warning(f'Timed out sending "{state}" state to Arduino thread!')
+                logger.warning(f'Timed out sending "{state}" state to LED thread!')
                 return False
         return False
 
@@ -144,14 +144,14 @@ class Arduino():
         Multiprocessing Process to handle threaded serial communication
         with the Arduino.
         """
-        def __init__(self, parent:Arduino) -> None:
+        def __init__(self, parent:Leds) -> None:
             super().__init__()
             # Process management
             self.daemon = True
             self.parent = parent
             self.event = mp.Event()
             self.destination_out = parent.destination_out
-            self.set_state_q = parent.state_q
+            self.state_q = parent.state_q
             # Serial communication
             self.link = None
             self.state = ArduinoState.idle
@@ -161,9 +161,11 @@ class Arduino():
             self.update_ms = parent.config.get('update_ms', 30)
             self.duration_multiplier = parent.config.get('duration_multiplier', 3)
             self.commands = {}
-            for k, v in parent.config['dest_config'].items():
+            for k, v in parent.config['destinations'].items():
                 self.commands.update({k:LedValue(f'{self.parent.module_name}_{k}',
-                    v, self.update_ms, self.duration_multiplier)})
+                                                 v, self.update_ms,
+                                                 self.duration_multiplier,
+                                                 registry=parent.registry)})
 
 
         def run(self):
@@ -179,7 +181,7 @@ class Arduino():
                 # Prioritise apply a new state if one is in the queue
                 try:
                     #state = self.control_q.recv()
-                    state = self.set_state_q.get_nowait()
+                    state = self.state_q.get_nowait()
                     self.set_state(ArduinoState[state])
                 except Empty:
                     pass
@@ -192,36 +194,43 @@ class Arduino():
                             if k in self.commands:
                                 self.commands[k].set_value(**dest_values[k])
                 # Check for any available serial packets from the Arduino
-                if self.link.available():
-                    recSize = 0
-                    self.rx_packet.command = self.link.rx_obj(
-                        obj_type='c', start_pos=recSize)
-                    recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
-                    self.rx_packet.valA = self.link.rx_obj(
-                        obj_type='l', start_pos=recSize)
-                    recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-                    self.rx_packet.valB = self.link.rx_obj(
-                        obj_type='l', start_pos=recSize)
-                    recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
-                    self.process_packet()
-                else:
-                    # If not, check for serial link errors
-                    if self.link.status < 0:
-                        if self.link.status == txfer.CRC_ERROR:
-                            logger.error('Arduino: CRC_ERROR')
-                        elif self.link.status == txfer.PAYLOAD_ERROR:
-                            logger.error('Arduino: PAYLOAD_ERROR')
-                        elif self.link.status == txfer.STOP_BYTE_ERROR:
-                            logger.error('Arduino: STOP_BYTE_ERROR')
-                        else:
-                            logger.error('ERROR: {}'.format(self.link.status))
+                try:
+                    if self.link.available():
+                        recSize = 0
+                        self.rx_packet.command = self.link.rx_obj(
+                            obj_type='c', start_pos=recSize)
+                        recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
+                        self.rx_packet.valA = self.link.rx_obj(
+                            obj_type='l', start_pos=recSize)
+                        recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+                        self.rx_packet.valB = self.link.rx_obj(
+                            obj_type='l', start_pos=recSize)
+                        recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+                        self.process_packet()
+                    else:
+                        # If not, check for serial link errors
+                        if self.link.status < 0:
+                            if self.link.status == txfer.CRC_ERROR:
+                                logger.error('Arduino: CRC_ERROR')
+                            elif self.link.status == txfer.PAYLOAD_ERROR:
+                                logger.error('Arduino: PAYLOAD_ERROR')
+                            elif self.link.status == txfer.STOP_BYTE_ERROR:
+                                logger.error('Arduino: STOP_BYTE_ERROR')
+                            else:
+                                logger.error('ERROR: {}'.format(self.link.status))
+                except SerialException as exception:
+                    logger.critical(f'Fatal error communicating with Arduino. '
+                                    f'A restart may be required! {exception}')
+                    logger.warning(f'Due to error, LED/Arduino moduel will now '
+                                   f'be disabled for this session.')
+                    break
+                    
                 # Push updated values to Prometheus push gateway
-                push_to_gateway('localhost:9091', job='signifier', timeout=None, registry=registry)
 
             # Close everything off just in case something got missed
+            self.state = ArduinoState.closed
             self.link.close()
             self.event.set()
-            self.state = ArduinoState.closed
 
 
         def process_packet(self):
@@ -273,7 +282,7 @@ class Arduino():
                     logger.debug(f'Arduino connection now {self.state.name}')
                     return True
                 time.sleep(0.01)
-            logger.error(f'Could not set Arduino state to "paused"!')
+            logger.error(f'Could not set LED state to "paused"!')
             return False
 
 
@@ -364,7 +373,7 @@ class LedValue():
     """
     Generic class for holding and managing LED parameter states for the Arduino.
     """
-    def __init__(self, name:str, config:dict, update_ms:float, multiplier:int) -> None:
+    def __init__(self, name:str, config:dict, update_ms:float, multiplier:int, registry=None) -> None:
         self.name = name
         self.command = config['command']
         self.min = config.get('min', 0)

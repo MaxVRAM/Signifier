@@ -29,7 +29,7 @@ class Analysis():
     """
     Audio analysis manager module.
     """
-    def __init__(self, name:str, config:dict, args=(), kwargs=None) -> None:
+    def __init__(self, name:str, config:dict, *args, **kwargs) -> None:
         self.module_name = name
         self.config = config[self.module_name]
         logger.setLevel(logging.DEBUG if self.config.get(
@@ -38,7 +38,8 @@ class Analysis():
         # Process management
         self.process = None
         self.state_q = Queue(maxsize=1)
-        self.source_value_in, self.source_value_out = mp.Pipe()
+        self.source_in, self.source_out = mp.Pipe()
+        self.registry = kwargs.get('prom_registry', None)
 
         if self.enabled:
             self.initialise()
@@ -123,7 +124,7 @@ class Analysis():
             # Process management
             self.daemon = True
             self.event = Event()
-            self.source_value_in = parent.source_value_in
+            self.source_in = parent.source_in
             self.state_q = parent.state_q
             # Analysis configuration
             self.input_device = parent.config.get('input_device', 'default')
@@ -133,7 +134,7 @@ class Analysis():
             self.latency = parent.config.get('latency', 0.4)
             # Analysis data
             self.prev_process_time = time.time()
-            self.source_config = parent.config.get('source_config', {})
+            self.source_config = parent.config.get('sources', {})
             self.peak_config = self.source_config.get('peak', {})
             self.source_values = {'peak': 0}
 
@@ -159,7 +160,7 @@ class Analysis():
                     except Empty:
                         pass
                     try:
-                        self.source_value_in.send(self.source_values)
+                        self.source_in.send(self.source_values)
                     except Full:
                         pass
             return None

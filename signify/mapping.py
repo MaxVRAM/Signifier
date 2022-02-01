@@ -28,7 +28,7 @@ class ValueMapper():
     modules and assigning the values to input parameters of other modules. 
     """
     def __init__(self, name:str, config:dict, destination_pipes:dict,
-                source_value_pipes:dict, args=(), kwargs=None) -> None:
+                source_pipes:dict, args=(), kwargs=None) -> None:
         self.module_name = name
         self.config = config[self.module_name]
         logger.setLevel(logging.DEBUG if self.config.get(
@@ -36,7 +36,7 @@ class ValueMapper():
         self.enabled = self.config.get('enabled', False)
         # Pipes
         self.destination_pipes = destination_pipes
-        self.source_value_pipes = source_value_pipes
+        self.source_pipes = source_pipes
         # Process management
         self.process = None
         self.state_q = mp.Queue(maxsize=1)
@@ -128,7 +128,7 @@ class ValueMapper():
             self.state_q = parent.state_q
             # Pipes
             self.destination_pipes = parent.destination_pipes
-            self.source_value_pipes = parent.source_value_pipes
+            self.source_value_pipes = parent.source_pipes
             # Mapping parameters
             self.rules = parent.config.get('rules', {})
             
@@ -177,7 +177,7 @@ class ValueMapper():
             for r in self.rules:
                 # try:
                 dest = r['destination']
-                source = r['source_value']
+                source = r['source']
                 if (source_values := self.source_values.get(source['module'])) is not None:
                     if (value := source_values.get(source['param'])) is not None:
                         value = {'value':scale(value, source['range'], dest['range'])}

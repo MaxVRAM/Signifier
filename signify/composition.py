@@ -31,7 +31,10 @@ class Composition():
     """
     Audio playback composition manager module.
     """
-    def __init__(self, name:str, config:dict, args=(), kwargs=None) -> None:
+
+    registry = None
+
+    def __init__(self, name:str, config:dict, *args, **kwargs) -> None:
         self.module_name = name
         self.config = config[self.module_name]
         logger.setLevel(logging.DEBUG if self.config.get(
@@ -43,6 +46,7 @@ class Composition():
         self.manager = None
         self.state_q = mp.Queue(maxsize=1)
         self.destination_in, self.destination_out = mp.Pipe()
+        self.registry = kwargs.get('prom_registry', None)
 
         schedule.logger.setLevel(logging.INFO)
 
@@ -144,7 +148,7 @@ class Composition():
         """
         Clip Manager class to manage "collections" of audio clips for playback.
         """
-        def __init__(self, parent:Composition) -> None:
+        def __init__(self, parent:Composition, *args, **kwargs) -> None:
             """
             Create a new Clip Manager object.
             """

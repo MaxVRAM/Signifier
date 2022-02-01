@@ -20,6 +20,7 @@ from queue import Empty, Full
 
 from bleson import get_provider, Observer
 from bleson import logger as blelogger
+from prometheus_client import Gauge
 
 from signify.utils import lerp
 
@@ -31,7 +32,7 @@ class Bluetooth():
     """
     Bluetooth scanner manager module.
     """
-    def __init__(self, name:str, config:dict, args=(), kwargs=None) -> None:
+    def __init__(self, name:str, config:dict, *args, **kwargs) -> None:
         self.module_name = name
         self.config = config[self.module_name]
         logger.setLevel(logging.DEBUG if self.config.get(
@@ -40,7 +41,8 @@ class Bluetooth():
         # Process management
         self.process = None
         self.state_q = mp.Queue(maxsize=1)
-        self.source_value_in, self.source_value_out = mp.Pipe()
+        self.source_in, self.source_out = mp.Pipe()
+        self.registry = kwargs.get('prom_registry', None)
 
         if self.enabled:
             self.initialise()
@@ -125,7 +127,7 @@ class Bluetooth():
             self.daemon = True
             self.event = mp.Event()
             self.set_state_q = parent.state_q
-            self.source_value_in = parent.source_value_in
+            self.source_in = parent.source_in
             # Bluetooth configuration
             self.remove_after = parent.config.get('remove_after', 15)
             self.start_delay = parent.config.get('start_delay', 2)
@@ -134,41 +136,12 @@ class Bluetooth():
             # Scanner data
             self.devices = {}
             self.source_values = {}
-
-
-        class Device():
-            def __init__(self, parent:Bluetooth, mac, signal) -> None:
-                self.parent = parent
-                self.mac = mac
-                self.scanned_signal = signal
-                self.current_signal = signal
-                self.activity = signal
-                self.difference = 0
-                self.updated = True
-                self.updated_at = time.time()
-                pass
-
-            def update_signal(self, new_signal):
-                self.difference = new_signal - self.current_signal
-                self.scanned_signal = new_signal
-                self.current_signal = new_signal
-                self.updated = True
-                self.updated_at = time.time()
-                pass
-
-            def post_scan(self):
-                if self.updated:
-                    self.activity = abs(self.difference)
-                    self.updated = False
-                else:
-                    fraction = (time.time() - self.updated_at) / (
-                        self.parent.remove_after - self.parent.duration)
-                    self.current_signal = lerp(self.scanned_signal, 0, fraction)
-                    self.difference = self.current_signal - self.scanned_signal
-                    self.activity = 0
-                if time.time() > self.updated_at + self.parent.remove_after\
-                        or self.current_signal < 0:
-                    return self
+            self.gauges = {}
+            self.source_config = parent.config.get('sources', {})
+            for v in self.source_values.keys():
+                if (details := self.source_config.get(v)) is not None:
+                    self.gauges[v] = (Gauge(f'{parent.module_name}_{v}',
+                        details['description']), parent.registry)
 
 
         # (Callback) On each BLE device signal report
@@ -231,9 +204,48 @@ class Bluetooth():
                     'activity_max':np.amax(activity_array)
                 }
 
-                self.source_value_in.send(self.source_values)
+                self.source_in.send(self.source_values)
+
+                for k, v in self.gauges:
+                    v.set(self.source_values[k])
+
 
             observer.stop()
+
+
+        class Device():
+            def __init__(self, parent:Bluetooth, mac, signal) -> None:
+                self.parent = parent
+                self.mac = mac
+                self.scanned_signal = signal
+                self.current_signal = signal
+                self.activity = signal
+                self.difference = 0
+                self.updated = True
+                self.updated_at = time.time()
+                pass
+
+            def update_signal(self, new_signal):
+                self.difference = new_signal - self.current_signal
+                self.scanned_signal = new_signal
+                self.current_signal = new_signal
+                self.updated = True
+                self.updated_at = time.time()
+                pass
+
+            def post_scan(self):
+                if self.updated:
+                    self.activity = abs(self.difference)
+                    self.updated = False
+                else:
+                    fraction = (time.time() - self.updated_at) / (
+                        self.parent.remove_after - self.parent.duration)
+                    self.current_signal = lerp(self.scanned_signal, 0, fraction)
+                    self.difference = self.current_signal - self.scanned_signal
+                    self.activity = 0
+                if time.time() > self.updated_at + self.parent.remove_after\
+                        or self.current_signal < 0:
+                    return self
 
 
 # Convert dB to amplitude
