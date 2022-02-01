@@ -166,7 +166,7 @@ class Composition():
             self.inactive_pool = set()
             self.active_pool = set()
             self.active_jobs = {}
-            self.jobs = parent.config['jobs']
+            self.jobs = self.config['jobs']
             self.jobs_dict = {
                 'collection': self.collection_job,
                 'clip_selection': self.clip_selection_job,
@@ -499,7 +499,7 @@ class Composition():
             for job in jobs:
                 self.active_jobs[job] = schedule.every(self.jobs[job]['timer'])\
                                     .seconds.do(self.jobs_dict[job])
-            logger.debug(f'({len(self.active_jobs)}) jobs scheduled!')
+            logger.debug(f'({len(self.active_jobs)}) jobs currently scheduled.')
 
 
         def stop_job(self, *args, **kwargs):
@@ -515,7 +515,7 @@ class Composition():
                 jobs = set(args)
             if (ignore := kwargs.get('ignore', None)) is not None:
                 jobs.remove(ignore)
-            logger.debug(f'Stopping jobs: {jobs}')
             jobs.intersection_update(self.active_jobs.keys())
+            logger.debug(f'Stopping jobs: {jobs}')
             for job in jobs:
                 schedule.cancel_job(self.active_jobs.pop(job))

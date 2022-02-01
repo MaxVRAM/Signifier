@@ -1,13 +1,13 @@
 
-#  ____   ____      .__                     _____                       .__                
-#  \   \ /   /____  |  |  __ __   ____     /     \ _____  ______ ______ |__| ____    ____  
-#   \   Y   /\__  \ |  | |  |  \_/ __ \   /  \ /  \\__  \ \____ \\____ \|  |/    \  / ___\ 
-#    \     /  / __ \|  |_|  |  /\  ___/  /    Y    \/ __ \|  |_> >  |_> >  |   |  \/ /_/  >
-#     \___/  (____  /____/____/  \___  > \____|__  (____  /   __/|   __/|__|___|  /\___  / 
-#                 \/                 \/          \/     \/|__|   |__|           \//_____/  
+#     _____                       .__                
+#    /     \ _____  ______ ______ |__| ____    ____  
+#   /  \ /  \\__  \ \____ \\____ \|  |/    \  / ___\ 
+#  /    Y    \/ __ \|  |_> >  |_> >  |   |  \/ /_/  >
+#  \____|__  (____  /   __/|   __/|__|___|  /\___  / 
+#          \/     \/|__|   |__|           \//_____/  
 
 """
-Signifier module to process module outputs and send them to module inputs.
+Processes module source values and sends them to module destination parameters.
 """
 
 from __future__ import annotations
@@ -21,14 +21,14 @@ from signify.utils import scale
 logger = logging.getLogger(__name__)
 
 
-class ValueMapper():
+class Mapping():
     """# ValueMapper
 
     Multi-threaded value mapping module for processing output values from
     modules and assigning the values to input parameters of other modules. 
     """
     def __init__(self, name:str, config:dict, destination_pipes:dict,
-                source_pipes:dict, args=(), kwargs=None) -> None:
+                source_pipes:dict, metrics_q:mp.Queue, args=(), kwargs=None) -> None:
         self.module_name = name
         self.config = config[self.module_name]
         logger.setLevel(logging.DEBUG if self.config.get(
@@ -69,11 +69,11 @@ class ValueMapper():
 
     def initialise(self):
         """
-        Creates a new Mapping scanner process.
+        Creates a new Mapping process.
         """
         if self.enabled:
             if self.process is None:
-                self.process = self.Mapping(self)
+                self.process = self.ValueMapper(self)
                 logger.debug(f'Mapping module initialised.')
             else:
                 logger.warning(f'Mapping module already initialised!')
@@ -116,11 +116,11 @@ class ValueMapper():
 
 
 
-    class Mapping(mp.Process):
+    class ValueMapper(mp.Process):
         """
         Multiprocessing Process to compute and deliver Signifier modulation values.
         """
-        def __init__(self, parent:ValueMapper) -> None:
+        def __init__(self, parent:Mapping) -> None:
             super().__init__()
             # Process management
             self.daemon = True
@@ -145,7 +145,6 @@ class ValueMapper():
             """
             Start processing output values and mapping configurations.
             """
-            counter = 0
             while not self.event.is_set():
                 try:
                     if self.state_q.get_nowait() == 'close':
@@ -153,7 +152,6 @@ class ValueMapper():
                         break
                 except Empty:
                     pass
-                counter += 1
                 self.process_source_values()
                 self.process_destinations()
 

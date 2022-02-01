@@ -36,11 +36,10 @@ from queue import Empty, Full
 import multiprocessing as mp
 from multiprocessing.connection import Connection
 
-from prometheus_client import CollectorRegistry, push_to_gateway
-
 from signify.leds import Leds
+from signify.metrics import Metrics
+from signify.mapping import Mapping
 from signify.analysis import Analysis
-from signify.mapping import ValueMapper
 from signify.bluetooth import Bluetooth
 from signify.composition import Composition
 
@@ -48,12 +47,7 @@ from signify.composition import Composition
 CONFIG_FILE = 'config.json'
 config_dict = None
 
-registry = CollectorRegistry()
-
-leds_module = Leds
-analysis_module = Analysis
-bluetooth_module = Bluetooth
-composition_module = Composition
+metrics_q = mp.Queue(maxsize=100)
 
 source_pipes = {'analysis':None,'bluetooth':None}
 destination_pipes = {'arduino':None,'composition':None}
@@ -94,6 +88,7 @@ class ExitHandler:
                 bluetooth_module.stop()
                 analysis_module.stop()
                 mapping_module.stop()
+                metrics_module.stop()
                 leds_module.stop()
                 logger.info('Signifier shutdown complete!')
                 print()
@@ -120,13 +115,13 @@ if __name__ == '__main__':
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
 
-    leds_module = Leds('leds', config_dict, prom_registry=registry)
+    leds_module = Leds('leds', config_dict, metrics_q=metrics_q)
     leds_module.start()
-    analysis_module = Analysis('analysis', config_dict, prom_registry=registry)
+    analysis_module = Analysis('analysis', config_dict, metrics_q=metrics_q)
     analysis_module.start()
-    bluetooth_module = Bluetooth('bluetooth', config_dict, prom_registry=registry)
+    bluetooth_module = Bluetooth('bluetooth', config_dict, metrics_q=metrics_q)
     bluetooth_module.start()
-    composition_module = Composition('composition', config_dict, prom_registry=registry)
+    composition_module = Composition('composition', config_dict, metrics_q=metrics_q)
     composition_module.start()
 
     destination_pipes = {
@@ -136,11 +131,14 @@ if __name__ == '__main__':
         'analysis':analysis_module.source_out,
         'bluetooth':bluetooth_module.source_out}
     
-    mapping_module = ValueMapper('mapping', config_dict, destination_pipes, source_pipes)
+    mapping_module = Mapping(
+        'mapping', config_dict, destination_pipes, source_pipes, metrics_q)
     mapping_module.start()
+    
+    metrics_module = Metrics('metrics', config_dict, metrics_q)
+    metrics_module.start()
 
     while True:
         # TODO Change composition module over to threaded loop
         composition_module.tick()
-        push_to_gateway('localhost:9091', job='signifier', timeout=0.1, registry=registry)
         time.sleep(0.1)

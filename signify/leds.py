@@ -44,7 +44,7 @@ class Leds():
         # Process management
         self.state_q = mp.Queue(maxsize=1)
         self.destination_in, self.destination_out = mp.Pipe()
-        self.registry = kwargs.get('prom_registry', None)
+        self.metrics_q = kwargs.get('metrics_q', None)
 
         if self.enabled:
             self.initialise()
@@ -165,7 +165,7 @@ class Leds():
                 self.commands.update({k:LedValue(f'{self.parent.module_name}_{k}',
                                                  v, self.update_ms,
                                                  self.duration_multiplier,
-                                                 registry=parent.registry)})
+                                                 metrics_q=parent.metrics_q)})
 
 
         def run(self):
@@ -373,7 +373,8 @@ class LedValue():
     """
     Generic class for holding and managing LED parameter states for the Arduino.
     """
-    def __init__(self, name:str, config:dict, update_ms:float, multiplier:int, registry=None) -> None:
+    def __init__(self, name:str, config:dict, update_ms:float,
+                multiplier:int, metrics_q=None) -> None:
         self.name = name
         self.command = config['command']
         self.min = config.get('min', 0)
@@ -384,7 +385,7 @@ class LedValue():
         self.duration = update_ms * multiplier
         self.packet = SendPacket(self.command, self.default, self.duration)
         self.updated = True
-        self.gauge = Gauge(self.name, self.description, registry=registry)
+        self.metrics_q = metrics_q
 
 
     def __str__(self) -> str:
@@ -411,7 +412,7 @@ class LedValue():
             return False
         if 'force' in args or self.updated:
             if send_function(self.packet) is None:
-                self.gauge.set(self.packet.value)
+                self.metrics_q.put_nowait((self.name, self.packet.value))
                 self.updated = False
                 return True
         return False

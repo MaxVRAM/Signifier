@@ -39,7 +39,7 @@ class Analysis():
         self.process = None
         self.state_q = Queue(maxsize=1)
         self.source_in, self.source_out = mp.Pipe()
-        self.registry = kwargs.get('prom_registry', None)
+        self.metrics_q = kwargs.get('metrics_q', None)
 
         if self.enabled:
             self.initialise()
