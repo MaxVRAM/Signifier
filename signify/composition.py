@@ -48,7 +48,8 @@ class Composition():
         self.destination_in, self.destination_out = mp.Pipe()
         self.registry = kwargs.get('prom_registry', None)
 
-        schedule.logger.setLevel(logging.INFO)
+        schedule.logger.setLevel(logging.DEBUG if self.config.get(
+                                'debug', True) else logging.INFO)
 
         if self.enabled:
             self.initialise()
@@ -96,6 +97,7 @@ class Composition():
             if self.manager is not None:
                 if self.manager is not None:
                     self.manager.collection_job()
+                    #self.manager.start_job()
                     logger.info(f'Clip Manager started.')
                 else:
                     logger.warning(f'Cannot start Clip Manager, already running!')
@@ -204,15 +206,17 @@ class Composition():
                         names.append(f)
                 if len(names) != 0:
                     self.collections[title] = {'path':path, 'names':names}
-            logger.debug(f'Clip Manager initialised with ({len(self.collections)}) '
+            logger.info(f'Clip Manager initialised with ({len(self.collections)}) '
                         f'collection{plural(self.collections)}.')
 
 
-        def select_collection(self, name=None, num_clips=12):
+        def select_collection(self, **kwargs):
             """
             Selects a collection from the library, prepares clips and playback pools.\n
             Will randomly select a collection if valid name is not supplied.
             """
+            name = kwargs.get('name', None)
+            num_clips = kwargs.get('num_clips', self.config['default_pool_size'])
             logger.debug(f'Importing {"random " if name is None else ""}collection '
                         f'{(str(name) + " ") if name is not None else ""}from library.')
             if name is not None and name not in self.collections:
@@ -310,7 +314,7 @@ class Composition():
             logger.debug('Mixer empty.')
 
 
-        def move_to_inactive(self, clips:set):
+        def move_to_inactive(self, clips: set):
             """
             Supplied list of Clip(s) are moved from active to inactive pool.
             """
@@ -423,16 +427,21 @@ class Composition():
             currently loaded collection.
             """
             job_params = self.jobs['collection']['parameters']
-            pool_size = kwargs.get('pool_size', job_params['pool_size'])
-            start_clips = kwargs.get('start_clips', job_params['start_clips'])
-            self.stop_job(*[j for j in self.jobs_dict if j != 'collection'])
+            pool_size = kwargs.get('pool_size',
+                        job_params.get('pool_size',
+                        self.config['default_pool_size']))
+            start_clips = kwargs.get('start_clips',
+                            job_params.get('start_clips', 1))
+            self.stop_job(ignore='collection')
             self.stop_all_clips()
             self.wait_for_silence()
-            while self.select_collection(kwargs.get('collection'), pool_size) is None:
+            while self.select_collection(
+                    name=kwargs.get('collection'),
+                    pool_size=pool_size) is None:
                 logger.warning('Trying another collection in 2 seconds.')
                 time.sleep(2)
-                self.select_collection(None, pool_size)
-            self.start_job(*[j for j in self.jobs_dict if j != 'collection'])
+                self.select_collection(pool_size=pool_size)
+            self.start_job()
             self.clip_selection_job(start_num=start_clips)
 
 
@@ -475,9 +484,14 @@ class Composition():
             Start jobs matching names provided as string arguments.\n
             Jobs will only start if it is registered in the jobs dict,\
             not in the active jobs pool, and where it's tagged service\
-            and the job ifself are both enabled in config file.
+            and the job ifself are both enabled in config file.\n
+            If no args are supplied, all jobs that fit those criteria\
+            will be started.
             """
-            jobs = set(args)
+            if len(args) == 0:
+                jobs = set(self.jobs_dict.keys())
+            else:
+                jobs = set(args)
             jobs.intersection_update(self.jobs_dict.keys())
             jobs.difference_update(self.active_jobs.keys())
             jobs.intersection_update(
@@ -488,12 +502,20 @@ class Composition():
             logger.debug(f'({len(self.active_jobs)}) jobs scheduled!')
 
 
-        def stop_job(self, *args):
+        def stop_job(self, *args, **kwargs):
             """
-            Stop jobs matching names provided as string arguments.\n
+            Stop jobs matching names provided as an interable of string arguments.\n
+            Providing no string args will stop ALL jobs.\n
+            `ignore=(str)` will prevent the job with provided name from being stopped.\n
             Jobs will only be stopped if they are found in the active pool.
             """
-            jobs = set(args)
+            if len(args) == 0:
+                jobs = set(self.jobs_dict.keys())
+            else:
+                jobs = set(args)
+            if (ignore := kwargs.get('ignore', None)) is not None:
+                jobs.remove(ignore)
+            logger.debug(f'Stopping jobs: {jobs}')
             jobs.intersection_update(self.active_jobs.keys())
             for job in jobs:
                 schedule.cancel_job(self.active_jobs.pop(job))
