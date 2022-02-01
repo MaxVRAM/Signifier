@@ -30,6 +30,7 @@ logger.setLevel(logging.DEBUG)
 import sys
 import time
 import json
+import socket
 import signal
 
 from queue import Empty, Full
@@ -44,13 +45,14 @@ from signify.bluetooth import Bluetooth
 from signify.composition import Composition
 
 
+HOST_NAME = socket.gethostname()
 CONFIG_FILE = 'config.json'
 config_dict = None
 
 metrics_q = mp.Queue(maxsize=100)
 
 source_pipes = {'analysis':None,'bluetooth':None}
-destination_pipes = {'arduino':None,'composition':None}
+dest_pipes = {'arduino':None,'composition':None}
 
 
 
@@ -111,6 +113,7 @@ if __name__ == '__main__':
 
     with open(CONFIG_FILE) as c:
         config_dict = json.load(c)
+    config_dict['general']['hostname'] = HOST_NAME
 
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
@@ -124,7 +127,7 @@ if __name__ == '__main__':
     composition_module = Composition('composition', config_dict, metrics_q=metrics_q)
     composition_module.start()
 
-    destination_pipes = {
+    dest_pipes = {
         'leds':leds_module.destination_in,
         'composition':composition_module.destination_in}
     source_pipes = {
@@ -132,7 +135,7 @@ if __name__ == '__main__':
         'bluetooth':bluetooth_module.source_out}
     
     mapping_module = Mapping(
-        'mapping', config_dict, destination_pipes, source_pipes, metrics_q)
+        'mapping', config_dict, dest_pipes, source_pipes, metrics_q)
     mapping_module.start()
     
     metrics_module = Metrics('metrics', config_dict, metrics_q)

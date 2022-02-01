@@ -13,7 +13,7 @@ import logging
 import multiprocessing as mp
 from queue import Empty, Full
 
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway, start_http_server
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class Metrics():
         """
         Updates the state and parameters which drive the Metrics process.
         """
-        logger.info(f'Updating Metrics module configuration...')
+        logger.info(f'Updating [{self.module_name}] module configuration...')
         if self.enabled:
             self.config = config[self.module_name]
             if self.config.get('enabled', False) is False:
@@ -68,11 +68,11 @@ class Metrics():
         if self.enabled:
             if self.process is None:
                 self.process = self.MetricsProcess(self)
-                logger.debug(f'Metrics module initialised.')
+                logger.debug(f'[{self.module_name}] module initialised.')
             else:
-                logger.warning(f'Metrics module already initialised!')
+                logger.warning(f'[{self.module_name}] module already initialised!')
         else:
-            logger.warning(f'Cannot create Metrics process, module not enabled!')
+            logger.warning(f'Cannot create [{self.module_name}] process, module not enabled!')
 
 
     def start(self):
@@ -83,13 +83,13 @@ class Metrics():
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
-                    logger.info(f'Metrics process started.')
+                    logger.info(f'[{self.module_name}] process started.')
                 else:
-                    logger.warning(f'Cannot start Metrics process, already running!')
+                    logger.warning(f'Cannot start [{self.module_name}] process, already running!')
             else:
-                logger.warning(f'Trying to start Metrics process but module not initialised!')
+                logger.warning(f'Trying to start [{self.module_name}] process but module not initialised!')
         else:
-            logger.debug(f'Ignoring request to start Metrics process, module is not enabled.')
+            logger.debug(f'Ignoring request to start [{self.module_name}] process, module is not enabled.')
 
 
     def stop(self):
@@ -98,15 +98,15 @@ class Metrics():
         """
         if self.process is not None:
             if self.process.is_alive():
-                logger.debug(f'Metrics process shutting down...')
+                logger.debug(f'[{self.module_name}] process shutting down...')
                 self.state_q.put('close', timeout=2)
                 self.process.join(timeout=1)
                 self.process = None
-                logger.info(f'Metrics process stopped and joined main thread.')
+                logger.info(f'[{self.module_name}] process stopped and joined main thread.')
             else:
-                logger.debug(f'Cannot stop Metrics process, not running.')
+                logger.debug(f'Cannot stop [{self.module_name}] process, not running.')
         else:
-            logger.debug('Ignoring request to stop Metrics process, module is not enabled.')
+            logger.debug('Ignoring request to stop [{self.module_name}] process, module is not enabled.')
 
 
 
@@ -120,27 +120,33 @@ class Metrics():
             self.daemon = True
             self.event = mp.Event()
             self.state_q = parent.state_q
+            self.main_config = parent.main_config
             self.config = parent.config
             self.metrics_q = parent.metrics_q
             # Prometheus config
-            self.previous_push_time = 0
+            # start_http_server(parent.config['port'])
             self.registry = CollectorRegistry()
-            self.gauges = self.build_gauges(parent.main_config)
+            self.gauges = {}
+            
+            self.build_gauges()
 
 
         def run(self):
             """
             Start processing Signifier metrics.
             """
+            prev_push = 0
             while not self.event.is_set():
                 try:
                     if self.state_q.get_nowait() == 'close':
                         self.event.set()
-                        break
+                        return None
                 except Empty:
                     pass
 
-                while True:
+                # Drain queue for max 1 second, ensuring we don't get stuck
+                loop_time = time.time()
+                while time.time() < loop_time + 1:
                     try:
                         metric = self.metrics_q.get_nowait()
                         if (gauge := self.gauges.get(metric[0])) is not None:
@@ -148,26 +154,30 @@ class Metrics():
                     except Empty:
                         break
 
-                if time.time() > self.previous_push_time\
-                                + self.config['push_period']:
-                    self.previous_push_time = time.time()
+                # Push current registry values if enough time has lapsed
+                if time.time() > prev_push + self.config['push_period']:
                     push_to_gateway(self.config['target_gateway'],
-                                    self.config['job_name'],
+                                    self.main_config['general']['hostname'],
                                     self.registry,
                                     timeout=self.config['timeout'])
+                    prev_push = time.time()
+                    continue
 
-
-        def build_gauges(self, main_config:dict) -> dict:
-            gauge_details = {}
-            for module in main_config.keys():
-                if (sources := main_config[module].get('sources')) is not None:
-                    for s in sources.keys():
-                        name = f'{module}_{s}'
-                        gauge_details.update({name:Gauge(
-                            name, sources[s].get('description'))})
-                if (destinations := main_config[module].get('destinations')) is not None:
-                    for d in destinations.keys():
-                        name = f'{module}_{d}'
-                        gauge_details.update({name:Gauge(
-                            name, destinations[d].get('description'))})
-            return gauge_details
+        def build_gauges(self):
+            for module in self.main_config.keys():
+                try:
+                    for k, v in self.main_config[module]['sources'].items():
+                        if v.get('enabled', False):
+                            name = f'{module}_{k}'
+                            self.gauges[f'{name}'] = Gauge(f'sig_{name}',
+                                v['description'], registry=self.registry)
+                except KeyError:
+                    pass
+                try:
+                    for k, v in self.main_config[module]['destinations'].items():
+                        if v.get('enabled', False):
+                            name = f'{module}_{k}'
+                            self.gauges[f'{name}'] = Gauge(f'sig_{name}',
+                                v['description'], registry=self.registry)
+                except KeyError:
+                    pass

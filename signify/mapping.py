@@ -155,9 +155,6 @@ class Mapping():
                 self.process_source_values()
                 self.process_destinations()
 
-                # if counter % 1000 == 0:
-                #     print(self.source_values)
-
 
         def process_source_values(self):
             for module, data in self.source_value_pipes.items():

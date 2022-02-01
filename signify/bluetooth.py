@@ -20,7 +20,6 @@ from queue import Empty, Full
 
 from bleson import get_provider, Observer
 from bleson import logger as blelogger
-from prometheus_client import Gauge
 
 from signify.utils import lerp
 
@@ -42,7 +41,7 @@ class Bluetooth():
         self.process = None
         self.state_q = mp.Queue(maxsize=1)
         self.source_in, self.source_out = mp.Pipe()
-        self.registry = kwargs.get('prom_registry', None)
+        self.metrics_q = kwargs.get('metrics_q', None)
 
         if self.enabled:
             self.initialise()
@@ -127,7 +126,7 @@ class Bluetooth():
             self.daemon = True
             self.event = mp.Event()
             self.set_state_q = parent.state_q
-            self.source_in = parent.source_in
+            self.module_name = parent.module_name
             # Bluetooth configuration
             self.remove_after = parent.config.get('remove_after', 15)
             self.start_delay = parent.config.get('start_delay', 2)
@@ -135,13 +134,11 @@ class Bluetooth():
             self.signal_threshold = parent.config.get('signal_threshold', 0.002)
             # Scanner data
             self.devices = {}
+            # Metrics and mapping
             self.source_values = {}
-            self.gauges = {}
             self.source_config = parent.config.get('sources', {})
-            for v in self.source_values.keys():
-                if (details := self.source_config.get(v)) is not None:
-                    self.gauges[v] = (Gauge(f'{parent.module_name}_{v}',
-                        details['description']), parent.registry)
+            self.metrics_q = parent.metrics_q
+            self.source_in = parent.source_in
 
 
         # (Callback) On each BLE device signal report
@@ -160,6 +157,16 @@ class Bluetooth():
                 # Remove existing device with weak signal
                 if mac in self.devices:
                     self.devices.pop(mac)
+
+
+        def queue_metrics(self):
+            if self.metrics_q is not None:
+                for k, v in self.source_values.items():
+                    name = f'{self.module_name}_{k}'
+                    try:
+                        self.metrics_q.put_nowait((name, v))
+                    except Full:
+                        pass
 
 
         def run(self):
@@ -206,8 +213,7 @@ class Bluetooth():
 
                 self.source_in.send(self.source_values)
 
-                for k, v in self.gauges:
-                    v.set(self.source_values[k])
+                self.queue_metrics()
 
 
             observer.stop()

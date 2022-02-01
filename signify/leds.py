@@ -160,6 +160,7 @@ class Leds():
             self.rx_packet = ReceivePacket
             self.update_ms = parent.config.get('update_ms', 30)
             self.duration_multiplier = parent.config.get('duration_multiplier', 3)
+            # LED commands
             self.commands = {}
             for k, v in parent.config['destinations'].items():
                 self.commands.update({k:LedValue(f'{self.parent.module_name}_{k}',
@@ -412,7 +413,11 @@ class LedValue():
             return False
         if 'force' in args or self.updated:
             if send_function(self.packet) is None:
-                self.metrics_q.put_nowait((self.name, self.packet.value))
+                if self.metrics_q is not None:
+                    try:
+                        self.metrics_q.put_nowait((self.name, self.packet.value))
+                    except Full:
+                        pass
                 self.updated = False
                 return True
         return False

@@ -29,19 +29,19 @@ def init_sounds(clips: set, channels: dict) -> dict:
     """
     done = set()
     if len(channels) < len(clips):
-        logger.warn(f'Trying to initialise {len(clips)} Sound{plural(clips)} '
+        logger.warning(f'Trying to initialise {len(clips)} Sound{plural(clips)} '
                     f'from {len(channels)} Channel{plural(channels)}. Clips not'
                     f' assigned a channel will be pulled from this collection!')
     for clip in clips:
         if len(channels) == 0:
-            logger.warn(f'Ran out of channels to assign!')
+            logger.warning(f'Ran out of channels to assign!')
             break
         if clip.build_sound(channels.popitem()) is not None:
             done.add(clip)
     remaining = list(clips.difference(done))
     logger.info(f'{get_contents(done, count=True)} initialised.')
     if len(remaining) > 0:
-        logger.warn(f'Unable to build ({len(remaining)}) '
+        logger.warning(f'Unable to build ({len(remaining)}) '
                     f'Sound object{plural(remaining)}! ')   
     return {'channels':channels, 'clips':remaining}
 
@@ -53,7 +53,7 @@ def get_distributed(clips: set, num_clips: int, **kwargs) -> set:
     of clips can not be allocated from the supplied set of clips.
     """
     if num_clips > len(clips):
-        logger.warn(f'Requesting ({num_clips}) clip{plural(num_clips)} but '
+        logger.warning(f'Requesting ({num_clips}) clip{plural(num_clips)} but '
                     f'only ({len(clips)}) in set! Will return entire set.')
         selection = clips
     else:
@@ -63,7 +63,7 @@ def get_distributed(clips: set, num_clips: int, **kwargs) -> set:
         selection = set()
         clips_per_category = int(num_clips / len(contents))
         if clips_per_category == 0:
-            logger.info(f'Cannot select number of clips less than the number '
+            logger.debug(f'Cannot select number of clips less than the number '
                         f'of categories. Rounding up to {len(contents)}.')
             clips_per_category = 1
         for category in contents:
@@ -120,21 +120,21 @@ def get_clip(clips: set, **kwargs) -> set:
     """
     if (name := kwargs.get('name', None)) is not None:
         if (clip := next((c for c in clips if c.name == name), None)) is None:
-            logger.warn(f'Requested clip "{name}" not in provided set.')
+            logger.warning(f'Requested clip "{name}" not in provided set.')
             return None
         return set(clip)
     if (channel:= kwargs.get('channel', None)) is not None:
         if (clip := next((c for c in clips if c.channel == channel), None)) is None:
-            logger.warn(f'Requested clip "{name}" not in provided set.')
+            logger.warning(f'Requested clip "{name}" not in provided set.')
             return None
         return set(clip)
     if (category := kwargs.get('category', None)) is not None:
         if (clips := get_contents(clips).get(category, None)) is None:
-            logger.warn(f'Category "{category}" not found in set. Ignoring.')
+            logger.warning(f'Category "{category}" not found in set. Ignoring.')
             return None
     in_set = len(clips)
     if in_set == 0:
-        logger.warn(f'No clips available. Skipping request.')
+        logger.warning(f'No clips available. Skipping request.')
         return None
     to_get = kwargs.get('num_clips', 1)
     if to_get > in_set:

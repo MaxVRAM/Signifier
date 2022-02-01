@@ -126,6 +126,7 @@ class Analysis():
             self.event = Event()
             self.source_in = parent.source_in
             self.state_q = parent.state_q
+            self.module_name = parent.module_name
             # Analysis configuration
             self.input_device = parent.config.get('input_device', 'default')
             self.sample_rate = parent.config.get('sample_rate', 48000)
@@ -137,6 +138,18 @@ class Analysis():
             self.source_config = parent.config.get('sources', {})
             self.peak_config = self.source_config.get('peak', {})
             self.source_values = {'peak': 0}
+            # Metrics
+            self.metrics_q = parent.metrics_q
+
+
+        def queue_metrics(self):
+            if self.metrics_q is not None:
+                for k, v in self.source_values.items():
+                    name = f'{self.module_name}_{k}'
+                    try:
+                        self.metrics_q.put_nowait((name, v))
+                    except Full:
+                        pass
 
 
         def run(self):
@@ -156,13 +169,16 @@ class Analysis():
                 while not self.event.is_set():
                     try:
                         if self.state_q.get_nowait() == 'close':
-                            break
+                            self.event.set()
+                            return None
                     except Empty:
                         pass
                     try:
                         self.source_in.send(self.source_values)
                     except Full:
                         pass
+
+                    self.queue_metrics()
             return None
 
 

@@ -46,7 +46,7 @@ class Composition():
         self.manager = None
         self.state_q = mp.Queue(maxsize=1)
         self.destination_in, self.destination_out = mp.Pipe()
-        self.registry = kwargs.get('prom_registry', None)
+        self.metrics_q = kwargs.get('metrics_q', None)
 
         schedule.logger.setLevel(logging.DEBUG if self.config.get(
                                 'debug', True) else logging.INFO)
@@ -172,6 +172,11 @@ class Composition():
                 'clip_selection': self.clip_selection_job,
                 'volume': self.volume_job
             }
+            # Metrics and mapping
+            self.source_values = {}
+            self.source_config = parent.config.get('sources', {})
+            self.metrics_q = parent.metrics_q
+
             self.init_mixer()
             self.init_library()
 
