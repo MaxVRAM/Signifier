@@ -1428,3 +1428,33 @@ snd_pcm               131072  5 snd_bcm2835,snd_soc_hdmi_codec,snd_compress,snd_
 snd_timer              36864  1 snd_pcm
 snd                   102400  6 snd_bcm2835,snd_soc_hdmi_codec,snd_timer,snd_compress,snd_soc_core,snd_pcm
 ``` -->
+
+
+
+
+# Networking
+
+## WiFi
+
+Signifiers are configured to search for the following WiFi details:
+
+ - SSID: `mmw_sig_net`
+ - Password: *redacted* (contact for password)
+
+- Once connected to `mm_sig_net` Signifiers will attempt connection with the Signifier Server via its VPN. **NOT YET IMPLEMENTED**
+
+## Signifier Server
+
+- The Signifier Server should be deployed on an additional Raspberry Pi 4B (4GB).
+- This server will host the following:
+  - VPN server for all Signifiers to connect to.
+  - Web application for updating Signifier configurations.
+  - Grafana/Prometheus database, for monitoring all Signifier metrics.
+
+### VPN
+
+The Signifier Server hosts the Linux application `pivpn` to manage the VPN server. This is configured to use the `OpenVPN`.
+
+VPN server configuration resides on the Signifier Server Pi at `/etc/openvpn`.
+
+`server.conf` contains the majority of VPN configuration options.

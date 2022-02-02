@@ -14,7 +14,7 @@ import multiprocessing as mp
 from queue import Empty, Full
 from urllib.error import URLError
 
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway
 
 logger = logging.getLogger(__name__)
 
