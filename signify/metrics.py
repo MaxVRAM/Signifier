@@ -12,8 +12,9 @@ import time
 import logging
 import multiprocessing as mp
 from queue import Empty, Full
+from urllib.error import URLError
 
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway, start_http_server
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +125,8 @@ class Metrics():
             self.config = parent.config
             self.metrics_q = parent.metrics_q
             # Prometheus config
-            # start_http_server(parent.config['port'])
             self.registry = CollectorRegistry()
+            self.push_period = self.config['push_period']
             self.gauges = {}
             
             self.build_gauges()
@@ -155,19 +156,25 @@ class Metrics():
                         break
 
                 # Push current registry values if enough time has lapsed
-                if time.time() > prev_push + self.config['push_period']:
-                    push_to_gateway(self.config['target_gateway'],
-                                    self.main_config['general']['hostname'],
-                                    self.registry,
-                                    timeout=self.config['timeout'])
+                if time.time() > prev_push + self.push_period:
+                    try:
+                        push_to_gateway(self.config['target_gateway'],
+                                        self.config['job_name'],
+                                        self.registry,
+                                        timeout=self.config['timeout'])
+                        self.push_period = self.config['push_period']
+                    except (ConnectionResetError, ConnectionRefusedError, URLError):
+                        logger.warning(f'Target Prometheus gateway [{self.config["target_gateway"]}] cannot be reached.')
+                        self.increase_push_time()
                     prev_push = time.time()
                     continue
+
 
         def build_gauges(self):
             for module in self.main_config.keys():
                 try:
                     for k, v in self.main_config[module]['sources'].items():
-                        if v.get('enabled', False):
+                        if v.get('enabled', True):
                             name = f'{module}_{k}'
                             self.gauges[f'{name}'] = Gauge(f'sig_{name}',
                                 v['description'], registry=self.registry)
@@ -175,9 +182,15 @@ class Metrics():
                     pass
                 try:
                     for k, v in self.main_config[module]['destinations'].items():
-                        if v.get('enabled', False):
+                        if v.get('enabled', True):
                             name = f'{module}_{k}'
                             self.gauges[f'{name}'] = Gauge(f'sig_{name}',
                                 v['description'], registry=self.registry)
                 except KeyError:
                     pass
+
+
+        def increase_push_time(self):
+            self.push_period += 2
+            if self.push_period > 30:
+                self.push_period = 30

@@ -163,8 +163,8 @@ class Leds():
             # LED commands
             self.commands = {}
             for k, v in parent.config['destinations'].items():
-                self.commands.update({k:LedValue(f'{self.parent.module_name}_{k}',
-                                                 v, self.update_ms,
+                self.commands.update({k:LedValue(f'{self.parent.module_name}',
+                                                 k, v, self.update_ms,
                                                  self.duration_multiplier,
                                                  metrics_q=parent.metrics_q)})
 
@@ -374,8 +374,9 @@ class LedValue():
     """
     Generic class for holding and managing LED parameter states for the Arduino.
     """
-    def __init__(self, name:str, config:dict, update_ms:float,
+    def __init__(self, module_name:str, name:str, config:dict, update_ms:float,
                 multiplier:int, metrics_q=None) -> None:
+        self.module_name = module_name
         self.name = name
         self.command = config['command']
         self.min = config.get('min', 0)
@@ -414,8 +415,9 @@ class LedValue():
         if 'force' in args or self.updated:
             if send_function(self.packet) is None:
                 if self.metrics_q is not None:
+                    name = f'{self.module_name}_{self.name}'
                     try:
-                        self.metrics_q.put_nowait((self.name, self.packet.value))
+                        self.metrics_q.put_nowait((name, self.packet.value))
                     except Full:
                         pass
                 self.updated = False
