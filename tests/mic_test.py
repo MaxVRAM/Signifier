@@ -1,1 +1,0 @@
-# This script will test the USB microphone input for reading peak/RMS amplitude inputs for creating reactivity

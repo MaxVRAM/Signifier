@@ -20,7 +20,7 @@ from queue import Empty, Full, Queue
 from threading import Thread, Event
 import multiprocessing as mp
 
-from signify.utils import lerp
+from signifier.utils import lerp
 
 logger = logging.getLogger(__name__)
 

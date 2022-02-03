@@ -1,21 +1,17 @@
 
-//    _________.__         .____     ___________________   
-//   /   _____/|__| ____   |    |    \_   _____/\______ \  
-//   \_____  \ |  |/ ___\  |    |     |    __)_  |    |  \ 
-//   /        \|  / /_/  > |    |___  |        \ |    `   \
-//  /_______  /|__\___  /  |_______ \/_______  //_______  /
-//          \/   /_____/           \/        \/         \/ 
+/***
+ *      _________.__         .____     ___________________   
+ *     /   _____/|__| ____   |    |    \_   _____/\______ \  
+ *     \_____  \ |  |/ ___\  |    |     |    __)_  |    |  \ 
+ *     /        \|  / /_/  > |    |___  |        \ |    `   \
+ *    /_______  /|__\___  /  |_______ \/_______  //_______  /
+ *            \/   /_____/           \/        \/         \/ 
+ */
 
 // Compile using Ardino-CLI: https://github.com/arduino/arduino-cli
 // Use command:
-// acompile ~/Signifier/signify/sig_led && aupload ~/Signifier/signify/sig_led -v
+// acompile ~/Signifier/signifier/sig_led && aupload ~/Signifier/signifier/sig_led -v
 
-// TODO:
-// Reporting: periodic updates to RPi with average loop length, run-time, etc.
-// Systems: shutdown sequence...
-// Mapping: fixed hardware mapped positions, north <-> south, in <-> out
-// Functions: layer blending, blend modulation, position and HSV shaping
-// Layers: solid colours, gradients, noise, trails, shapes (line blocks, etc)
 
 #define FASTLED_ALLOW_INTERRUPTS 0
 
@@ -65,7 +61,6 @@ unsigned long serialStartTime = 0;
 unsigned long loopEndTime = 0;
 unsigned long prevLoopTime = 0;
 
-
 CRGB initRGB = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
 CRGB leds[NUM_LEDS];
 CRGB noise[NUM_LEDS];
@@ -77,38 +72,21 @@ HSV_PROP hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
 
 SerialTransfer sigSerial;
 
-
 unsigned int loopValue(unsigned int min, unsigned int max, unsigned int val)
 {
   if (val < min) val = max - 1;
   return val % max;
 }
 
-// Provides remapped pixel assignment. Index should be within 1/4 of total LED count
-void mirrorPixel(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
-{
-  unsigned int UA = loopValue(0, NUM_LEDS, i);
-  unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - i);
-  unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - i);
-  unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + i);
 
-  in_leds[UA] = colour;   // Up, Side A
-//  in_leds[UB] = colour;   // Up, Side B
-//  in_leds[DA] = colour;   // Down, Side A
-//  in_leds[DB] = colour;   // Down, Side B
-}  
-
-// Provides remapped pixel assignment. Index should be within 1/2 of total LED count
-void endToEnd(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
-{
-  unsigned int SA = loopValue(0, NUM_LEDS, QRT_LEDS + i);
-  unsigned int SB = loopValue(0, NUM_LEDS, QRT_LEDS - 1 - i);
-
-  in_leds[SA] = colour;   // Side A
-  in_leds[SB] = colour;   // Side B
-}
-
-
+/***
+ *      _________       __                
+ *     /   _____/ _____/  |_ __ ________  
+ *     \_____  \_/ __ \   __\  |  \____ \ 
+ *     /        \  ___/|  | |  |  /  |_> >
+ *    /_______  /\___  >__| |____/|   __/ 
+ *            \/     \/           |__|    
+ */
 void setup()
 {
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
@@ -122,12 +100,20 @@ void setup()
   ms = millis();
 }
 
+
+/***
+ *    .____                         
+ *    |    |    ____   ____ ______  
+ *    |    |   /  _ \ /  _ \\____ \ 
+ *    |    |__(  <_> |  <_> )  |_> >
+ *    |_______ \____/ \____/|   __/ 
+ *            \/            |__|    
+ */
 void loop()
 {
   prevLoopTime = millis() - loopStartTime;
   loopStartTime = millis();
   smooth(loopAvg, prevLoopTime);
-  //sendCommand(COMMAND{'L', loopStartTime, loopAvg.average});
 
   fadeToTarget(brightness);
 
@@ -142,6 +128,7 @@ void loop()
 
   while (ms < loopEndTime)
   {
+    // Gather and process incoming serial commands until target loop time is reached.
     ms = millis();
     if (sigSerial.available())
     {
@@ -152,7 +139,18 @@ void loop()
   }
 }
 
-// Output the supplied COMMAND stcrut to the RPi via serial. Currently used only for debugging.
+
+
+/***
+ *      _________            .__       .__   
+ *     /   _____/ ___________|__|____  |  |  
+ *     \_____  \_/ __ \_  __ \  \__  \ |  |  
+ *     /        \  ___/|  | \/  |/ __ \|  |__
+ *    /_______  /\___  >__|  |__(____  /____/
+ *            \/     \/              \/      
+ */
+
+// Output the supplied COMMAND struct to the RPi via serial. Used for debugging serial comms.
 void sendCommand(COMMAND output)
 {
   unsigned int sendSize = 0;
@@ -181,6 +179,16 @@ void processInput(COMMAND input)
     return;
   }
 }
+
+
+/***
+ *    __________                                            ____   ____      .__                        
+ *    \______   \_______  ____   ____  ____   ______ ______ \   \ /   /____  |  |  __ __   ____   ______
+ *     |     ___/\_  __ \/  _ \_/ ___\/ __ \ /  ___//  ___/  \   Y   /\__  \ |  | |  |  \_/ __ \ /  ___/
+ *     |    |     |  | \(  <_> )  \__\  ___/ \___ \ \___ \    \     /  / __ \|  |_|  |  /\  ___/ \___ \ 
+ *     |____|     |__|   \____/ \___  >___  >____  >____  >    \___/  (____  /____/____/  \___  >____  >
+ *                                  \/    \/     \/     \/                 \/                 \/     \/ 
+ */
 
 void assignInput(COMMAND input, HSV_PROP &property)
 {
@@ -215,7 +223,7 @@ void fadeToTarget(HSV_PROP &property)
     resetFade(property);
     return;
   }
-
+  // Apply interpolated value to LED property 
   property.currVal = lerp8by8(property.startVal, property.targetVal, fract8(property.lerpPos*256));
 }
 
@@ -226,25 +234,87 @@ void resetFade(HSV_PROP &property)
   property.stepSize = 0.0f;
 }
 
+
+/***
+ *      _________ __                 __                
+ *     /   _____//  |______ ________/  |_ __ ________  
+ *     \_____  \\   __\__  \\_  __ \   __\  |  \____ \ 
+ *     /        \|  |  / __ \|  | \/|  | |  |  /  |_> >
+ *    /_______  /|__| (____  /__|   |__| |____/|   __/ 
+ *            \/           \/                  |__|    
+ */
+
 void startup_sequence()
 {
+  // Ensure blackout pixels
   FastLED.clear(true);
   brightness.currVal = 0;
   resetFade(brightness);
-  FastLED.setBrightness(255);
+  FastLED.setBrightness(0);
+  FastLED.show();
 
+  // Write default colour to pixels
   for (unsigned int i = 0; i < NUM_LEDS; i++)
   {
     leds[i] = initRGB;
   }
 
-  FastLED.show();
-  
-  for (int i = 255; i > 0; i--)
+  int counter = 0;
+  // Quickly fade in
+  while (counter < 255)
   {
-    FastLED.setBrightness(i);
+    counter += 2;
+    if (counter > 255) counter = 255;
+    FastLED.setBrightness(counter);
     FastLED.show();
   }
+  // Quickly fade out
+  while (counter > 0)
+  {
+    counter -= 2;
+    if (counter > 0) counter = 0;
+    FastLED.setBrightness(counter);
+    FastLED.show();
+  }
+}
+
+
+/***
+ *     ____ ___   __  .__.__  .__  __  .__               
+ *    |    |   \_/  |_|__|  | |__|/  |_|__| ____   ______
+ *    |    |   /\   __\  |  | |  \   __\  |/ __ \ /  ___/
+ *    |    |  /  |  | |  |  |_|  ||  | |  \  ___/ \___ \ 
+ *    |______/   |__| |__|____/__||__| |__|\___  >____  >
+ *                                             \/     \/ 
+ */
+
+float smooth(AVERAGE &avgStruct, long newValue)
+{
+  // https://www.aranacorp.com/en/implementation-of-the-moving-average-in-arduino/
+  avgStruct.total = avgStruct.total - avgStruct.readings[avgStruct.readIndex];
+  avgStruct.readings[avgStruct.readIndex] = newValue;
+  avgStruct.total = avgStruct.total + avgStruct.readings[avgStruct.readIndex];
+
+  avgStruct.readIndex = avgStruct.readIndex + 1;
+  if (avgStruct.readIndex >= loopNumReadings)
+  {
+    avgStruct.readIndex = 0;
+  }
+  avgStruct.average = (float)avgStruct.total / (float)loopNumReadings;
+  return avgStruct.average;
+}
+
+
+
+
+/***
+ *    ________  .__       .___   _________ __          _____  _____ 
+ *    \_____  \ |  |    __| _/  /   _____//  |_ __ ___/ ____\/ ____\
+ *     /   |   \|  |   / __ |   \_____  \\   __\  |  \   __\\   __\ 
+ *    /    |    \  |__/ /_/ |   /        \|  | |  |  /|  |   |  |   
+ *    \_______  /____/\____ |  /_______  /|__| |____/ |__|   |__|   
+ *            \/           \/          \/                           
+ */
 
   // FastLED.clear(true);
   // leds[0] = CRGB::White;
@@ -282,10 +352,7 @@ void startup_sequence()
   //   delay(1);
   // }
 
-
   // for (unsigned int i = 0; i < )
-
-
 
   // // // Shiney demo bit
   // CRGB whiteTarget = CRGB::White;
@@ -304,21 +371,31 @@ void startup_sequence()
   //     leds[j].nscale8(253);
   //   }
   // }
-}
 
 
 
-float smooth(AVERAGE &avgStruct, long newValue) {
-  // https://www.aranacorp.com/en/implementation-of-the-moving-average-in-arduino/
-  avgStruct.total = avgStruct.total - avgStruct.readings[avgStruct.readIndex];
-  avgStruct.readings[avgStruct.readIndex] = newValue;
-  avgStruct.total = avgStruct.total + avgStruct.readings[avgStruct.readIndex];
 
-  avgStruct.readIndex = avgStruct.readIndex + 1;
-  if (avgStruct.readIndex >= loopNumReadings) {
-    avgStruct.readIndex = 0;
-  }
-  avgStruct.average = (float)avgStruct.total / (float)loopNumReadings;
-  return avgStruct.average;
-}
+// NOTE: This may not be feasible with the varied physical alignment of LED strips across each Signifiers
+// // Provides remapped pixel assignment. Index should be within 1/4 of total LED count
+// void mirrorPixel(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
+// {
+//   unsigned int UA = loopValue(0, NUM_LEDS, i);
+//   unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - i);
+//   unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - i);
+//   unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + i);
 
+//   in_leds[UA] = colour;   // Up, Side A
+// //  in_leds[UB] = colour;   // Up, Side B
+// //  in_leds[DA] = colour;   // Down, Side A
+// //  in_leds[DB] = colour;   // Down, Side B
+// }  
+
+// // Provides remapped pixel assignment. Index should be within 1/2 of total LED count
+// void endToEnd(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
+// {
+//   unsigned int SA = loopValue(0, NUM_LEDS, QRT_LEDS + i);
+//   unsigned int SB = loopValue(0, NUM_LEDS, QRT_LEDS - 1 - i);
+
+//   in_leds[SA] = colour;   // Side A
+//   in_leds[SB] = colour;   // Side B
+// }

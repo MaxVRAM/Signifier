@@ -21,9 +21,7 @@ import logging
 
 log_dt = "%d-%b-%y %H:%M:%S"
 log_msg = "%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(funcName)20s: %(message)s"
-
 logging.basicConfig(level=logging.DEBUG, format=log_msg, datefmt=log_dt)
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -37,19 +35,19 @@ from queue import Empty, Full
 import multiprocessing as mp
 from multiprocessing.connection import Connection
 
-from signify.leds import Leds
-from signify.metrics import Metrics
-from signify.mapping import Mapping
-from signify.analysis import Analysis
-from signify.bluetooth import Bluetooth
-from signify.composition import Composition
+from signifier.leds import Leds
+from signifier.metrics import Metrics
+from signifier.mapping import Mapping
+from signifier.analysis import Analysis
+from signifier.bluetooth import Bluetooth
+from signifier.composition import Composition
 
 
 HOST_NAME = socket.gethostname()
 CONFIG_FILE = 'config.json'
 config_dict = None
 
-metrics_q = mp.Queue(maxsize=100)
+metrics_q = mp.Queue(maxsize=500)
 
 source_pipes = {'analysis':None,'bluetooth':None}
 dest_pipes = {'arduino':None,'composition':None}

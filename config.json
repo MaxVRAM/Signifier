@@ -14,21 +14,9 @@
     "mapping":{
         "enabled":true,
         "debug":false,
-        "rules":
-        [
-            {
-                "source":{
-                    "module":"analysis",
-                    "param":"peak",
-                    "range":[0, 1]
-                },
-                "destination":{
-                    "module":"leds",
-                    "param":"brightness",
-                    "range":[0, 1],
-                    "duration":100
-                }
-            }
+        "rules":[
+            {"source":{"module":"analysis", "param":"peak", "range":[0, 1]}},
+            {"destination":{"module":"leds", "param":"brightness", "range":[0, 1], "duration":100}}
         ]
     },
     "leds":{
@@ -60,23 +48,23 @@
         "signal_threshold":0.002,
         "remove_after":15,
         "sources":{
-            "num_devices":{"enabled":true, "type":"gauge",
+            "num_devices":{"type":"gauge",
                 "description":"Total number of nearby BLE devices."},
-            "signal_total":{"enabled":true, "type":"gauge",
+            "signal_total":{"type":"gauge",
                 "description":"Sum of nearby BLE signal strengths."},
-            "signal_mean":{"enabled":true, "type":"gauge",
+            "signal_mean":{"type":"gauge",
                 "description":"Mean of nearby BLE signal strengths."},
-            "signal_std":{"enabled":true, "type":"gauge",
+            "signal_std":{"type":"gauge",
                 "description":"Standard deviation of BLE signal strength."},
-            "signal_max":{"enabled":true, "type":"gauge",
+            "signal_max":{"type":"gauge",
                 "description":"Value of strongest BLE device signal."},
-            "activity_total":{"enabled":true, "type":"gauge",
+            "activity_total":{"type":"gauge",
                 "description":"Total absolute difference of BLE device signals each tick."},
-            "activity_mean":{"enabled":true, "type":"gauge",
+            "activity_mean":{"type":"gauge",
                 "description":"Average activity of nearby BLE devices."},
-            "activity_std":{"enabled":true, "type":"gauge",
+            "activity_std":{"type":"gauge",
                 "description":"Standard deviation of BLE device activity."},
-            "activity_max":{"enabled":true, "type":"gauge",
+            "activity_max":{"type":"gauge",
                 "description":"Activity value of most active BLE device."}
         }
     },
@@ -90,7 +78,7 @@
         "latency":0.1,
         "gain":1.0,
         "sources":{
-            "peak":{"enabled":true, "smooth":0.5, "type":"gauge",
+            "peak":{"smooth":0.5, "type":"gauge",
                 "description":"Peak amplitude of audio signal in each buffer."}
         }
     },
@@ -121,16 +109,18 @@
                 "description":"Target number of concurrent audio clips (composition 'business'."}
         },
         "sources":{
-            "current_collection":{"enabled":true, "type":"info",
-                "description":"Index of active audio clip collection."},
-            "channels_volume":{"enabled":true, "type":"array",
+            "collection":{"type":"info",
+                "description":"Name of active audio clip collection."},
+            "clips":{"type":"array", "subtype":"info",
+                "description":"Name of currently selected audio clips."},
+            "volume":{"type":"array", "subtype":"gauge",
                 "description":"Current mixer channel volumes."},
-            "channels_playing":{"enabled":true, "type":"array",
-                "description":"Channels current playing clips."},
-            "channels_loop_num":{"enabled":true, "type":"array",
-                "description":"Array representing number of loops each clip will play."},
-            "channels_playtime":{"enabled":true, "type":"array",
-                "description":"Array of current playtime of each channel ."}
+            "active":{"type":"array", "subtype":"gauge",
+                "description":"Active playback state of clips."},
+            "play_count":{"type":"array", "subtype":"gauge",
+                "description":"Number times clip has been activated since collection change."},
+            "play_time":{"type":"array", "subtype":"gauge",
+                "description":"Duration clip has played for current activation."}
         },
         "categories":{
             "oneshot":{"threshold":0, "is_loop":false, "loop_range":[4,8]},

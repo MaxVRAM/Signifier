@@ -37,6 +37,12 @@
 			"exception": "cpp",
 			"new": "cpp",
 			"typeinfo": "cpp"
-		}
+		},
+		"cSpell.words": [
+			"acompile",
+			"blelogger",
+			"Signifiers"
+		],
+		"cSpell.language": "en-GB"
 	}
 }

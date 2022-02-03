@@ -1,10 +1,10 @@
 
-#     _____            .___    .__               
-#    /  _  \_______  __| _/_ __|__| ____   ____  
-#   /  /_\  \_  __ \/ __ |  |  \  |/    \ /  _ \ 
-#  /    |    \  | \/ /_/ |  |  /  |   |  (  <_> )
-#  \____|__  /__|  \____ |____/|__|___|  /\____/ 
-#          \/           \/             \/        
+#  .____     ___________________          
+#  |    |    \_   _____/\______ \   ______
+#  |    |     |    __)_  |    |  \ /  ___/
+#  |    |___  |        \ |    `   \\___ \ 
+#  |_______ \/_______  //_______  /____  >
+#          \/        \/         \/     \/ 
 
 """
 Signifier module to manage communication with the Arduino LED system.
@@ -18,13 +18,13 @@ import logging
 import multiprocessing as mp
 from queue import Empty, Full
 
-from pySerialTransfer import pySerialTransfer as txfer
+from pySerialTransfer import pySerialTransfer as Arduino
 
 from prometheus_client import Gauge
 from serial import SerialException
 
-from signify.utils import scale
-from signify.utils import plural
+from signifier.utils import scale
+from signifier.utils import plural
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,7 @@ class Leds():
 
         def run(self):
             """
-            Begin executing Arudino communication thread to control LEDs.
+            Begin executing Arduino communication thread to control LEDs.
             """
             logger.debug(f'Arduino commands: {[c for c in self.commands.keys()]}')
             self.event.clear()
@@ -200,29 +200,29 @@ class Leds():
                         recSize = 0
                         self.rx_packet.command = self.link.rx_obj(
                             obj_type='c', start_pos=recSize)
-                        recSize += txfer.STRUCT_FORMAT_LENGTHS['c']
+                        recSize += Arduino.STRUCT_FORMAT_LENGTHS['c']
                         self.rx_packet.valA = self.link.rx_obj(
                             obj_type='l', start_pos=recSize)
-                        recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+                        recSize += Arduino.STRUCT_FORMAT_LENGTHS['l']
                         self.rx_packet.valB = self.link.rx_obj(
                             obj_type='l', start_pos=recSize)
-                        recSize += txfer.STRUCT_FORMAT_LENGTHS['l']
+                        recSize += Arduino.STRUCT_FORMAT_LENGTHS['l']
                         self.process_packet()
                     else:
                         # If not, check for serial link errors
                         if self.link.status < 0:
-                            if self.link.status == txfer.CRC_ERROR:
+                            if self.link.status == Arduino.CRC_ERROR:
                                 logger.error('Arduino: CRC_ERROR')
-                            elif self.link.status == txfer.PAYLOAD_ERROR:
+                            elif self.link.status == Arduino.PAYLOAD_ERROR:
                                 logger.error('Arduino: PAYLOAD_ERROR')
-                            elif self.link.status == txfer.STOP_BYTE_ERROR:
+                            elif self.link.status == Arduino.STOP_BYTE_ERROR:
                                 logger.error('Arduino: STOP_BYTE_ERROR')
                             else:
                                 logger.error('ERROR: {}'.format(self.link.status))
                 except SerialException as exception:
                     logger.critical(f'Fatal error communicating with Arduino. '
                                     f'A restart may be required! {exception}')
-                    logger.warning(f'Due to error, LED/Arduino moduel will now '
+                    logger.warning(f'Due to error, LED/Arduino module will now '
                                    f'be disabled for this session.')
                     break
                     
@@ -239,7 +239,7 @@ class Leds():
             Called by the run thread to process the received serial packet
             """
             # Waits for `r` "ready" message before sending packets.
-            # The LEDs require precise timing, so inturrupting an LED write
+            # The LEDs require precise timing, so interrupting an LED write
             # sequence would cause issues with the LED output.
             cmd = self.rx_packet.command.decode("utf-8")
             run_time = round((time.time() - self.start_time) * 1000)
@@ -335,7 +335,7 @@ class Leds():
             Arduino/LED portion of the Signifier code.
             """
             self.set_state(ArduinoState.starting)
-            self.link = txfer.SerialTransfer(self.port, baud=self.baud)
+            self.link = Arduino.SerialTransfer(self.port, baud=self.baud)
             self.link.open()
 
 

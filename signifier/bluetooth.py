@@ -21,7 +21,7 @@ from queue import Empty, Full
 from bleson import get_provider, Observer
 from bleson import logger as blelogger
 
-from signify.utils import lerp
+from signifier.utils import lerp
 
 blelogger.set_level(blelogger.ERROR)
 logger = logging.getLogger(__name__)

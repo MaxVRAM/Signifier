@@ -20,9 +20,9 @@ import schedule
 import pygame as pg
 import multiprocessing as mp
 
-from signify.utils import plural
-from signify.clipUtils import *
-from signify.clip import Clip
+from signifier.utils import plural
+from signifier.clipUtils import *
+from signifier.clip import Clip
 
 logger = logging.getLogger(__name__)
 
@@ -311,7 +311,7 @@ class Composition():
 
         def wait_for_silence(self):
             """
-            Stops the main thread until all challens have faded out.
+            Stops the main thread until all channels have faded out.
             """
             logger.debug('Waiting for audio mixer to release all channels...')
             while pg.mixer.get_busy():
@@ -373,7 +373,7 @@ class Composition():
             """
             fade = kwargs.get('fade', self.config.get('fade_out', 0))
             if len(clips) == 0:
-                # Finds the catgeory with the greatest number of active clips.
+                # Finds the category with the greatest number of active clips.
                 if 'balance' in args:
                     contents = get_contents(self.active_pool)
                     clips = contents[max(contents, key = contents.get)]

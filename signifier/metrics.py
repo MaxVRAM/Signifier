@@ -6,6 +6,10 @@
 #  \____|__  /\___  >__|  |__|  |__|\___  >____  >
 #          \/     \/                    \/     \/ 
 
+"""
+Gathers Signifier metrics and exports to Prometheus push gateway.
+"""
+
 from __future__ import annotations
 
 import time

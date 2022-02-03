@@ -1,1 +1,0 @@
-# This script will test the python exporter module to expose metrics to a Prometheus server via local web-server.
