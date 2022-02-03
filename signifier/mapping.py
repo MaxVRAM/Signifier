@@ -133,12 +133,12 @@ class Mapping():
             self.rules = parent.config.get('rules', {})
             
             self.source_values = {}
-            for m in self.source_value_pipes.keys():
-                self.source_values[m] = {}
+            # for m in self.source_value_pipes.keys():
+            #     self.source_values[m] = {}
 
             self.destination_values = {}
-            for m in self.destination_pipes.keys():
-                self.destination_values[m] = {}
+            # for m in self.destination_pipes.keys():
+            #     self.destination_values[m] = {}
 
 
         def run(self):
@@ -159,28 +159,30 @@ class Mapping():
         def process_source_values(self):
             for module, data in self.source_value_pipes.items():
                 if data.poll():
-                    sources = data.recv()
-                    keys = list(sources.keys())
-                    values = list(sources.values())
-                    if self.source_values.get(module) is None:
-                        self.source_values[module] = {}
-                    for r in range(len(keys)):
-                        self.source_values[module].update({keys[r]:values[r]})
+                    module_sources = data.recv()
+                    for k,v in module_sources.items():
+                        self.source_values[k] = v
+                    # keys = list(module_sources.keys())
+                    # values = list(module_sources.values())
+                    # # if self.source_values.get(module) is None:
+                    # #     self.source_values[module] = {}
+                    # for r in range(len(keys)):
+                    #     # self.source_values[module].update({keys[r]:values[r]})
+                    #     self.source_values[f'{module}_{keys[r]}'] = values[r]
 
 
         def process_destinations(self):
             for r in self.rules:
                 # try:
-                dest = r['destination']
-                source = r['source']
-                if (source_values := self.source_values.get(source['module'])) is not None:
-                    if (value := source_values.get(source['param'])) is not None:
-                        value = {'value':scale(value, source['range'], dest['range'])}
-                        if (duration := dest.get('duration')) is not None:
-                            value.update({'duration':duration})
-                        if (curr_value := self.destination_values.get(dest['param']))\
-                            is None or value['value'] != curr_value['value']:
-                                command = {dest['param']:value}
-                                self.destination_values[dest['param']] = value
-                                self.destination_pipes[dest['module']].send(command)
-
+                rule_dest = r['destination']
+                rule_source = r['source']
+                if (mod_sources := self.source_values.get(rule_source['module'])) is not None:
+                    if (out_value := mod_sources.get(rule_source['name'])) is not None:
+                        out_value = {'value':scale(out_value, rule_source['range'], rule_dest['range'])}
+                        if (duration := rule_dest.get('duration')) is not None:
+                            out_value.update({'duration':duration})
+                        if (curr_value := self.destination_values[rule_dest['module']].get(rule_dest['name']))\
+                            is None or out_value['value'] != curr_value['value']:
+                                command = {rule_dest['name']:out_value}
+                                self.destination_values[rule_dest['name']] = out_value
+                                self.destination_pipes[rule_dest['module']].send(command)

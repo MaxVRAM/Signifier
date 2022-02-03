@@ -21,6 +21,7 @@ from threading import Thread, Event
 import multiprocessing as mp
 
 from signifier.utils import lerp
+from signifier.metrics import MetricsPusher
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,8 @@ class Analysis():
         Updates the state and parameters which drive the Analysis thread.
         """
         logger.info(f'Updating Analysis module configuration...')
+        self.config = config[self.module_name]
         if self.enabled:
-            self.config = config[self.module_name]
             if self.config.get('enabled', False) is False:
                 self.stop()
             else:
@@ -59,7 +60,6 @@ class Analysis():
                 self.initialise()
                 self.start()
         else:
-            self.config = config[self.module_name]
             if self.config.get('enabled', False) is True:
                 self.start()
             else:
@@ -126,7 +126,6 @@ class Analysis():
             self.event = Event()
             self.source_in = parent.source_in
             self.state_q = parent.state_q
-            self.module_name = parent.module_name
             # Analysis configuration
             self.input_device = parent.config.get('input_device', 'default')
             self.sample_rate = parent.config.get('sample_rate', 48000)
@@ -135,21 +134,9 @@ class Analysis():
             self.latency = parent.config.get('latency', 0.4)
             # Analysis data
             self.prev_process_time = time.time()
-            self.source_config = parent.config.get('sources', {})
-            self.peak_config = self.source_config.get('peak', {})
-            self.source_values = {'peak': 0}
+            self.sources = {'peak':0}
             # Metrics
-            self.metrics_q = parent.metrics_q
-
-
-        def queue_metrics(self):
-            if self.metrics_q is not None:
-                for k, v in self.source_values.items():
-                    name = f'{self.module_name}_{k}'
-                    try:
-                        self.metrics_q.put_nowait((name, v))
-                    except Full:
-                        pass
+            self.metrics = MetricsPusher(parent.module_name, parent.metrics_q)
 
 
         def run(self):
@@ -174,11 +161,11 @@ class Analysis():
                     except Empty:
                         pass
                     try:
-                        self.source_in.send(self.source_values)
+                        self.source_in.send(self.sources)
                     except Full:
                         pass
 
-                    self.queue_metrics()
+                    self.metrics.queue()
             return None
 
 
@@ -190,12 +177,11 @@ class Analysis():
             if status:
                 logger.warning(status)
 
-            if self.peak_config.get('enabled', False):
-                peak = np.amax(np.abs(indata))
-                peak = max(0.0, min(1.0, peak / 10000))
-                self.source_values['peak'] = lerp(self.source_values['peak'],
-                                    peak, self.peak_config.get('smooth', 0.5))
-
+            peak = np.amax(np.abs(indata))
+            peak = max(0.0, min(1.0, peak / 10000))
+            peak = lerp(self.sources['peak'], peak, 0.5)
+            self.sources['peak'] = peak
+            self.metrics.update('peak', peak)
             self.prev_process_time = time.time()
 
 

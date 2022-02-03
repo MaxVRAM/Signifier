@@ -22,6 +22,7 @@ from bleson import get_provider, Observer
 from bleson import logger as blelogger
 
 from signifier.utils import lerp
+from signifier.metrics import MetricsPusher
 
 blelogger.set_level(blelogger.ERROR)
 logger = logging.getLogger(__name__)
@@ -134,11 +135,12 @@ class Bluetooth():
             self.signal_threshold = parent.config.get('signal_threshold', 0.002)
             # Scanner data
             self.devices = {}
-            # Metrics and mapping
+            # Mapping
             self.source_values = {}
             self.source_config = parent.config.get('sources', {})
-            self.metrics_q = parent.metrics_q
-            self.source_in = parent.source_in
+            # Metrics
+            self.metrics = MetricsPusher(parent.module_name, parent.metrics_q)
+            self.sources = parent.source_in
 
 
         # (Callback) On each BLE device signal report
@@ -157,16 +159,6 @@ class Bluetooth():
                 # Remove existing device with weak signal
                 if mac in self.devices:
                     self.devices.pop(mac)
-
-
-        def queue_metrics(self):
-            if self.metrics_q is not None:
-                for k, v in self.source_values.items():
-                    name = f'{self.module_name}_{k}'
-                    try:
-                        self.metrics_q.put_nowait((name, v))
-                    except Full:
-                        pass
 
 
         def run(self):
@@ -211,9 +203,9 @@ class Bluetooth():
                     'activity_max':np.amax(activity_array)
                 }
 
-                self.source_in.send(self.source_values)
-
-                self.queue_metrics()
+                self.sources.send(self.source_values)
+                self.metrics.update_dict(self.source_values)
+                self.metrics.queue()
 
 
             observer.stop()

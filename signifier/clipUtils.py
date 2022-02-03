@@ -15,7 +15,7 @@ from __future__ import annotations
 import random
 import logging
 
-from signify.utils import plural
+from signifier.utils import plural
 
 logger = logging.getLogger(__name__)
 

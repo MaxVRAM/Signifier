@@ -9,6 +9,7 @@
 
 from numpy import ndarray
 
+
 def plural(value) -> str:
     """
     Return "s" or "" pluralise strings based on supplied (int) value or len(!int).

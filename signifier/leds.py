@@ -25,6 +25,7 @@ from serial import SerialException
 
 from signifier.utils import scale
 from signifier.utils import plural
+from signifier.metrics import MetricsPusher
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,7 @@ class Leds():
             # Process management
             self.daemon = True
             self.parent = parent
+            self.module_name = parent.module_name
             self.event = mp.Event()
             self.destination_out = parent.destination_out
             self.state_q = parent.state_q
@@ -160,13 +162,16 @@ class Leds():
             self.rx_packet = ReceivePacket
             self.update_ms = parent.config.get('update_ms', 30)
             self.duration_multiplier = parent.config.get('duration_multiplier', 3)
+            # Sources
+            self.sources = {'loop_duration':0, 'serial_rx_window':0}
+            # Metrics
+            self.metrics = MetricsPusher(parent.module_name, parent.metrics_q)
             # LED commands
             self.commands = {}
             for k, v in parent.config['destinations'].items():
-                self.commands.update({k:LedValue(f'{self.parent.module_name}',
-                                                 k, v, self.update_ms,
+                self.commands.update({k:LedValue(k, v, self.update_ms,
                                                  self.duration_multiplier,
-                                                 metrics_q=parent.metrics_q)})
+                                                 metrics=self.metrics)})
 
 
         def run(self):
@@ -191,7 +196,6 @@ class Leds():
                     if self.destination_out.poll():
                         dest_values = self.destination_out.recv()
                         for k in dest_values.keys():
-                            #print(dest_values[k])
                             if k in self.commands:
                                 self.commands[k].set_value(**dest_values[k])
                 # Check for any available serial packets from the Arduino
@@ -225,8 +229,11 @@ class Leds():
                     logger.warning(f'Due to error, LED/Arduino module will now '
                                    f'be disabled for this session.')
                     break
+
+                # Send metrics to Prometheus push gateway queue
+                self.metrics.queue()
                     
-                # Push updated values to Prometheus push gateway
+                
 
             # Close everything off just in case something got missed
             self.state = ArduinoState.closed
@@ -244,6 +251,8 @@ class Leds():
             cmd = self.rx_packet.command.decode("utf-8")
             run_time = round((time.time() - self.start_time) * 1000)
             if cmd == 'r':
+                self.sources['loop_duration'] = self.rx_packet.valA
+                self.sources['serial_rx_window'] = self.rx_packet.valB
                 # Wait for first Arduino "ready" message before sending LED values
                 if self.state == ArduinoState.starting:
                     self.set_state(ArduinoState.running)
@@ -264,6 +273,7 @@ class Leds():
 
         def set_state(self, state:ArduinoState):
             self.state = state
+            self.sources['arduino_state'] = self.state.name
             logger.debug(f'Arduino state now "{self.state.name}"')
             if self.state in [ArduinoState.close, ArduinoState.closed]:
                 self.set_closed()
@@ -304,7 +314,7 @@ class Leds():
                     time.sleep(0.01)
             self.set_state(ArduinoState.closed)
             logger.error(f'Could not gracefully shutdown Arduino. '
-                        f'Forced {self.state.name} state')
+                        f'Forced [{self.state.name}] state')
             self.link.close()
             self.event.set()
             return False
@@ -374,20 +384,18 @@ class LedValue():
     """
     Generic class for holding and managing LED parameter states for the Arduino.
     """
-    def __init__(self, module_name:str, name:str, config:dict, update_ms:float,
-                multiplier:int, metrics_q=None) -> None:
-        self.module_name = module_name
+    def __init__(self, name:str, config:dict, update_ms:float,
+                multiplier:int, metrics:MetricsPusher) -> None:
         self.name = name
         self.command = config['command']
         self.min = config.get('min', 0)
         self.max = config.get('max', 255)
         self.default = config.get('default', 0)
-        self.smooth = config.get('smooth', 0)
         self.description = config.get('description', 'Description not defined.')
         self.duration = update_ms * multiplier
         self.packet = SendPacket(self.command, self.default, self.duration)
         self.updated = True
-        self.metrics_q = metrics_q
+        self.metrics = metrics
 
 
     def __str__(self) -> str:
@@ -414,12 +422,6 @@ class LedValue():
             return False
         if 'force' in args or self.updated:
             if send_function(self.packet) is None:
-                if self.metrics_q is not None:
-                    name = f'{self.module_name}_{self.name}'
-                    try:
-                        self.metrics_q.put_nowait((name, self.packet.value))
-                    except Full:
-                        pass
-                self.updated = False
+                self.metrics.update(self.name, self.packet.value)
                 return True
         return False

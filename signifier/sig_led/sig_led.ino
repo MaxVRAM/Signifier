@@ -24,19 +24,9 @@
 #define QRT_LEDS 60
 #define DATA_PIN 6
 
-const unsigned int INIT_BRIGHTNESS = 255U;
-const unsigned int INIT_SATURATION = 255U;
-const unsigned int INIT_HUE = 195U;
-const unsigned int loopNumReadings = 10;
+SerialTransfer sigSerial;
 
-struct HSV_PROP
-{
-  unsigned short currVal;
-  unsigned short startVal;
-  unsigned short targetVal;
-  float stepSize;
-  float lerpPos;
-};
+const unsigned int loopNumReadings = 10;
 
 struct COMMAND
 {
@@ -53,24 +43,37 @@ struct AVERAGE
   float average = 0;
 } loopAvg;
 
-unsigned long TARGET_LOOP_DUR = 30;
+struct LED_PROPERTY
+{
+  byte currVal;
+  byte startVal;
+  byte targetVal;
+  float stepSize;
+  float lerpPos;
+};
 
+const byte INIT_BRIGHTNESS = 255;
+const byte INIT_SATURATION = 255;
+const byte INIT_HUE = 195;
+
+LED_PROPERTY brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
+LED_PROPERTY saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0UL};
+LED_PROPERTY hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
+LED_PROPERTY noise = {255, 0, 0, 0UL, 0UL};
+
+CHSV initHSV = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
+CHSV solidHSV = initHSV;
+
+CRGB led_pixels[NUM_LEDS];
+CRGB noise_pixels[NUM_LEDS];
+
+
+unsigned long TARGET_LOOP_DUR = 60;
 unsigned long ms = 0;
 unsigned long loopStartTime = 0;
 unsigned long serialStartTime = 0;
 unsigned long loopEndTime = 0;
 unsigned long prevLoopTime = 0;
-
-CRGB initRGB = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
-CRGB leds[NUM_LEDS];
-CRGB noise[NUM_LEDS];
-//fill_noise8(noise, NUM_LEDS, 4, 0, 1, 4, 0, 1, 0);
-
-HSV_PROP brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
-HSV_PROP saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0UL};
-HSV_PROP hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
-
-SerialTransfer sigSerial;
 
 unsigned int loopValue(unsigned int min, unsigned int max, unsigned int val)
 {
@@ -87,9 +90,10 @@ unsigned int loopValue(unsigned int min, unsigned int max, unsigned int val)
  *    /_______  /\___  >__| |____/|   __/ 
  *            \/     \/           |__|    
  */
+
 void setup()
 {
-  FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, DATA_PIN>(led_pixels, NUM_LEDS);
   startup_sequence();
 
   // Serial transfer setup
@@ -109,22 +113,39 @@ void setup()
  *    |_______ \____/ \____/|   __/ 
  *            \/            |__|    
  */
+
 void loop()
 {
   prevLoopTime = millis() - loopStartTime;
   loopStartTime = millis();
   smooth(loopAvg, prevLoopTime);
 
+  // Update moving values
+  fadeToTarget(noise);
   fadeToTarget(brightness);
+  fadeToTarget(saturation);
+  fadeToTarget(hue);
+  solidHSV = CHSV(hue.currVal, saturation.currVal, 255);
+  
+  // Write to pixel arrays
+  //update_noise();
+  fill_solid(led_pixels, NUM_LEDS, solidHSV);
+  // for (unsigned int i = 0; i < NUM_LEDS; i++)
+  // {
+  //   //if (noise[i] > )
+  //   led_pixels[i] = noise_pixels[i];
+  // }
 
+
+  // Push pixel arrays to LEDs
   FastLED.setBrightness(brightness.currVal);
   FastLED.show();
 
   // Calculates the remaining time to wait for a response based on the target loop time
   loopEndTime = loopStartTime + TARGET_LOOP_DUR;
 
-  // Let the RPi know the Arduino is ready to receive serial commands for number of ms
-  sendCommand(COMMAND{'r', 1, loopEndTime - millis()});
+  // Send ready command to RPi with previous loop duration, number of ms it will listen until next loop
+  sendCommand(COMMAND{'r', prevLoopTime, loopEndTime - millis()});
 
   while (ms < loopEndTime)
   {
@@ -150,7 +171,7 @@ void loop()
  *            \/     \/              \/      
  */
 
-// Output the supplied COMMAND struct to the RPi via serial. Used for debugging serial comms.
+// Push serial command to RPi.
 void sendCommand(COMMAND output)
 {
   unsigned int sendSize = 0;
@@ -158,11 +179,14 @@ void sendCommand(COMMAND output)
   sigSerial.sendData(sendSize);
 }
 
-// Uses received serial command to update matching parameters and control system flow. 
+// Update matching LED and system parameters based on received serial commands. 
 void processInput(COMMAND input)
 {
   switch (input.command)
   {
+  case 'l':
+    TARGET_LOOP_DUR = input.value;
+    sendCommand(COMMAND{'l', TARGET_LOOP_DUR, 0});
   case 'B':
     assignInput(input, brightness);
     break;
@@ -172,28 +196,28 @@ void processInput(COMMAND input)
   case 'H':
     assignInput(input, hue);
     break;
-  case 'l':
-    TARGET_LOOP_DUR = input.value;
-    sendCommand(COMMAND{'l', TARGET_LOOP_DUR, 0});
+  case 'N':
+    assignInput(input, noise);
+    break;
   default:
     return;
   }
 }
 
 
+
 /***
- *    __________                                            ____   ____      .__                        
- *    \______   \_______  ____   ____  ____   ______ ______ \   \ /   /____  |  |  __ __   ____   ______
- *     |     ___/\_  __ \/  _ \_/ ___\/ __ \ /  ___//  ___/  \   Y   /\__  \ |  | |  |  \_/ __ \ /  ___/
- *     |    |     |  | \(  <_> )  \__\  ___/ \___ \ \___ \    \     /  / __ \|  |_|  |  /\  ___/ \___ \ 
- *     |____|     |__|   \____/ \___  >___  >____  >____  >    \___/  (____  /____/____/  \___  >____  >
- *                                  \/    \/     \/     \/                 \/                 \/     \/ 
+ *    __________                                          .__                
+ *    \______   \_______  ____   ____  ____   ______ _____|__| ____    ____  
+ *     |     ___/\_  __ \/  _ \_/ ___\/ __ \ /  ___//  ___/  |/    \  / ___\ 
+ *     |    |     |  | \(  <_> )  \__\  ___/ \___ \ \___ \|  |   |  \/ /_/  >
+ *     |____|     |__|   \____/ \___  >___  >____  >____  >__|___|  /\___  / 
+ *                                  \/    \/     \/     \/        \//_____/  
  */
 
-void assignInput(COMMAND input, HSV_PROP &property)
+// Apply new target value for LED property
+void assignInput(COMMAND input, LED_PROPERTY &property)
 {
-  sendCommand(COMMAND{'A', property.currVal, input.value});
-  
   // Reset property, assign start/end values, and calculate step size based on the average loop time
   resetFade(property);
   property.targetVal = input.value;
@@ -203,7 +227,7 @@ void assignInput(COMMAND input, HSV_PROP &property)
 }
 
 // Linearly fade an LED property towards its target value.
-void fadeToTarget(HSV_PROP &property)
+void fadeToTarget(LED_PROPERTY &property)
 {
   if (property.stepSize == 0.0f)
   {
@@ -227,12 +251,60 @@ void fadeToTarget(HSV_PROP &property)
   property.currVal = lerp8by8(property.startVal, property.targetVal, fract8(property.lerpPos*256));
 }
 
-void resetFade(HSV_PROP &property)
+// Zero out the current fade values and stop LED property where it is
+void resetFade(LED_PROPERTY &property)
 {
   property.targetVal = property.currVal;
   property.lerpPos = 1.0f;
   property.stepSize = 0.0f;
 }
+
+
+
+
+
+/***
+ *    __________         __    __                              
+ *    \______   \_____ _/  |__/  |_  ___________  ____   ______
+ *     |     ___/\__  \\   __\   __\/ __ \_  __ \/    \ /  ___/
+ *     |    |     / __ \|  |  |  | \  ___/|  | \/   |  \\___ \ 
+ *     |____|    (____  /__|  |__|  \___  >__|  |___|  /____  >
+ *                    \/                \/           \/     \/ 
+ */
+
+
+void update_noise()
+{
+  if (noise.currVal > 0)
+  {
+    for (unsigned int i = 0; i < NUM_LEDS; i++)
+    {
+      fill_noise8(noise_pixels, NUM_LEDS, 4, 0, 255, 0, 0, 1, ms);
+      //noise_pixels[i] = CHSV(0, 0, inoise8(i * 100, ms));
+    }
+    //fill_noise8(noise_pixels, NUM_LEDS, 4, 0, 1, 1, 1, 1, millis());
+    //fill_noise8 (CRGB *leds, int num_leds, uint8_t octaves, uint16_t x, int scale,
+    //              uint8_t hue_octaves, uint16_t hue_x, int hue_scale, uint16_t time)
+  }
+}
+
+
+// NOISE PARAMS
+// pData	the array of data to write into
+// num_points	the number of points of noise to compute
+// octaves	the number of octaves to use for noise
+// x	the x position in the noise field
+// y	the y position in the noise field for 2d functions
+// scalex	the scale (distance) between x points when filling in noise
+// scaley	the scale (distance) between y points when filling in noise
+// time	the time position for the noise field 
+
+
+
+
+
+
+
 
 
 /***
@@ -254,10 +326,7 @@ void startup_sequence()
   FastLED.show();
 
   // Write default colour to pixels
-  for (unsigned int i = 0; i < NUM_LEDS; i++)
-  {
-    leds[i] = initRGB;
-  }
+  fill_solid(led_pixels, NUM_LEDS, initHSV);
 
   int counter = 0;
   // Quickly fade in
@@ -271,8 +340,8 @@ void startup_sequence()
   // Quickly fade out
   while (counter > 0)
   {
-    counter -= 2;
-    if (counter > 0) counter = 0;
+    counter -= 3;
+    if (counter < 0) counter = 0;
     FastLED.setBrightness(counter);
     FastLED.show();
   }
@@ -317,13 +386,13 @@ float smooth(AVERAGE &avgStruct, long newValue)
  */
 
   // FastLED.clear(true);
-  // leds[0] = CRGB::White;
-  // leds[QRT_LEDS - 1] = CRGB::White;
-  // leds[QRT_LEDS] = CRGB::White;
-  // leds[HALF_LEDS - 1] = CRGB::White;
-  // leds[NUM_LEDS - 1] = CRGB::White;
-  // leds[HALF_LEDS + QRT_LEDS - 1] = CRGB::White;
-  // leds[HALF_LEDS + QRT_LEDS] = CRGB::White;
+  // led_pixels[0] = CRGB::White;
+  // led_pixels[QRT_LEDS - 1] = CRGB::White;
+  // led_pixels[QRT_LEDS] = CRGB::White;
+  // led_pixels[HALF_LEDS - 1] = CRGB::White;
+  // led_pixels[NUM_LEDS - 1] = CRGB::White;
+  // led_pixels[HALF_LEDS + QRT_LEDS - 1] = CRGB::White;
+  // led_pixels[HALF_LEDS + QRT_LEDS] = CRGB::White;
 
   // FastLED.show();
   // delay(100000);
@@ -333,9 +402,9 @@ float smooth(AVERAGE &avgStruct, long newValue)
   //   // Demo for mirror
   //   for (unsigned int i = 0; i < QRT_LEDS; i++)
   //   {
-  //     mirrorPixel(leds, initRGB, i);
+  //     mirrorPixel(led_pixels, initHSV, i);
   //     FastLED.show();
-  //     mirrorPixel(leds, CRGB::Black, i - 1);
+  //     mirrorPixel(led_pixels, CRGB::Black, i - 1);
   //     delay(10);
   //   }
   // }
@@ -343,10 +412,10 @@ float smooth(AVERAGE &avgStruct, long newValue)
   // // Demo for end to end
   // for (unsigned int i = 0; i < HALF_LEDS; i++)
   // {
-  //   endToEnd(leds, initRGB, i);
+  //   endToEnd(led_pixels, initHSV, i);
   //   for (unsigned int j = 0; j < NUM_LEDS; j++)
   //   {
-  //     leds[j].nscale8_video(253);
+  //     led_pixels[j].nscale8_video(253);
   //   }
   //   FastLED.show();
   //   delay(1);
@@ -354,21 +423,21 @@ float smooth(AVERAGE &avgStruct, long newValue)
 
   // for (unsigned int i = 0; i < )
 
-  // // // Shiney demo bit
+  // // // Shiny demo bit
   // CRGB whiteTarget = CRGB::White;
   // for (unsigned int i = 0; i < NUM_LEDS; i++)
   // {
-  //   CRGB currentA = leds[i];
-  //   CRGB currentB = leds[NUM_LEDS - i - 1];
+  //   CRGB currentA = led_pixels[i];
+  //   CRGB currentB = led_pixels[NUM_LEDS - i - 1];
   //   whiteTarget.nscale8(253);
-  //   leds[i] = CRGB::White;
-  //   leds[NUM_LEDS - i - 1] = CRGB::White;
+  //   led_pixels[i] = CRGB::White;
+  //   led_pixels[NUM_LEDS - i - 1] = CRGB::White;
   //   FastLED.show();
-  //   leds[i] = blend(currentA, initRGB, 1);
-  //   leds[NUM_LEDS - i - 1] = blend(currentB, initRGB, 1);
+  //   led_pixels[i] = blend(currentA, initHSV, 1);
+  //   led_pixels[NUM_LEDS - i - 1] = blend(currentB, initHSV, 1);
   //   for (unsigned int j = 0; j < NUM_LEDS; j++)
   //   {
-  //     leds[j].nscale8(253);
+  //     led_pixels[j].nscale8(253);
   //   }
   // }
 

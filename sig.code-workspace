@@ -41,6 +41,9 @@
 		"cSpell.words": [
 			"acompile",
 			"blelogger",
+			"CHSV",
+			"CRGB",
+			"ndarray",
 			"Signifiers"
 		],
 		"cSpell.language": "en-GB"

@@ -84,12 +84,30 @@ class ExitHandler:
                 self.exiting = True
                 print()
                 logger.info('Shutdown sequence started...')
-                composition_module.stop()
-                bluetooth_module.stop()
-                analysis_module.stop()
-                mapping_module.stop()
-                metrics_module.stop()
-                leds_module.stop()
+                try:
+                    composition_module.stop()
+                except NameError:
+                    pass
+                try:
+                    bluetooth_module.stop()
+                except NameError:
+                    pass
+                try:
+                    analysis_module.stop()
+                except NameError:
+                    pass
+                try:
+                    mapping_module.stop()
+                except NameError:
+                    pass
+                try:
+                    metrics_module.stop()
+                except NameError:
+                    pass
+                try:
+                    leds_module.stop()
+                except NameError:
+                    pass
                 logger.info('Signifier shutdown complete!')
                 print()
                 sys.exit()
