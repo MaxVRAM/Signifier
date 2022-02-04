@@ -2,11 +2,11 @@ This repository hosts the project for the individual Signifier units. For the Si
 
 # MMW Signifier
 
-> A complete solution for "Signifier", the networked interactive sound & light sculptures. Created by Chris Vik in collaboration with <http://office.org.au> for Melbourne Music Week 2021/2022.
+> A complete solution for "Signifier", the networked interactive sound & light sculptures. Features interactive audio, audio-reactive LEDs, microphone analysis, bluetooth scanning, customisable mappings/automations, API, web interface, Prometheus monitoring and much more. Created by Chris Vik in collaboration with <http://office.org.au> for Melbourne Music Week 2021/2022.
 
-Each of the 15 Signifiers use a **Raspberry Pi 4B (4GB)** fitted with a number of hardware devices to provide interaction with the physical world.
+Each of the 15 Signifiers use a **Raspberry Pi 4B (4GB)** fitted with several hardware devices to provide interaction with the physical world.
 
-This application manages a suite sensor input modules, **sources**, and output modules, **destinations**. A Signifier's behaviour is customisable via a scheduler and value mapping system, which allows total control over the automation and interaction between inputs and outputs, even during run-time.
+This application manages a suite sensor input modules, **sources**, and output modules, **destinations**. A Signifier's behaviour is customisable via a scheduler and value mapping system, which allow total control over the automation and interaction between inputs and outputs, even during run-time.
 
 ## Project features
 
@@ -66,7 +66,7 @@ This application manages a suite sensor input modules, **sources**, and output m
 
 ### Core
 
-- **Raspberry Pi OS** - [link](https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2022-01-28/) - (Debian Bulleye) 64-bit/arm64
+- **Raspberry Pi OS** - [link](https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2022-01-28/) - (Debian Bullseye) 64-bit/arm64
 - **Python 3.9**
 
 ### System modules
@@ -93,6 +93,16 @@ This application manages a suite sensor input modules, **sources**, and output m
 
 ---
 
+# Networking
+
+Signifiers will look for the WiFi SSID `mmw_sig_net`, and use the password ~~`redacted`~~.
+
+Once connected, they will automatically attempt connection via VPN. The VPN provides a secure network for the Signifiers to communicate with the Signifier Server, which records metrics, allows for remote SSH access to the Signifiers, and hosts several front-end web-apps for remote monitoring and configuration of the Signifiers.
+
+More information on these systems shortly.
+
+---
+
 # Installation
 
 ## Option 1: SD card duplication
@@ -107,7 +117,7 @@ Use an application like BalenaEtcher to write the supplied Signifier image on to
 
 If you'd like to build the Signifier environment on a fresh OS environment, you can use the install script supplied in this repo.
 
-1. Download the zip file of **Raspberry Pi OS Bulleye 64-bit (arm64)** from [here](https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2022-01-28/)
+1. Download the zip file of **Raspberry Pi OS Bullseye 64-bit (arm64)** from [here](https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2022-01-28/)
 
 2. Write the OS to the SD card with something like BalenaEtcher, insert the SD card into the Signifier and go through the default OS setup on the new image.
 

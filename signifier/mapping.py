@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import multiprocessing as mp
+from operator import mod
 from queue import Empty, Full
 
 from signifier.utils import scale
@@ -131,14 +132,10 @@ class Mapping():
             self.source_value_pipes = parent.source_pipes
             # Mapping parameters
             self.rules = parent.config.get('rules', {})
-            
+            # Values
             self.source_values = {}
-            # for m in self.source_value_pipes.keys():
-            #     self.source_values[m] = {}
-
-            self.destination_values = {}
-            # for m in self.destination_pipes.keys():
-            #     self.destination_values[m] = {}
+            self.prev_dest_values = dict.fromkeys(self.destination_pipes, {})
+            self.new_destinations = dict.fromkeys(self.destination_pipes, {})
 
 
         def run(self):
@@ -152,37 +149,41 @@ class Mapping():
                         break
                 except Empty:
                     pass
-                self.process_source_values()
-                self.process_destinations()
+
+                self.gather_source_values()
+                self.process_mappings()
+                # Send destinations through pipes and clear sent modules
+                for module, destinations in self.new_destinations.items():
+                    if destinations is not None and destinations != {}:
+                        self.destination_pipes[module].send(destinations)
+                        self.new_destinations[module] = {}
 
 
-        def process_source_values(self):
-            for module, data in self.source_value_pipes.items():
-                if data.poll():
-                    module_sources = data.recv()
-                    for k,v in module_sources.items():
+        def gather_source_values(self):
+            for module, pipe in self.source_value_pipes.items():
+                if pipe.poll():
+                    sources = pipe.recv()
+                    for k,v in sources.items():
                         self.source_values[k] = v
-                    # keys = list(module_sources.keys())
-                    # values = list(module_sources.values())
-                    # # if self.source_values.get(module) is None:
-                    # #     self.source_values[module] = {}
-                    # for r in range(len(keys)):
-                    #     # self.source_values[module].update({keys[r]:values[r]})
-                    #     self.source_values[f'{module}_{keys[r]}'] = values[r]
 
 
-        def process_destinations(self):
+        def process_mappings(self):
             for r in self.rules:
-                # try:
-                rule_dest = r['destination']
-                rule_source = r['source']
-                if (mod_sources := self.source_values.get(rule_source['module'])) is not None:
-                    if (out_value := mod_sources.get(rule_source['name'])) is not None:
-                        out_value = {'value':scale(out_value, rule_source['range'], rule_dest['range'])}
-                        if (duration := rule_dest.get('duration')) is not None:
-                            out_value.update({'duration':duration})
-                        if (curr_value := self.destination_values[rule_dest['module']].get(rule_dest['name']))\
-                            is None or out_value['value'] != curr_value['value']:
-                                command = {rule_dest['name']:out_value}
-                                self.destination_values[rule_dest['name']] = out_value
-                                self.destination_pipes[rule_dest['module']].send(command)
+                map_source = r['source']
+                map_dest = r['destination']
+                if (out_value := self.source_values.get(
+                        map_source['name'])) is not None:
+                    # Apply input/output scaling and attach duration (if supplied)
+                    out_value = {'value':scale(out_value,
+                                    map_source.get('range', [0, 1]),
+                                    map_dest.get('range', [0, 1]))}
+                    if (duration := map_dest.get('duration')) is not None:
+                        out_value['duration'] = duration
+                    # Update previous value dictionary and add to new destinations 
+                    if (curr_value := self.prev_dest_values[map_dest['module']].get(
+                            map_dest['name'])) is None or\
+                            out_value['value'] != curr_value['value']:
+                        self.prev_dest_values[map_dest['module']]\
+                            [map_dest['name']] = out_value
+                        self.new_destinations[map_dest['module']]\
+                            [map_dest['name']] = out_value

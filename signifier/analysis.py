@@ -40,6 +40,7 @@ class Analysis():
         self.process = None
         self.state_q = Queue(maxsize=1)
         self.source_in, self.source_out = mp.Pipe()
+        self.destination_in, self.destination_out = mp.Pipe()
         self.metrics_q = kwargs.get('metrics_q', None)
 
         if self.enabled:
@@ -123,8 +124,8 @@ class Analysis():
             super().__init__()
             # Process management
             self.daemon = True
+            self.module_name = parent.module_name
             self.event = Event()
-            self.source_in = parent.source_in
             self.state_q = parent.state_q
             # Analysis configuration
             self.input_device = parent.config.get('input_device', 'default')
@@ -132,11 +133,12 @@ class Analysis():
             self.dtype = parent.config.get('dtype', 'int16')
             self.buffer = parent.config.get('buffer', 2048)
             self.latency = parent.config.get('latency', 0.4)
-            # Analysis data
+            #  Analysis data
             self.prev_process_time = time.time()
-            self.sources = {'peak':0}
-            # Metrics
-            self.metrics = MetricsPusher(parent.module_name, parent.metrics_q)
+            # Mapping and metrics
+            self.source_in = parent.source_in
+            self.source_values = {f'{self.module_name}_peak':0}
+            self.metrics = MetricsPusher(parent.metrics_q)
 
 
         def run(self):
@@ -161,7 +163,7 @@ class Analysis():
                     except Empty:
                         pass
                     try:
-                        self.source_in.send(self.sources)
+                        self.source_in.send(self.source_values)
                     except Full:
                         pass
 
@@ -179,9 +181,10 @@ class Analysis():
 
             peak = np.amax(np.abs(indata))
             peak = max(0.0, min(1.0, peak / 10000))
-            peak = lerp(self.sources['peak'], peak, 0.5)
-            self.sources['peak'] = peak
-            self.metrics.update('peak', peak)
+            peak = lerp(
+                self.source_values[f'{self.module_name}_peak'], peak, 0.5)
+            self.source_values[f'{self.module_name}_peak'] = peak
+            self.metrics.update(f'{self.module_name}_peak', peak)
             self.prev_process_time = time.time()
 
 

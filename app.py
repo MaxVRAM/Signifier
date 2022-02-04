@@ -31,9 +31,7 @@ import json
 import socket
 import signal
 
-from queue import Empty, Full
 import multiprocessing as mp
-from multiprocessing.connection import Connection
 
 from signifier.leds import Leds
 from signifier.metrics import Metrics
@@ -49,8 +47,8 @@ config_dict = None
 
 metrics_q = mp.Queue(maxsize=500)
 
-source_pipes = {'analysis':None,'bluetooth':None}
-dest_pipes = {'arduino':None,'composition':None}
+source_pipes = {'arduino':None, 'analysis':None, 'bluetooth':None, 'composition':None}
+dest_pipes = {'arduino':None, 'analysis':None, 'bluetooth':None, 'composition':None}
 
 
 
@@ -145,10 +143,14 @@ if __name__ == '__main__':
 
     dest_pipes = {
         'leds':leds_module.destination_in,
+        'analysis':analysis_module.destination_in,
+        'bluetooth':bluetooth_module.destination_in,
         'composition':composition_module.destination_in}
     source_pipes = {
+        'leds':leds_module.source_out,
         'analysis':analysis_module.source_out,
-        'bluetooth':bluetooth_module.source_out}
+        'bluetooth':bluetooth_module.source_out,
+        'composition':composition_module.source_out}
     
     mapping_module = Mapping(
         'mapping', config_dict, dest_pipes, source_pipes, metrics_q)

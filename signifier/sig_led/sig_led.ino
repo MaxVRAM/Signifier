@@ -295,8 +295,8 @@ void update_noise()
 // octaves	the number of octaves to use for noise
 // x	the x position in the noise field
 // y	the y position in the noise field for 2d functions
-// scalex	the scale (distance) between x points when filling in noise
-// scaley	the scale (distance) between y points when filling in noise
+// scale x	the scale (distance) between x points when filling in noise
+// scale y	the scale (distance) between y points when filling in noise
 // time	the time position for the noise field 
 
 

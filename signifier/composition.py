@@ -23,6 +23,7 @@ import multiprocessing as mp
 from signifier.utils import plural
 from signifier.clipUtils import *
 from signifier.clip import Clip
+from signifier.metrics import MetricsPusher
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class Composition():
         # Process management
         self.manager = None
         self.state_q = mp.Queue(maxsize=1)
+        self.source_in, self.source_out = mp.Pipe()
         self.destination_in, self.destination_out = mp.Pipe()
         self.metrics_q = kwargs.get('metrics_q', None)
 
@@ -172,6 +174,10 @@ class Composition():
                 'clip_selection': self.clip_selection_job,
                 'volume': self.volume_job
             }
+            # Metrics and mapping
+            self.metrics = MetricsPusher(parent.metrics_q)
+            self.destination_out = parent.destination_out
+            self.destinations = {}
             # Metrics and mapping
             self.source_values = {}
             self.source_config = parent.config.get('sources', {})

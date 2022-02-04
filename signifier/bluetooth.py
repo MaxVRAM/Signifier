@@ -42,6 +42,7 @@ class Bluetooth():
         self.process = None
         self.state_q = mp.Queue(maxsize=1)
         self.source_in, self.source_out = mp.Pipe()
+        self.destination_in, self.destination_out = mp.Pipe()
         self.metrics_q = kwargs.get('metrics_q', None)
 
         if self.enabled:
@@ -135,12 +136,10 @@ class Bluetooth():
             self.signal_threshold = parent.config.get('signal_threshold', 0.002)
             # Scanner data
             self.devices = {}
-            # Mapping
+            # Mapping and metrics
+            self.metrics = MetricsPusher(parent.metrics_q)
+            self.source_in = parent.source_in
             self.source_values = {}
-            self.source_config = parent.config.get('sources', {})
-            # Metrics
-            self.metrics = MetricsPusher(parent.module_name, parent.metrics_q)
-            self.sources = parent.source_in
 
 
         # (Callback) On each BLE device signal report
@@ -192,21 +191,20 @@ class Bluetooth():
                 activity_array = [d.activity for d in self.devices.values()]
 
                 self.source_values = {
-                    'num_devices':len(self.devices),
-                    'signal_total': np.sum(signal_array),
-                    'signal_mean':np.mean(signal_array),
-                    'signal_std':np.std(signal_array),
-                    'signal_max':np.amax(signal_array),
-                    'activity_total': np.sum(activity_array),
-                    'activity_mean':np.mean(activity_array),
-                    'activity_std':np.std(activity_array),
-                    'activity_max':np.amax(activity_array)
+                    f'{self.module_name}_num_devices':len(self.devices),
+                    f'{self.module_name}_signal_total': np.sum(signal_array),
+                    f'{self.module_name}_signal_mean':np.mean(signal_array),
+                    f'{self.module_name}_signal_std':np.std(signal_array),
+                    f'{self.module_name}_signal_max':np.amax(signal_array),
+                    f'{self.module_name}_activity_total': np.sum(activity_array),
+                    f'{self.module_name}_activity_mean':np.mean(activity_array),
+                    f'{self.module_name}_activity_std':np.std(activity_array),
+                    f'{self.module_name}_activity_max':np.amax(activity_array)
                 }
 
-                self.sources.send(self.source_values)
+                self.source_in.send(self.source_values)
                 self.metrics.update_dict(self.source_values)
                 self.metrics.queue()
-
 
             observer.stop()
 

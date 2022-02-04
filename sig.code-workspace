@@ -40,11 +40,16 @@
 		},
 		"cSpell.words": [
 			"acompile",
+			"alsa",
 			"blelogger",
 			"CHSV",
 			"CRGB",
+			"libasound",
+			"libportaudio",
 			"ndarray",
-			"Signifiers"
+			"pyaudio",
+			"Signifiers",
+			"sounddevices"
 		],
 		"cSpell.language": "en-GB"
 	}
