@@ -115,7 +115,6 @@ class Analysis():
             logger.debug('Ignoring request to stop Analysis process, module is not enabled.')
 
 
-
     class AnalysisThread(mp.Process):
         """
         Perform audio analysis on the input device provided in `config.json`.
@@ -131,7 +130,7 @@ class Analysis():
             self.input_device = parent.config.get('input_device', 'default')
             self.sample_rate = parent.config.get('sample_rate', 48000)
             self.dtype = parent.config.get('dtype', 'int16')
-            self.buffer = parent.config.get('buffer', 2048)
+            self.buffer_size = parent.config.get('buffer', 2048)
             self.latency = parent.config.get('latency', 0.4)
             #  Analysis data
             self.prev_process_time = time.time()
@@ -147,24 +146,42 @@ class Analysis():
             """
             self.event.clear()
 
-            inputAudio = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NORMAL, 
-                channels=1, rate=self.sample_rate, format=alsaaudio.PCM_FORMAT_S16_LE, 
-                periodsize=self.buffer, device=self.input_device)
+            while not self.event.is_set():
 
-            with sd.InputStream(callback=self.stream_callback):
-                while not self.event.is_set():
-                    try:
-                        if self.state_q.get_nowait() == 'close':
-                            self.event.set()
-                            return None
-                    except Empty:
-                        pass
-                    try:
-                        self.source_in.send(self.source_values)
-                    except Full:
-                        pass
+                inputAudio = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NORMAL, 
+                    channels=1, rate=self.sample_rate, format=alsaaudio.PCM_FORMAT_S16_LE, 
+                    periodsize=self.buffer_size, device=self.input_device)
+
+                try:
+                    length, buffer = inputAudio.read()
+                    np_buffer = np.frombuffer(buffer, dtype=np.uint16)
+                    #print(np.frombuffer(buffer, dtype=np.uint16))
+                except alsaaudio.ALSAAudioError:
+                    break
+
+                try:
+                    if np.average(np_buffer) > 1000 and np.average(np_buffer) < 60000:
+                        #np_buffer = np.frombuffer(buffer, dtype=np.uint16)
+                        print(np_buffer)
+                except TypeError:
+                    pass
+
+                # with sd.InputStream(callback=self.stream_callback):
+                #     while not self.event.is_set():
+                #         try:
+                #             if self.state_q.get_nowait() == 'close':
+                #                 self.event.set()
+                #                 return None
+                #         except Empty:
+                #             pass
+                #         try:
+                #             self.source_in.send(self.source_values)
+                #         except Full:
+                #             pass
 
                     self.metrics.queue()
+
+
             return None
 
 

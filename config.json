@@ -3,7 +3,7 @@
         "hostname":""
     },
     "metrics":{
-        "enabled":true,
+        "enabled":false,
         "debug":false,
         "metrics_port":9095,
         "target_gateway":"localhost:9091",
