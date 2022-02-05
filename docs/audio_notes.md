@@ -33,6 +33,12 @@ Default audio system for many Linux distributions (importantly, Debian, which I 
     # 1 snd_bcm2835
     ```
 
+- Restarting ALSA after config change:
+
+    ```bash
+    sudo /etc/init.d/alsa-utils restart
+    ```
+
 - Displaying existing ALSA audio cards:
 
     ```bash
@@ -317,36 +323,14 @@ There are several conveniences that PulseAudio adds, including a slightly easier
     
     Now I need to create the shared input/output ALSA audio device.
 
+
+    # WORKING ALSA SHARED OUTPUT DEVICE CONFIG
+
     Changing  `~/.asoundrc` to the following:
 
     > More information <https://stackoverflow.com/questions/43939191/alsa-how-to-duplicate-a-stream-on-2-outputs-and-save-system-configs>
 
     ```ruby
-    pcm.quad {
-        type multi
-        slaves.a.pcm "dmix:CA0106,0"
-        slaves.a.channels 2
-        slaves.b.pcm "dmix:CA0106,2"
-        slaves.b.channels 2
-        bindings.0 { slave a; channel 0; }
-        bindings.1 { slave a; channel 1; }
-        bindings.2 { slave b; channel 0; }
-        bindings.3 { slave b; channel 1; }
-    }
-    pcm.stereo2quad {
-        type route
-        slave.pcm "quad"
-        ttable.0.0 1
-        ttable.1.1 1
-        ttable.0.2 1
-        ttable.1.3 1
-    }
-    pcm.!default {
-        type asym
-        playback.pcm "plug:stereo2quad"
-        capture.pcm "plug:dsnoop:CA0106"
-    }
-
     pcm.shared {
         type multi
         slaves.a.pcm "hw:Headphones,0"
@@ -354,29 +338,54 @@ There are several conveniences that PulseAudio adds, including a slightly easier
         slaves.b.pcm "hw:Loopback,0"
         slaves.b.channels 1
         bindings.0 { slave a; channel 0; }
-        bindings.1 { slave a; channel 1; }
-        bindings.2 { slave b; channel 0; }
-        bindings.3 { slave b; channel 1; }
+        bindings.1 { slave b; channel 0; }
     }
     pcm.out2both {
         type route
         slave.pcm "shared"
         ttable.0.0 1
         ttable.1.1 1
-        ttable.0.2 1
-        ttable.1.3 1
     }
     pcm.!default {
         type asym
         playback.pcm "plug:out2both"
-        capture.pcm "plug:dsnoop:Loopback"
+        capture.pcm "hw:Loopback,1"
     }
     ```
 
+    I profiled this using `htop` for a couple of minutes streaming noise across the shared audio devices, and I ran `alsaaudio` Python module at the same time to print a sample count each buffer, and man, the CPU is taking a fucking holiday! This is exactly how it should have been from the start... I'm gonna do the ol' last minute 'I've optimised the other option' thing and deliver non-clock-compromised Signifiers to my client.
 
+    The buffers I've read using this have alternated between actual audio buffer data and byte arrays that contained nothing but zeros. My first thought was maybe something to do with mono/stereo, but have zero insight at this point, I'm just trying to get shit working fast... and it does... This script uses almost no CPU on the RPi.
 
+    ```python
+    import alsaaudio
+    import numpy as np
+    from multiprocessing import Process
 
-- Excellent example of weighted dB scaling to the sounddevice input stream with Numpy:
+    device = 'hw:Loopback,1'
+    device = 'default'
+
+    def listen():
+        loops = 1000
+        while loops > 0:
+            inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NORMAL, 
+                channels=1, rate=48000, format=alsaaudio.PCM_FORMAT_S16_LE, 
+                periodsize=512, device=device)
+            loops -= 1
+            # Read data from device
+            l, data = inp.read()
+            print(l)
+            buffer = np.frombuffer(data)
+            if np.sum(buffer) == 0:
+                pass #print('That is totally bonked.....')
+            else:
+                pass #print(buffer)
+
+    listener = Process(target=listen)
+    listener.start()
+    ```
+
+- Excellent example of weighted dB scaling to the `sounddevice` input stream with `Numpy`:
 
     > More information <https://github.com/SiggiGue/pyfilterbank/issues/17>
 

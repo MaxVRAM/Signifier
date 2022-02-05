@@ -1,1 +1,20 @@
-pcm.!default hw:Headphones
+pcm.shared {
+    type multi
+    slaves.a.pcm "hw:Headphones,0"
+    slaves.a.channels 1
+    slaves.b.pcm "hw:Loopback,0"
+    slaves.b.channels 1
+    bindings.0 { slave a; channel 0; }
+    bindings.1 { slave b; channel 0; }
+}
+pcm.out2both {
+    type route
+    slave.pcm "shared"
+    ttable.0.0 1
+    ttable.1.1 1
+}
+pcm.!default {
+    type asym
+    playback.pcm "plug:out2both"
+    capture.pcm "hw:Loopback,1"
+}

@@ -107,7 +107,7 @@
         "input_device":"default",
         "sample_rate":48000,
         "dtype":"int16",
-        "buffer":4096,
+        "buffer":2048,
         "latency":0.1,
         "gain":1.0,
         "sources":{
