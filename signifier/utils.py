@@ -48,20 +48,20 @@ def lerp(a, b, pos) -> float:
     lerp_out = a * (1.0 - pos) + (b * pos)
     return lerp_out
 
-class ExpFilter:
-    """
-    Simple exponential smoothing filter.
-    """
+
+class ExponentialFilter:
+    # https://gitlab.zenairo.6 com/led-projects/dancyPi-audio-reactive-led/-/raw/262206d35962b2383f2649d726ff9bc513095ec7/python/dsp.py
+    """Simple exponential smoothing filter"""
     def __init__(self, val=0.0, alpha_decay=0.5, alpha_rise=0.5):
         """Small rise / decay factors = more smoothing"""
-        assert 0.0 < alpha_decay < 1.0
-        assert 0.0 < alpha_rise < 1.0
+        assert 0.0 < alpha_decay < 1.0, 'Invalid decay smoothing factor'
+        assert 0.0 < alpha_rise < 1.0, 'Invalid rise smoothing factor'
         self.alpha_decay = alpha_decay
         self.alpha_rise = alpha_rise
         self.value = val
 
     def update(self, value):
-        if isinstance(self.value, (list, ndarray, tuple)):
+        if not isinstance(self.value, (int, long, float)):
             alpha = value - self.value
             alpha[alpha > 0.0] = self.alpha_rise
             alpha[alpha <= 0.0] = self.alpha_decay
@@ -69,3 +69,4 @@ class ExpFilter:
             alpha = self.alpha_rise if value > self.value else self.alpha_decay
         self.value = alpha * value + (1.0 - alpha) * self.value
         return self.value
+

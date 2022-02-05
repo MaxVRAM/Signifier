@@ -4,7 +4,7 @@
     },
     "metrics":{
         "enabled":true,
-        "debug":true,
+        "debug":false,
         "metrics_port":9095,
         "target_gateway":"localhost:9091",
         "job_name":"signifier",
@@ -25,7 +25,20 @@
                     "module": "leds",
                     "name": "leds_brightness",
                     "range": [0, 1],
-                    "duration": 100
+                    "duration": 1000
+                }
+            },
+            {
+                "source": {
+                    "module": "bluetooth",
+                    "name": "bluetooth_signal_max",
+                    "range": [0.2, 0.5]
+                },
+                "destination": {
+                    "module": "leds",
+                    "name": "leds_saturation",
+                    "range": [1, 0],
+                    "duration": 1000
                 }
             }
         ]
@@ -36,8 +49,8 @@
         "port":"/dev/ttyACM0",
         "baud":38400,
         "start_delay":2,
-        "update_ms":60,
-        "duration_multiplier":3,
+        "update_ms":30,
+        "duration_multiplier":5,
         "sources":{
             "leds_arduino_state":{"type":"info",
                 "description":"Current state of serial communicate with Arduino."},

@@ -18,7 +18,7 @@ import multiprocessing as mp
 from queue import Empty, Full
 from urllib.error import URLError
 
-from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway
+from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway, start_http_server
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +78,11 @@ class Metrics():
                 self.process = self.MetricsProcess(self)
                 logger.debug(f'[{self.module_name}] module initialised.')
             else:
-                logger.warning(f'[{self.module_name}] module already initialised!')
+                logger.warning(f'[{self.module_name}] module already '
+                               f'initialised!')
         else:
-            logger.warning(f'Cannot create [{self.module_name}] process, module not enabled!')
+            logger.warning(f'Cannot create [{self.module_name}] process, '
+                           f'module not enabled!')
 
 
     def start(self):
@@ -93,11 +95,14 @@ class Metrics():
                     self.process.start()
                     logger.info(f'[{self.module_name}] process started.')
                 else:
-                    logger.warning(f'Cannot start [{self.module_name}] process, already running!')
+                    logger.warning(f'Cannot start [{self.module_name}] '
+                        f'process, already running!')
             else:
-                logger.warning(f'Trying to start [{self.module_name}] process but module not initialised!')
+                logger.warning(f'Trying to start [{self.module_name}] '
+                                f'process but module not initialised!')
         else:
-            logger.debug(f'Ignoring request to start [{self.module_name}] process, module is not enabled.')
+            logger.debug(f'Ignoring request to start [{self.module_name}] '
+                        f'process, module is not enabled.')
 
 
     def stop(self):
@@ -110,17 +115,21 @@ class Metrics():
                 self.state_q.put('close', timeout=2)
                 self.process.join(timeout=1)
                 self.process = None
-                logger.info(f'[{self.module_name}] process stopped and joined main thread.')
+                logger.info(f'[{self.module_name}] process stopped and joined '
+                            f'main thread.')
             else:
-                logger.debug(f'Cannot stop [{self.module_name}] process, not running.')
+                logger.debug(f'Cannot stop [{self.module_name}] '
+                            f'process, not running.')
         else:
-            logger.debug('Ignoring request to stop [{self.module_name}] process, module is not enabled.')
+            logger.debug('Ignoring request to stop [{self.module_name}] '
+                         'process, module is not enabled.')
 
 
 
     class MetricsProcess(mp.Process):
         """
-        Multiprocessing Process to compute and deliver Signifier metrics to the push gateway.
+        Multiprocessing Process to compute and deliver Signifier
+        metrics to the push gateway.
         """
         def __init__(self, parent:Metrics) -> None:
             super().__init__()
@@ -152,7 +161,6 @@ class Metrics():
                         return None
                 except Empty:
                     pass
-
                 # Drain queue, bailing after 100 ms ensuring we don't get stuck
                 loop_time = time.time()
                 while time.time() < loop_time + 0.1:
@@ -162,11 +170,8 @@ class Metrics():
                             gauge.set(metric[1])
                         
                         # TODO Add info and array metrics
-
                     except Empty:
                         break
-
-
                 # Push current registry values if enough time has lapsed
                 if time.time() > prev_push + self.push_period:
                     try:
@@ -184,6 +189,7 @@ class Metrics():
                             f'cannot be reached. Retry in '
                             f'{self.push_period}s.')
                         prev_push = time.time()
+
 
 
         def build_metrics(self):

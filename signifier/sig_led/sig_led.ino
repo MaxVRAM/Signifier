@@ -332,15 +332,15 @@ void startup_sequence()
   // Quickly fade in
   while (counter < 255)
   {
-    counter += 2;
+    counter += 3;
     if (counter > 255) counter = 255;
     FastLED.setBrightness(counter);
     FastLED.show();
   }
-  // Quickly fade out
+  // Quickerly fade out
   while (counter > 0)
   {
-    counter -= 3;
+    counter -= 4;
     if (counter < 0) counter = 0;
     FastLED.setBrightness(counter);
     FastLED.show();
