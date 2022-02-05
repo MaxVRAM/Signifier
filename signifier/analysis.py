@@ -15,10 +15,10 @@ from __future__ import annotations
 import time
 import logging
 import numpy as np
-
-from queue import Empty, Full, Queue
-from threading import Thread, Event
 import multiprocessing as mp
+from queue import Empty, Full, Queue
+
+import alsaaudio
 
 from signifier.utils import lerp
 from signifier.metrics import MetricsPusher
@@ -38,7 +38,7 @@ class Analysis():
         self.enabled = self.config.get('enabled', False)
         # Process management
         self.process = None
-        self.state_q = Queue(maxsize=1)
+        self.state_q = mp.Queue(maxsize=1)
         self.source_in, self.source_out = mp.Pipe()
         self.destination_in, self.destination_out = mp.Pipe()
         self.metrics_q = kwargs.get('metrics_q', None)
@@ -116,7 +116,7 @@ class Analysis():
 
 
 
-    class AnalysisThread(Thread):
+    class AnalysisThread(mp.Process):
         """
         Perform audio analysis on the input device provided in `config.json`.
         """
@@ -125,7 +125,7 @@ class Analysis():
             # Process management
             self.daemon = True
             self.module_name = parent.module_name
-            self.event = Event()
+            self.event = mp.Event()
             self.state_q = parent.state_q
             # Analysis configuration
             self.input_device = parent.config.get('input_device', 'default')
@@ -146,13 +146,10 @@ class Analysis():
             Begin executing Analyser thread to produce audio descriptors.
             """
             self.event.clear()
-            import sounddevice as sd
-            sd.default.channels = 1
-            sd.default.device = self.input_device
-            sd.default.dtype = self.dtype
-            sd.default.blocksize = self.buffer
-            sd.default.samplerate = self.sample_rate
-            sd.default.latency = self.latency
+
+            inputAudio = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NORMAL, 
+                channels=1, rate=self.sample_rate, format=alsaaudio.PCM_FORMAT_S16_LE, 
+                periodsize=self.buffer, device=self.input_device)
 
             with sd.InputStream(callback=self.stream_callback):
                 while not self.event.is_set():

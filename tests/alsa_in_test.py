@@ -14,11 +14,12 @@ def listen():
         loops -= 1
         # Read data from device
         l, data = inp.read()
-        print(l)
         buffer = np.frombuffer(data)
         if np.sum(buffer) == 0:
             pass #print('That is totally bonked.....')
         else:
+            print(np.average(buffer))
+            #print(np.amax(buffer))
             pass #print(buffer)
 
 listener = Process(target=listen)
