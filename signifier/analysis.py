@@ -33,6 +33,7 @@ class Analysis():
     def __init__(self, name:str, config:dict, *args, **kwargs) -> None:
         self.module_name = name
         self.config = config[self.module_name]
+        self.main_config = config
         logger.setLevel(logging.DEBUG if self.config.get(
                         'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
@@ -127,11 +128,17 @@ class Analysis():
             self.event = mp.Event()
             self.state_q = parent.state_q
             # Analysis configuration
-            self.input_device = parent.config.get('input_device', 'default')
-            self.sample_rate = parent.config.get('sample_rate', 48000)
-            self.dtype = parent.config.get('dtype', 'int16')
-            self.buffer_size = parent.config.get('buffer', 2048)
-            self.latency = parent.config.get('latency', 0.4)
+            self.input_device = parent.config\
+                .get('input_device', 'default')
+            self.sample_rate = parent.config\
+                .get('sample_rate', 48000)
+            self.dtype = parent.config\
+                .get('dtype', 'int16')
+            self.buffer_size = parent.config\
+                .get('buffer', 512)
+            self.output_volume = parent.main_config['composition']\
+                .get('volume', 1)
+            #self.latency = parent.config.get('latency', 0.4)
             #  Analysis data
             self.prev_process_time = time.time()
             # Mapping and metrics
@@ -145,61 +152,87 @@ class Analysis():
             Begin executing Analyser thread to produce audio descriptors.
             """
             self.event.clear()
-
+            prev_empty = 0
             while not self.event.is_set():
-
-                inputAudio = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NORMAL, 
-                    channels=1, rate=self.sample_rate, format=alsaaudio.PCM_FORMAT_S16_LE, 
-                    periodsize=self.buffer_size, device=self.input_device)
-
                 try:
-                    length, buffer = inputAudio.read()
-                    np_buffer = np.frombuffer(buffer, dtype=np.uint16)
-                    #print(np.frombuffer(buffer, dtype=np.uint16))
-                except alsaaudio.ALSAAudioError:
-                    break
-
-                try:
-                    if np.average(np_buffer) > 1000 and np.average(np_buffer) < 60000:
-                        #np_buffer = np.frombuffer(buffer, dtype=np.uint16)
-                        print(np_buffer)
-                except TypeError:
+                    if self.state_q.get_nowait() == 'close':
+                        self.event.set()
+                        return None
+                except Empty:
                     pass
 
-                # with sd.InputStream(callback=self.stream_callback):
-                #     while not self.event.is_set():
-                #         try:
-                #             if self.state_q.get_nowait() == 'close':
-                #                 self.event.set()
-                #                 return None
-                #         except Empty:
-                #             pass
-                #         try:
-                #             self.source_in.send(self.source_values)
-                #         except Full:
-                #             pass
+                try:
+                    inputAudio = alsaaudio.PCM(
+                        alsaaudio.PCM_CAPTURE,
+                        alsaaudio.PCM_NORMAL, 
+                        channels=1,
+                        rate=self.sample_rate,
+                        format=alsaaudio.PCM_FORMAT_S16_LE, 
+                        periodsize=self.buffer_size,
+                        device=self.input_device)
+                    length, buffer = inputAudio.read()
+                except alsaaudio.ALSAAudioError as exception:
+                    logger.critical(f'ALSA Audio error: {exception}')
+                    # TODO notify module manager of failed audio component
+                    self.event.set()
+                    return None
 
-                    self.metrics.queue()
+                if length:
+                    buffer = np.frombuffer(buffer, dtype='<i2')
+                    # Dirty hack to only output 0 if its the second set of zeros detected.
+                    # Some major issue going on with period size returns in the library.
+                    # Hopefully this doesn't produce majorly incorrect readings...
+                    # After the first set of 0 returns, will allow another 9 empty buffers
+                    # before preventing outputs. Remains until non zero buffer is filled
+                    # and restarts the counter.
+                    if np.sum(buffer) != 0:
+                        prev_empty = 0
+                    elif prev_empty == 0:
+                        prev_empty += 1
+                        buffer = None
+                    elif prev_empty < 10:
+                        prev_empty += 1
+                    else:
+                        buffer = None
 
+                    if buffer is not None:
+                        peak = np.amax(np.abs(buffer))
+                        peak = max(0.0, min(1.0, (1 / self.output_volume) * (peak / 16400)))
+                        peak = lerp(
+                            self.source_values[f'{self.module_name}_peak'], peak, 0.5)
+                            
+                        self.source_values[f'{self.module_name}_peak'] = peak
+                        self.metrics.update(f'{self.module_name}_peak', peak)
+                        self.metrics.update(f'{self.module_name}_buffer_size', length)
+                        self.metrics.update(f'{self.module_name}_buffer_ms',
+                            int(time.time()-self.prev_process_time / 1000))
+                        self.prev_process_time = time.time()
+                        try:
+                            self.source_in.send(self.source_values)
+                        except Full:
+                            pass
+
+                        self.metrics.queue()
+                time.sleep(0.001)
 
             return None
 
 
-        def stream_callback(self, indata, _frames, _time, status):
-            """
-            The primary function called by the Streaming thread. This function\
-            calculates the amplitude of the input signal.
-            """
-            if status:
-                logger.warning(status)
+        # def stream_callback(self, indata, _frames, _time, status):
+        #     """
+        #     The primary function called by the Streaming thread. This function\
+        #     calculates the amplitude of the input signal.
+        #     """
+        #     if status:
+        #         logger.warning(status)
 
-            peak = np.amax(np.abs(indata))
-            peak = max(0.0, min(1.0, peak / 10000))
-            peak = lerp(
-                self.source_values[f'{self.module_name}_peak'], peak, 0.5)
-            self.source_values[f'{self.module_name}_peak'] = peak
-            self.metrics.update(f'{self.module_name}_peak', peak)
-            self.prev_process_time = time.time()
+        #     peak = np.amax(np.abs(indata))
+        #     peak = max(0.0, min(1.0, peak / 10000))
+        #     peak = lerp(
+        #         self.source_values[f'{self.module_name}_peak'], peak, 0.5)
+        #     self.source_values[f'{self.module_name}_peak'] = peak
+        #     self.metrics.update(f'{self.module_name}_peak', peak)
+        #     self.prev_process_time = time.time()
 
 
 def rms_flat(a):

@@ -18,7 +18,7 @@ import multiprocessing as mp
 from queue import Empty, Full
 from urllib.error import URLError
 
-from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway, start_http_server
+from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -189,10 +189,14 @@ class Metrics():
                             f'cannot be reached. Retry in '
                             f'{self.push_period}s.')
                         prev_push = time.time()
+                time.sleep(0.001)
 
 
 
         def build_metrics(self):
+            """
+            Construct a list of Prometheus metric objects for the push gateway
+            """
             for module, config in self.main_config.items():
                 if (sources := config.get('sources', {})) is not None\
                         and sources != {}:

@@ -274,8 +274,7 @@ class Leds():
 
                 # Send metrics to Prometheus push gateway queue
                 self.metrics.queue()
-                    
-                
+                time.sleep(0.001)
 
             # Close everything off just in case something got missed
             self.state = ArduinoState.closed

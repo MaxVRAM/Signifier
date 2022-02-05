@@ -162,4 +162,4 @@ if __name__ == '__main__':
     while True:
         # TODO Change composition module over to threaded loop
         composition_module.tick()
-        time.sleep(0.1)
+        time.sleep(0.001)

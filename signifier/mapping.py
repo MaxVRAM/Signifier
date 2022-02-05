@@ -12,9 +12,9 @@ Processes module source values and sends them to module destination parameters.
 
 from __future__ import annotations
 
+import time
 import logging
 import multiprocessing as mp
-from operator import mod
 from queue import Empty, Full
 
 from signifier.utils import scale
@@ -157,6 +157,7 @@ class Mapping():
                     if destinations is not None and destinations != {}:
                         self.destination_pipes[module].send(destinations)
                         self.new_destinations[module] = {}
+                time.sleep(0.001)
 
 
         def gather_source_values(self):

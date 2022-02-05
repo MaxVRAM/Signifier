@@ -3,7 +3,7 @@
         "hostname":""
     },
     "metrics":{
-        "enabled":false,
+        "enabled":true,
         "debug":false,
         "metrics_port":9095,
         "target_gateway":"localhost:9091",
@@ -112,7 +112,11 @@
         "gain":1.0,
         "sources":{
             "analysis_peak":{"type":"gauge",
-                "description":"Peak amplitude of audio signal in each buffer."}
+                "description":"Peak amplitude of audio signal in each buffer."},
+                "analysis_buffer_size":{"type":"gauge",
+                    "description":"Number of samples read in input buffer."},
+                "analysis_buffer_ms":{"type":"gauge",
+                    "description":"Duration of buffer read in milliseconds."}
         },
         "destinations":{}
     },
@@ -123,7 +127,7 @@
         "sample_rate":48000,
         "bit_size":-16,
         "buffer":2048,
-        "base_path":"/home/pi/Signifier/audio_3",
+        "base_path":"/home/pi/Signifier/media/audio/sig_sounds_48000_mono_16bit",
         "force_collection":null,
         "valid_extensions":[".wav"],
         "strict_distribution":false,

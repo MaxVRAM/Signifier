@@ -491,7 +491,7 @@ There are several conveniences that PulseAudio adds, including a slightly easier
 
 - Since reading about the realtime sample rate conversion issues between PulseAudio and the snd_bcm2835 ALSA driver, I've moved to **32bit Mono @ 48KHz**
 
-- I batch converted the original files using FFmpeg Batch AV Converter (Windows) and the command: `-vn -c:a pcm_s32le -ar 48000 -sample_fmt s32 -ac 1`
+- I batch converted the original files using FFmpeg Batch AV Converter (Windows) and the command: `-vn -c:a pcm_s32le -ar 48000 -sample_fmt s32 -ac 1` **NOTE** I was incorrectly using 32bit files with 16bit stream input!! This was causing issues. I batch converted another set towards the end of the project... results are in the final summary... `-vn -c:a pcm_s16le -sample_fmt s16 -ar 48000 -ac 1` 
 
 - I also realised (using `sd.query_devices()` on the default output), that PulseAudio defaults to 44.1KHz! So I needed to add some config to `/etc/pulse/daemon.conf`, and added some extra stuff while I was there:
 

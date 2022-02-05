@@ -103,6 +103,44 @@ More information on these systems shortly.
 
 ---
 
+# Media content
+
+## Location
+
+All media content for the Signifiers should go into the path `/home/pi/Signifier/media`. There is a subdirectory called `audio` where the FOLDER containing all the Signifier audio clip collections should be placed.
+
+The final path for audio resources supplied on delivery is here:
+
+```
+/home/pi/Signifier/media/audio/sig_sounds_48000_mono_16bit
+```
+
+As of writing, there are 12 separate "collections" of Signifier audio presets: `S1`, `S2`... `S12`.
+
+## Format
+
+The expected format for audio content used by the Signifier application is:
+
+- File extension: `.wav`
+- Sample rate: `48000`
+- Channels: `1` / `mono`
+- Bit depth: `16-bit` / `signed 2-byte integer`
+
+While the format of audio clips can be converted in real-time by the application, it uses a large amount of CPU to do so. Supplying the incorrect format will heavily impact performance, and may result in interrupted audio playback and incorrect audio analysis outputs.
+
+## Replacing / adding audio collections
+
+I suggest using the free Windows application FFMpeg Batch AV Converter to convert large quantities of audio files to the desired format. The following conversion command will produce the correct output:
+
+```
+-vn -c:a pcm_s16le -sample_fmt s16 -ar 48000 -ac 1`
+```
+
+Once converted, simply add the folder containing the new collections into the `media/audio` directory, and ensure the `config.json` **collection** `base_path` setting points to the new audio library path. 
+
+
+---
+
 # Installation
 
 ## Option 1: SD card duplication

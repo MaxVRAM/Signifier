@@ -205,6 +205,7 @@ class Bluetooth():
                 self.source_in.send(self.source_values)
                 self.metrics.update_dict(self.source_values)
                 self.metrics.queue()
+                time.sleep(0.001)
 
             observer.stop()
 
