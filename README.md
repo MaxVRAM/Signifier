@@ -39,7 +39,7 @@ This application manages a suite sensor input modules, **sources**, and output m
 - Local Prometheus push gateway for complete metrics capture.
 - Custom VPN networking for secure remote access, during both development and production.
 - Prometheus federation server for metrics aggregation.
-- Grafana dashboards for real-time monitoring of all metrics. (not yet implemented)
+- Grafana dashboards for real-time monitoring of all metrics.
 
 
 ## Hardware
