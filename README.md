@@ -70,16 +70,14 @@ This application manages a suite sensor input modules, **sources**, and output m
 - **Python 3.9**
 
 ### System modules
-- **libportaudio2** - [link](https://packages.debian.org/bullseye/libportaudio2) - PortAudio, required for LED audio-reactivity.
-- **libasound2-dev** - [link](https://packages.debian.org/bullseye/libasound2-dev) - Downloads ALSA C-libraries for Python library compilation.
+- **libasound2-dev** - [link](https://packages.debian.org/bullseye/libasound2-dev) - Downloads ALSA C-libraries for Python library compilation. (might not be needed, will test without on a new build)
 - **alsa-utils** - [link](https://packages.debian.org/bullseye/alsa-utils) - Provides loopback and additional debugging tools.
 
 ### Python modules 
 
 - **schedule** - [link](https://pypi.org/project/schedule/) - Required for scheduling "jobs" to automate the Signifier.
 - **pygame** - [link](https://pypi.org/project/pygame/) - Back-end framework for audio clip playback.
-- **python3-pyaudio** - [link](http://people.csail.mit.edu/hubert/pyaudio/) - Required to use **sounddevices**.
-- **sounddevice** - [link](https://pypi.org/project/sounddevice/) Wrapper for PortAudio, required for analysis module.
+- **pyAlsaAudio** - [link](https://github.com/larsimmisch/pyalsaaudio) Wrapper for ALSA, required for analysis module.
 - **PySerialTransfer** - [link](https://pypi.org/project/pySerialTransfer/) - Arduino communication framework, required for LED module.
 - **prometheus-client** - [link](https://pypi.org/project/prometheus-client/) - Required if using Prometheus/Grafana to monitor Signifiers.
 

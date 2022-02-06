@@ -138,7 +138,6 @@ class Analysis():
                 .get('buffer', 512)
             self.output_volume = parent.main_config['composition']\
                 .get('volume', 1)
-            #self.latency = parent.config.get('latency', 0.4)
             #  Analysis data
             self.prev_process_time = time.time()
             # Mapping and metrics
@@ -200,12 +199,12 @@ class Analysis():
                         peak = max(0.0, min(1.0, (1 / self.output_volume) * (peak / 16400)))
                         peak = lerp(
                             self.source_values[f'{self.module_name}_peak'], peak, 0.5)
-                            
+
                         self.source_values[f'{self.module_name}_peak'] = peak
                         self.metrics.update(f'{self.module_name}_peak', peak)
                         self.metrics.update(f'{self.module_name}_buffer_size', length)
                         self.metrics.update(f'{self.module_name}_buffer_ms',
-                            int(time.time()-self.prev_process_time / 1000))
+                            int((time.time()-self.prev_process_time) * 1000))
                         self.prev_process_time = time.time()
                         try:
                             self.source_in.send(self.source_values)

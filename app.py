@@ -121,13 +121,13 @@ class ExitHandler:
 #          \/     \/        \/
 
 if __name__ == '__main__':
-    print()
-    logger.info('Prepare to be Signified!!')
-    print()
-
     with open(CONFIG_FILE) as c:
         config_dict = json.load(c)
     config_dict['general']['hostname'] = HOST_NAME
+
+    print()
+    logger.info(f'Starting Signifier on [{config_dict["general"]["hostname"]}]')
+    print()
 
     main_thread = mp.current_process()
     exit_handler = ExitHandler()

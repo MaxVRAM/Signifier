@@ -107,8 +107,7 @@
         "input_device":"default",
         "sample_rate":48000,
         "dtype":"int16",
-        "buffer":2048,
-        "latency":0.1,
+        "buffer":512,
         "gain":1.0,
         "sources":{
             "analysis_peak":{"type":"gauge",

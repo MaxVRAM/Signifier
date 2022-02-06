@@ -33,6 +33,7 @@ class Metrics():
     def __init__(self, name:str, config:dict, metrics_q:mp.Queue,
                     args=(), kwargs=None) -> None:
         self.main_config = config
+        self.hostname = config['general']['hostname']
         self.module_name = name
         self.config = config[self.module_name]
         logger.setLevel(logging.DEBUG if self.config.get(
@@ -138,13 +139,13 @@ class Metrics():
             self.event = mp.Event()
             self.state_q = parent.state_q
             self.main_config = parent.main_config
+            self.hostname = parent.hostname
             self.config = parent.config
             self.metrics_q = parent.metrics_q
             # Prometheus config
             self.registry = CollectorRegistry()
             self.push_period = self.config['push_period']
-            self.gauges = {}
-            self.info = {}
+            self.metrics = {}
             
             self.build_metrics()
 
@@ -165,11 +166,14 @@ class Metrics():
                 loop_time = time.time()
                 while time.time() < loop_time + 0.1:
                     try:
-                        metric = self.metrics_q.get_nowait()
-                        if (gauge := self.gauges.get(metric[0])) is not None:
-                            gauge.set(metric[1])
-                        
-                        # TODO Add info and array metrics
+                        input_metric = self.metrics_q.get_nowait()
+                        if (metric := self.metrics.get(input_metric[0])) is not None:
+                            if 'gauge' in metric.keys():
+                               metric['gauge'].labels(self.hostname).set(input_metric[1])
+                            if 'info' in metric.keys():
+                                metric['info'].info({'instance':self.hostname,'value':input_metric[1]})
+                                #Info.info()
+                        # TODO Add array metrics
                     except Empty:
                         break
                 # Push current registry values if enough time has lapsed
@@ -192,39 +196,39 @@ class Metrics():
                 time.sleep(0.001)
 
 
-
         def build_metrics(self):
             """
             Construct a list of Prometheus metric objects for the push gateway
             """
             for module, config in self.main_config.items():
-                if (sources := config.get('sources', {})) is not None\
-                        and sources != {}:
-                    for name, source in sources.items():
-                        if source['type'] == 'gauge':
-                            self.gauges[name] = self.create_metric(name, source)
-                        elif source['type'] == 'info':
-                            self.info[name] = self.create_metric(name, source)
-                if (destinations := config.get('destinations', {})) is not None\
-                        and destinations != {}:
-                    for name, dest in destinations.items():
-                        if source['type'] == 'gauge':
-                            self.gauges[name] = self.create_metric(name, dest)
-                        elif source['type'] == 'info':
-                            self.info[name] = self.create_metric(name, dest)
+                metrics = config.get('sources', {})
+                metrics.update(config.get('destinations', {}))
+                if metrics is not None and metrics != {}:
+                    for name, metric in metrics.items():
+                        self.metrics[name] = self.create_metric(name, metric)
 
 
-        def create_metric(self, name:str, metric:dict):
-            # TODO create `info` type metric
+        def create_metric(self, name:str, metric:dict) -> dict:
+            """
+            Build and return a Prometheus metric object type based on the
+            dictionary supplied in the arguments.  
+            """
+            new_metric = None
             if metric.get('enabled', True):
-                if metric.get('type', '') == 'gauge':
-                    return Gauge(f'sig_{name}',
+                if (metric_type := metric.get('type', '')) == 'gauge':
+                    new_metric = {'gauge':Gauge(f'sig_{name}',
                                     metric['description'],
-                                    registry=self.registry)
-                if metric.get('type', '') == 'info':
-                    return Info(f'sig_{name}',
+                                    labelnames=['instance'],
+                                    registry=self.registry)}
+                    new_metric['gauge'].labels(self.hostname)
+                elif metric_type == 'info':
+                    new_metric = {'info':Info(f'sig_{name}',
                                     metric['description'],
-                                    registry=self.registry)
+                                    registry=self.registry)}
+                    #new_metric['info'].labels(self.hostname, '')
+                if new_metric is not None:
+                    return new_metric
+                    
 
 
         def increase_push_time(self):
