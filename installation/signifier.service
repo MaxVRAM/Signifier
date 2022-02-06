@@ -1,0 +1,14 @@
+[Unit]
+Description=Demo Signifier Script
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python /home/pi/Signifier/sig.py
+User=pi
+WorkingDirectory=/home/pi/Signifier
+StartLimitIntervalSec=10
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
