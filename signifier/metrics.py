@@ -172,7 +172,6 @@ class Metrics():
                                metric['gauge'].labels(self.hostname).set(input_metric[1])
                             if 'info' in metric.keys():
                                 metric['info'].info({'instance':self.hostname,'value':input_metric[1]})
-                                #Info.info()
                         # TODO Add array metrics
                     except Empty:
                         break
@@ -225,7 +224,6 @@ class Metrics():
                     new_metric = {'info':Info(f'sig_{name}',
                                     metric['description'],
                                     registry=self.registry)}
-                    #new_metric['info'].labels(self.hostname, '')
                 if new_metric is not None:
                     return new_metric
                     

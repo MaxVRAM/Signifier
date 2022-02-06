@@ -213,25 +213,7 @@ class Analysis():
 
                         self.metrics.queue()
                 time.sleep(0.001)
-
             return None
-
-
-        # def stream_callback(self, indata, _frames, _time, status):
-        #     """
-        #     The primary function called by the Streaming thread. This function\
-        #     calculates the amplitude of the input signal.
-        #     """
-        #     if status:
-        #         logger.warning(status)
-
-        #     peak = np.amax(np.abs(indata))
-        #     peak = max(0.0, min(1.0, peak / 10000))
-        #     peak = lerp(
-        #         self.source_values[f'{self.module_name}_peak'], peak, 0.5)
-        #     self.source_values[f'{self.module_name}_peak'] = peak
-        #     self.metrics.update(f'{self.module_name}_peak', peak)
-        #     self.prev_process_time = time.time()
 
 
 def rms_flat(a):
