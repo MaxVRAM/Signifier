@@ -123,7 +123,10 @@ class ExitHandler:
 if __name__ == '__main__':
     with open(CONFIG_FILE) as c:
         config_dict = json.load(c)
-    config_dict['general']['hostname'] = HOST_NAME
+    if config_dict['general']['hostname'] != HOST_NAME:
+        config_dict['general']['hostname'] = HOST_NAME
+        with open(CONFIG_FILE, 'w', encoding ='utf8') as c:
+            json.dump(config_dict, c, ensure_ascii = False, indent=4)
 
     print()
     logger.info(f'Starting Signifier on [{config_dict["general"]["hostname"]}]')
@@ -140,6 +143,8 @@ if __name__ == '__main__':
     bluetooth_module.start()
     composition_module = Composition('composition', config_dict, metrics_q=metrics_q)
     composition_module.start()
+
+    time.sleep(0.5)
 
     dest_pipes = {
         'leds':leds_module.destination_in,
@@ -161,5 +166,8 @@ if __name__ == '__main__':
 
     while True:
         # TODO Change composition module over to threaded loop
-        composition_module.tick()
-        time.sleep(0.001)
+        try:
+            composition_module.tick()
+        except:
+            print('DEBUG --- error in composition module tick.')
+        time.sleep(0.1)

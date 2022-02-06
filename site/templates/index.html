@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Config{% endblock %}
+{% block head %}
+    {{ super() }}
+    <style type="text/css">
+        .important {
+            color: #336699;
+        }
+    </style>
+{% endblock %}
+
+{% block heading %}
+    <h1>{{ hostname }}</h1>
+{% endblock %}
+
+{% block content %}
+    <div class="accordion" id="modules">
+        {% for module in config.keys() %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="{{ 'module-' + module }}">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="{{ '#panel-' + module }}" aria-expanded="false" aria-controls="{{ 'panel-' + module }}">
+                        {{ sentence_case(module) }}
+                    </button>
+                </h2>
+                <div id="{{ 'panel-' + module }}" class="accordion-collapse collapse hide" aria-labelledby="{{ 'module-' + module }}">
+                    <div class="accordion-body">
+                        {{ config[module].keys() }}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

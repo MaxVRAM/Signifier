@@ -1,6 +1,8 @@
 pygame
 pySerialTransfer
+pyalsaaudio
 bleson
-sounddevice
 schedule
 prometheus-client
+flask
+waitress

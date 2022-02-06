@@ -135,15 +135,15 @@ class Analysis():
             self.dtype = parent.config\
                 .get('dtype', 'int16')
             self.buffer_size = parent.config\
-                .get('buffer', 512)
+                .get('buffer', 1024)
             self.output_volume = parent.main_config['composition']\
                 .get('volume', 1)
             #  Analysis data
             self.prev_process_time = time.time()
             # Mapping and metrics
+            self.metrics = MetricsPusher(parent.metrics_q)
             self.source_in = parent.source_in
             self.source_values = {f'{self.module_name}_peak':0}
-            self.metrics = MetricsPusher(parent.metrics_q)
 
 
         def run(self):

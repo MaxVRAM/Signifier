@@ -226,7 +226,6 @@ class Metrics():
                                     registry=self.registry)}
                 if new_metric is not None:
                     return new_metric
-                    
 
 
         def increase_push_time(self):

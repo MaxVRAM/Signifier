@@ -163,6 +163,8 @@ class Leds():
             self.dur_multiplier = parent.config.get('duration_multiplier', 3)
             # Metrics and mapping
             self.metrics = MetricsPusher(parent.metrics_q)
+            self.source_in = parent.source_in
+            self.source_values = {}
             self.destination_out = parent.destination_out
             self.destinations = {}
             for k, v in parent.config['destinations'].items():

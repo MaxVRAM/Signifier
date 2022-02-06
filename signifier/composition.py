@@ -178,10 +178,8 @@ class Composition():
             self.metrics = MetricsPusher(parent.metrics_q)
             self.destination_out = parent.destination_out
             self.destinations = {}
-            # Metrics and mapping
+            self.source_in = parent.source_in
             self.source_values = {}
-            self.source_config = parent.config.get('sources', {})
-            self.metrics_q = parent.metrics_q
 
             self.init_mixer()
             self.init_library()
@@ -319,9 +317,10 @@ class Composition():
             """
             Stops the main thread until all channels have faded out.
             """
-            logger.debug('Waiting for audio mixer to release all channels...')
-            while pg.mixer.get_busy():
-                time.sleep(0.1)
+            logger.debug('Waiting for audio mixer to release all channels...')            
+            if pg.mixer.get_init():
+                while pg.mixer.get_busy():
+                    time.sleep(0.1)
             logger.debug('Mixer empty.')
 
 

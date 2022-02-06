@@ -2,6 +2,7 @@ version: '3'
 
 volumes:
     prometheus_data: {}
+    grafana_data: {}
 
 services:
   # Local Prometheus server
@@ -48,3 +49,20 @@ services:
     restart: unless-stopped
     ports:
       - '9091:9091'
+
+  # Visualise local Prometheus database metrics
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - /etc/localtime:/etc/localtime:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=password
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,natel-discrete-panel,grafana-piechart-panel
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
