@@ -4,7 +4,7 @@ This repository hosts the project for the individual Signifier units. For the Si
 
 > "Signifier" is comprehensive platform to run the interactive sound & light sculpture on Raspberry Pi 4. Each of the 15 Signifiers allow user interactive through integrated Bluetooth scanning, and microphone input analysis, which shapes the interactive audio composition and LED reactivity. Created by Chris Vik in collaboration with [office.org.au](https://office.org.au) for Melbourne Music Week 2021/2022.
 
-![Signifier image](./doc/1280x640_signifier_test.jpg "Signifier image")
+![Signifier image](/doc/1280x640_signifier_test.jpg "Signifier image")
 
 Each of the 15 Signifiers use a **Raspberry Pi 4B (4GB)** fitted with several hardware devices to provide interaction with the physical world.
 
