@@ -130,6 +130,7 @@ dmypy.json
 # Custom
 *.wav
 *.mp3
-audio_*/
-examples/
 *.ovpn
+
+!media/audio/
+media/audio/*
