@@ -10,7 +10,7 @@ services:
     image: prom/prometheus:latest
     container_name: prometheus
     volumes:
-      - ./:/etc/prometheus
+      - ./prometheus:/etc/prometheus
       - prometheus_data:/prometheus
       - /etc/localtime:/etc/localtime:ro
     command:
@@ -57,7 +57,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - /etc/localtime:/etc/localtime:ro
-      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana:/etc/grafana/provisioning
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=password

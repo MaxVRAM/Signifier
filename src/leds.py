@@ -22,9 +22,9 @@ from pySerialTransfer import pySerialTransfer as Arduino
 
 from serial import SerialException
 
-from signifier.utils import scale
-from signifier.utils import plural
-from signifier.metrics import MetricsPusher
+from src.utils import scale
+from src.utils import plural
+from src.metrics import MetricsPusher
 
 logger = logging.getLogger(__name__)
 
@@ -280,7 +280,8 @@ class Leds():
 
             # Close everything off just in case something got missed
             self.state = ArduinoState.closed
-            self.link.close()
+            if self.link is not None:
+                self.link.close()
             self.event.set()
 
 
@@ -379,7 +380,7 @@ class Leds():
             sendSize = self.link.tx_obj(packet.duration, start_pos=sendSize)
             success = self.link.send(sendSize)
             if not success:
-                logger.warn(f'Arduino refused packet: {packet}.')
+                logger.warning(f'Arduino refused packet: {packet}.')
                 return packet
             return None
 
@@ -391,8 +392,14 @@ class Leds():
             Arduino/LED portion of the Signifier code.
             """
             self.set_state(ArduinoState.starting)
-            self.link = Arduino.SerialTransfer(self.port, baud=self.baud)
-            self.link.open()
+            try:
+                self.link = Arduino.SerialTransfer(self.port, baud=self.baud)
+                self.link.open()
+            except Arduino.InvalidSerialPort:
+                logger.error('Invalid serial port. Run `arduino-cli board list` '
+                             'and update `config.json`')
+                self.state = ArduinoState.closed
+                self.event.set()
 
 
 class ArduinoState(enum.Enum):

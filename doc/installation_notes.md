@@ -18,10 +18,8 @@ Let's go!
 
 There's only two packages we need at the moment:
 ```bash
-sudo apt install libportaudio2    # PortAudio, required for LED audio-reactivity.
 sudo apt install alsa-utils       # Provides loopback and additional debugging tools.
 sudo apt install libasound2-dev   # Downloads ALSA C-libraries for Python library compilation.
-sudo apt install python3-pyaudio  # Provides the Python ALSA <> PortAudio integration
 ```
 
 ### 2. Disable HDMI audio devices
@@ -83,7 +81,7 @@ Signifiers only need access to the default **Headphones** device (Raspberry Pi's
     ```bash
     sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo disable_hdmi_audio.dts
     ```
-5. Then add it to the Pi's `/boot/config.txt` file so it's apply every boot:
+5. Then add it to the Pi's `/boot/config.txt` file so it's applied every boot:
     ```bash
     echo "dtoverlay=disable_hdmi_audio" | sudo tee -a /boot/config.txt
     ```

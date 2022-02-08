@@ -34,12 +34,12 @@ import signal
 
 import multiprocessing as mp
 
-from signifier.leds import Leds
-from signifier.metrics import Metrics
-from signifier.mapping import Mapping
-from signifier.analysis import Analysis
-from signifier.bluetooth import Bluetooth
-from signifier.composition import Composition
+from src.leds import Leds
+from src.metrics import Metrics
+from src.mapping import Mapping
+from src.analysis import Analysis
+from src.bluetooth import Bluetooth
+from src.composition import Composition
 
 
 HOST_NAME = socket.gethostname()

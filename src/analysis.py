@@ -20,8 +20,8 @@ from queue import Empty, Full, Queue
 
 import alsaaudio
 
-from signifier.utils import lerp
-from signifier.metrics import MetricsPusher
+from src.utils import lerp
+from src.metrics import MetricsPusher
 
 logger = logging.getLogger(__name__)
 

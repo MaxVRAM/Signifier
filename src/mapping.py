@@ -17,7 +17,7 @@ import logging
 import multiprocessing as mp
 from queue import Empty, Full
 
-from signifier.utils import scale
+from src.utils import scale
 
 logger = logging.getLogger(__name__)
 

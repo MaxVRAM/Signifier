@@ -20,10 +20,10 @@ import schedule
 import pygame as pg
 import multiprocessing as mp
 
-from signifier.utils import plural
-from signifier.clipUtils import *
-from signifier.clip import Clip
-from signifier.metrics import MetricsPusher
+from src.utils import plural
+from src.clipUtils import *
+from src.clip import Clip
+from src.metrics import MetricsPusher
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,11 @@ class Composition():
         """
         if self.enabled:
             if self.manager is None:
-                self.manager = self.ClipManager(self)
+                try:
+                    self.manager = self.ClipManager(self)
+                except OSError:
+                    self.enabled = False
+                    self.stop()
                 logger.debug(f'Clip Manager module initialised.')
             else:
                 logger.warning(f'Clip Manager module already initialised!')

@@ -26,7 +26,7 @@ arduino-cli core install arduino:megaavr
 
 Then check the module is installed:
 ```bash
-./arduino-cli core list
+arduino-cli core list
 
 # ID              Installed Latest Name
 # arduino:megaavr 1.8.7     1.8.7  Arduino megaAVR Boards

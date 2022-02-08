@@ -1,6 +1,6 @@
 {
     "general": {
-        "hostname": "sig-dev"
+        "hostname": "mmwSigA"
     },
     "metrics": {
         "enabled": true,
