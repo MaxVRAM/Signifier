@@ -4,7 +4,7 @@ This repository hosts the project for the individual Signifier units. For the Si
 
 > A complete solution for "Signifier", the networked interactive sound & light sculptures. Features interactive audio, audio-reactive LEDs, microphone analysis, bluetooth scanning, customisable mappings/automations, API, web interface, Prometheus monitoring and much more. Created by Chris Vik in collaboration with <http://office.org.au> for Melbourne Music Week 2021/2022.
 
-![Signifier image](/docs/1280x640_signifier_test.jpg "Signifier image")
+![Signifier image](/doc/1280x640_signifier_test.jpg "Signifier image")
 
 Each of the 15 Signifiers use a **Raspberry Pi 4B (4GB)** fitted with several hardware devices to provide interaction with the physical world.
 
