@@ -13,12 +13,21 @@ Signifier module to manage the audio clip playback.
 from __future__ import annotations
 
 import os
+import sys
 import time
 import random
 import logging
 import schedule
-import pygame as pg
 import multiprocessing as mp
+
+# Silence PyGame greeting mesage
+stdout = sys.__stdout__
+stderr = sys.__stderr__
+sys.stdout = open(os.devnull,'w')
+sys.stderr = open(os.devnull,'w')
+import pygame as pg
+sys.stdout = stdout
+sys.stderr = stderr
 
 from src.utils import plural
 from src.clipUtils import *
@@ -215,7 +224,7 @@ class Composition():
                 path = os.path.join(self.config['base_path'], title)
                 names = []
                 for f in os.listdir(path):
-                    if os.path.splitext(f)[1] in self.config['valid_extensions']:
+                    if os.path.splitext(f)[1][1:] in self.config['valid_extensions']:
                         names.append(f)
                 if len(names) != 0:
                     self.collections[title] = {'path':path, 'names':names}

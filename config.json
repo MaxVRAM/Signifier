@@ -197,10 +197,10 @@
         "sample_rate": 48000,
         "bit_size": -16,
         "buffer": 4096,
-        "base_path": "/home/pi/Signifier/media/audio/sig_sounds_48000_mono_16bit",
+        "base_path": "/home/pi/Signifier/media/audio/",
         "force_collection": null,
         "valid_extensions": [
-            ".wav"
+            "wav"
         ],
         "strict_distribution": false,
         "volume": 0.7,

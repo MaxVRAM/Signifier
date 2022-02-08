@@ -9,7 +9,7 @@
 		}
 	],
 	"settings": {
-		"arduino.path": "/home/pi/arduino-1.8.19",
+		"arduino.path": "/home/pi/Arduino",
 		"arduino.useArduinoCli": true,
 		"files.associations": {
 			"*.tcc": "cpp",

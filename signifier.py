@@ -18,21 +18,25 @@ https://github.com/MaxVRAM/Signifier
 Copyright (c) 2022 Chris Vik - MIT License
 """
 
-import logging
 
-log_dt = "%d-%b-%y %H:%M:%S"
-log_msg = "%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(funcName)20s: %(message)s"
-logging.basicConfig(level=logging.DEBUG, format=log_msg, datefmt=log_dt)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 import sys
-import time
 import json
+import time
 import socket
 import signal
 
 import multiprocessing as mp
+
+import logging
+
+LOG_DT = "%d-%b-%y %H:%M:%S"
+LOG_MSG = "%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(funcName)20s: %(message)s"
+logging.basicConfig(level=logging.DEBUG, format=LOG_MSG, datefmt=LOG_DT)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+from src.utils import validate_library
 
 from src.leds import Leds
 from src.metrics import Metrics
@@ -122,19 +126,23 @@ class ExitHandler:
 #          \/     \/        \/
 
 if __name__ == '__main__':
+    main_thread = mp.current_process()
+    exit_handler = ExitHandler()
+
     with open(CONFIG_FILE) as c:
         config_dict = json.load(c)
     if config_dict['general']['hostname'] != HOST_NAME:
         config_dict['general']['hostname'] = HOST_NAME
-        with open(CONFIG_FILE, 'w', encoding ='utf8') as c:
-            json.dump(config_dict, c, ensure_ascii = False, indent=4)
+    with open(CONFIG_FILE, 'w', encoding ='utf8') as c:
+        json.dump(config_dict, c, ensure_ascii = False, indent=4)
 
+    if not validate_library(config_dict['composition']):
+        logger.info('Aborting Signifier startup!')
+        exit_handler.shutdown()
+        
     print()
     logger.info(f'Starting Signifier on [{config_dict["general"]["hostname"]}]')
     print()
-
-    main_thread = mp.current_process()
-    exit_handler = ExitHandler()
 
     leds_module = Leds('leds', config_dict, metrics_q=metrics_q)
     leds_module.start()

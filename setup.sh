@@ -144,7 +144,7 @@ sudo ufw --force enable
 echo
 
 echo Installing Python modules...
-python -m pip install --no-input -r requirements.txt
+python -m pip install -U --no-input -r requirements.txt
 
 echo
 if [ ! -n $(which docker ) ]; then
@@ -185,10 +185,27 @@ echo
 MEDIA_DIR=$SIG_PATH/media/audio
 
 if [ ! -d "$MEDIA_DIR" ]; then
-    echo "Media directory not found! Manually copy Signifier audio assets into $MEDIA_DIR after installation."
+    echo "Audio directory not found! Add audio assets into $MEDIA_DIR after installation."
     mkdir -p $MEDIA_DIR
-fi
+else
+    COLL_COUNT=$(find $MEDIA_DIR -maxdepth 1 -type d | wc -l)
+    CLIP_COUNT=$(find $MEDIA_DIR -maxdepth 2 -name '*.wav' | wc -l)
 
+    if [[ "$COLL_COUNT" -eq 1 ]]
+    then
+        echo "No audio collection found!"
+        echo "Add audio assets into $MEDIA_DIR after installation."
+    else
+        if [[ "$COLL_COUNT" > 0 ]]
+        then
+            echo "[$COLL_COUNT] audio collections found with $CLIP_COUNT audio file(s)."
+        else
+            echo "No audio files found!"
+            echo "Add audio assets into $MEDIA_DIR after installation."
+        fi
+    fi
+fi
+echo
 
 echo -------------------------------------------------------
 echo Done! Please reboot to complete Signifier installation.
