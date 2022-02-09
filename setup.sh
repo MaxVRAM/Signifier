@@ -159,17 +159,25 @@ then
         rm $SIG_PATH/get-docker.sh
     fi
     sudo usermod -aG docker $USER
-    curl -sL https://github.com/docker/compose/releases/download/v2.2.3/docker-compose-linux-aarch64 -o ~/.docker/cli-plugins/docker-compose --create-dirs
-    chmod 755 ~/.docker/cli-plugins/docker-compose
-    docker compose version
 else
     echo "Docker already installed, skipping."
 fi
 echo
 
-sudo docker compose -f $SIG_PATH/docker/portainer/docker-compose.yaml up -d
-sudo docker compose -f $SIG_PATH/docker/metrics/docker-compose.yaml up -d
+FILE=$HOME/.docker/cli-plugins/docker-compose
+if [ ! -f "$FILE" ]; then
+    echo "Installing Docker Compose..."
+    curl -sL https://github.com/docker/compose/releases/download/v2.2.3/docker-compose-linux-aarch64 -o $FILE --create-dirs
+    chmod 755 $FILE
+    docker compose version
+else
+    echo "Docker Compose already installed, skipping."
+fi
+echo
 
+echo
+sudo docker compose -f "$SIG_PATH/docker/portainer/docker-compose.yaml" up -d
+sudo docker compose -f "$SIG_PATH/docker/metrics/docker-compose.yaml" up -d
 echo
 
 echo Enabling Signifier startup service...
