@@ -21,7 +21,7 @@ echo
 if ! command -v openvpn &> /dev/null
 then
     echo "Installing OpenVPN client..."
-    apt install openvpn -y
+    sudo apt install openvpn -y
     mkdir -p /etc/openvpn/client
     chown root:root /etc/openvpn/client
     chmod 700 /etc/openvpn/client
