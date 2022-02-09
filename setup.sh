@@ -18,7 +18,8 @@ sudo apt update
 sudo apt upgrade -y
 echo
 
-if [ ! -n $(which openvpn) ]; then
+if ! command -v openvpn &> /dev/null
+then
     echo "Installing OpenVPN client..."
     apt install openvpn -y
     mkdir -p /etc/openvpn/client
@@ -86,7 +87,8 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 source $HOME/.profile
 echo
 
-if [ ! -n $(which arduino-cli) ]; then
+if ! command -v arduino-cli &> /dev/null
+then
     echo "Installing Arduino-CLI in ${ARDUINO_PATH}..."
     ARDUINO_PATH="$HOME/Arduino"
     mkdir $ARDUINO_PATH
@@ -145,9 +147,10 @@ echo
 
 echo Installing Python modules...
 python -m pip install -U --no-input -r requirements.txt
-
 echo
-if [ ! -n $(which docker) ]; then
+
+if ! command -v docker &> /dev/null
+then
     echo "Installing Docker..."
     curl -fsSL https://get.docker.com -o $SIG_PATH/get-docker.sh
     chmod +x $SIG_PATH/get-docker.sh
