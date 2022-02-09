@@ -167,8 +167,8 @@ else
 fi
 echo
 
-sudo docker compose -f "$SIG_PATH/docker/portainer/docker-compose.yaml" up -d
-sudo docker compose -f "$SIG_PATH/docker/metrics/docker-compose.yaml" up -d
+sudo docker compose -f $SIG_PATH/docker/portainer/docker-compose.yaml up -d
+sudo docker compose -f $SIG_PATH/docker/metrics/docker-compose.yaml up -d
 
 echo
 
