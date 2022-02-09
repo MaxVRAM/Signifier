@@ -18,7 +18,7 @@ import logging
 from src.utils import plural
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.INFO)
 
 def init_sounds(clips: set, channels: dict) -> dict:
     """
@@ -39,7 +39,7 @@ def init_sounds(clips: set, channels: dict) -> dict:
         if clip.build_sound(channels.popitem()) is not None:
             done.add(clip)
     remaining = list(clips.difference(done))
-    logger.info(f'{get_contents(done, count=True)} initialised.')
+    logger.info(f'Collection selected with {get_contents(done, count=True)}.')
     if len(remaining) > 0:
         logger.warning(f'Unable to build ({len(remaining)}) '
                     f'Sound object{plural(remaining)}! ')   
@@ -72,7 +72,7 @@ def get_distributed(clips: set, num_clips: int, **kwargs) -> set:
                     contents[category],
                     clips_per_category))
             except ValueError as exception:
-                logger.info(
+                logger.debug(
                     f'"{category}" only has ({len(contents[category])}) '
                     f'clip{plural(clips_per_category)}, but was asked for '
                     f'({clips_per_category}).')
@@ -81,14 +81,14 @@ def get_distributed(clips: set, num_clips: int, **kwargs) -> set:
                 else:
                     failed = clips_per_category - len(contents[category])
                     logger.debug(f'{plural(failed)} will be selected at random. '
-                                 f'Set "strict" mode to enforse distribution.')
+                                 f'Set "strict" mode to enforce distribution.')
                     selection.update(random.sample(
                         contents[category],
                         len(contents[category])))
         if (unassigned := num_clips - len(selection)) > 0:
             selection.update(random.sample(
                 clips.difference(selection), unassigned))
-    logger.info(f'Returned: {get_contents(selection, count=True)}".')
+    logger.debug(f'Returned: {get_contents(selection, count=True)}".')
     return selection
 
 

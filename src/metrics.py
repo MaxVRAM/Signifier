@@ -18,7 +18,7 @@ import multiprocessing as mp
 from queue import Empty, Full
 from urllib.error import URLError
 
-from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway
+from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway, start_http_server
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +28,6 @@ class Metrics():
 
     Process to send metrics to the Prometheus push gateway.
     """
-    push_period = 1
-
     def __init__(self, name:str, config:dict, metrics_q:mp.Queue,
                     args=(), kwargs=None) -> None:
         self.main_config = config
@@ -41,7 +39,7 @@ class Metrics():
         self.enabled = self.config.get('enabled', False)
         self.active = False
         self.metrics_q = metrics_q
-        Metrics.push_period = self.config['push_period']
+        self.push_period = self.config['push_period']
         # Process management
         self.process = None
         self.state_q = mp.Queue(maxsize=1)
@@ -149,8 +147,8 @@ class Metrics():
             self.registry = CollectorRegistry()
             self.push_period = self.config['push_period']
             self.metrics = {}
-            
             self.build_metrics()
+            start_http_server(self.config['server_port'])
 
 
         def run(self):
@@ -172,10 +170,22 @@ class Metrics():
                         input_metric = self.metrics_q.get_nowait()
                         if (metric := self.metrics.get(input_metric[0])) is not None:
                             if 'gauge' in metric.keys():
-                               metric['gauge'].labels(self.hostname).set(input_metric[1])
+                                metric['gauge'].labels(self.hostname).set(input_metric[1])
+                                continue
                             if 'info' in metric.keys():
-                                metric['info'].info({'instance':self.hostname,'value':input_metric[1]})
+                                metric['info'].info(
+                                    {'instance':self.hostname,
+                                    'value':input_metric[1]})
+                                continue
+                        else:
+                            name = input_metric[0]
+                            self.metrics[name] = self.create_metric(
+                                                    name, {'type':'gauge'})
+                            self.metrics[name]['gauge'].labels(
+                                                    self.hostname).set(
+                                                    input_metric[1])
                         # TODO Add array metrics
+
                     except Empty:
                         break
                 # Push current registry values if enough time has lapsed
@@ -219,16 +229,15 @@ class Metrics():
             if metric.get('enabled', True):
                 if (metric_type := metric.get('type', '')) == 'gauge':
                     new_metric = {'gauge':Gauge(f'sig_{name}',
-                                    metric['description'],
+                                    metric.get('description', ''),
                                     labelnames=['instance'],
                                     registry=self.registry)}
                     new_metric['gauge'].labels(self.hostname)
                 elif metric_type == 'info':
                     new_metric = {'info':Info(f'sig_{name}',
-                                    metric['description'],
+                                    metric.get('description', ''),
                                     registry=self.registry)}
-                if new_metric is not None:
-                    return new_metric
+                return new_metric
 
 
         def increase_push_time(self):
@@ -271,6 +280,7 @@ class MetricsPusher():
         Use `period=(float)` to define minimum second between pushes.  
         """
         self.metrics_q = metrics_q
+        self.last_values = {}
         self.new_values = {}
         self.period = period
         self.prev_push_time = time.time()
@@ -278,25 +288,22 @@ class MetricsPusher():
 
     def update_dict(self, dict):
         """
-        Updates the class dictionary of metric values.
-        Existing values for the metric name within the given module will be
-        overwritten until the metric queue has been absorbed and pushed to
-        the push gateway. This ensures the latest metrics are sent to the
-        database, and prevents excess data from being passed between threads.
+        Updates each value from dictionary only if it's different from the previous.
         """
         for k, v in dict.items():
-            self.new_values[k] = v
+            if self.last_values.get(k) != v or self.last_values.get(k) is None:
+                self.new_values[k] = v
+                self.last_values[k] = v
 
 
     def update(self, name, value):
         """
-        Existing values for the metric name within the given module will be
-        overwritten until the metric queue has been absorbed and pushed to
-        the push gateway. This ensures the latest metrics are sent to the
-        database, and prevents excess data from being passed between threads.
-
+        Updates a single value only if it's different from the previous.
         """
-        self.new_values[name] = value
+        if self.last_values.get(name) != value or self.last_values.get(name) is None:
+            self.new_values[name] = value
+            self.last_values[name] = value
+
 
     def queue(self):
         """

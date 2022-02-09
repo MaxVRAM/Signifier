@@ -40,7 +40,7 @@ logger.setLevel(logging.DEBUG)
 from src.utils import validate_library
 
 from src.leds import Leds
-from src.metrics import Metrics
+from src.metrics import Metrics, MetricsPusher
 from src.mapping import Mapping
 from src.analysis import Analysis
 from src.bluetooth import Bluetooth
@@ -53,6 +53,22 @@ config_dict = None
 
 return_q = mp.Queue(maxsize=50)
 metrics_q = mp.Queue(maxsize=500)
+
+metrics_pusher = MetricsPusher(metrics_q)
+
+leds_module = None
+mapping_module = None
+analysis_module = None
+bluetooth_module = None
+composition_module = None
+
+module_list = [
+    leds_module,
+    mapping_module,
+    analysis_module,
+    bluetooth_module,
+    composition_module
+]
 
 source_pipes = {'arduino':None, 'analysis':None, 'bluetooth':None, 'composition':None}
 dest_pipes = {'arduino':None, 'analysis':None, 'bluetooth':None, 'composition':None}
@@ -91,33 +107,60 @@ class ExitHandler:
                 logger.info('Shutdown sequence started...')
                 try:
                     composition_module.stop()
-                except NameError:
+                except (NameError, AttributeError):
                     pass
                 try:
                     bluetooth_module.stop()
-                except NameError:
+                except (NameError, AttributeError):
                     pass
                 try:
                     analysis_module.stop()
-                except NameError:
+                except (NameError, AttributeError):
                     pass
                 try:
                     mapping_module.stop()
-                except NameError:
-                    pass
-                try:
-                    metrics_module.stop()
-                except NameError:
+                except (NameError, AttributeError):
                     pass
                 try:
                     leds_module.stop()
-                except NameError:
+                except (NameError, AttributeError):
+                    pass
+                try:
+                    metrics_module.stop()
+                except (NameError, AttributeError):
                     pass
                 logger.info('Signifier shutdown complete!')
+                self.exiting = False
                 print()
                 sys.exit()
         else:
             return None
+
+
+def metrics_push():
+    try:
+        return_message = None
+        while (return_message := return_q.get_nowait()) is not None:
+            if return_message[0] == 'failed':
+                module_name = return_message[1] + '_module'
+                try:
+                    module = locals()[module_name]
+                    module.stop()
+                    logger.warning(f'Failed module [{return_message[1]}] has been stopped.')
+                except KeyError:
+                    logger.warning(f'[{return_message[1]}] module failed '
+                                   f'before initialisation.')
+                    pass
+    except Empty:
+        pass
+
+    for m in module_list:
+        try:
+            metrics_pusher.update(f'{m.module_name}_active',
+                                    1 if m.active else 0)
+        except AttributeError:
+            pass
+    metrics_pusher.queue()
 
 
 #     _____         .__
@@ -151,27 +194,28 @@ if __name__ == '__main__':
         config_dict,
         metrics_q=metrics_q,
         return_q=return_q)
-    leds_module.start()
 
     analysis_module = Analysis(
         'analysis',
         config_dict,
         metrics_q=metrics_q,
         return_q=return_q)
-    analysis_module.start()
 
     bluetooth_module = Bluetooth(
         'bluetooth',
         config_dict,
         metrics_q=metrics_q,
         return_q=return_q)
-    bluetooth_module.start()
 
     composition_module = Composition(
         'composition',
         config_dict,
         metrics_q=metrics_q,
         return_q=return_q)
+
+    leds_module.start()
+    analysis_module.start()
+    bluetooth_module.start()
     composition_module.start()
 
     time.sleep(0.5)
@@ -194,13 +238,14 @@ if __name__ == '__main__':
         source_pipes,
         metrics_q,
         return_q)
-    mapping_module.start()
 
     metrics_module = Metrics(
         'metrics',
         config_dict,
         metrics_q,
         return_q)
+
+    mapping_module.start()
     metrics_module.start()
 
     while True:
@@ -210,14 +255,6 @@ if __name__ == '__main__':
         except:
             print('DEBUG --- error in composition module tick.')
 
-        try:
-            return_message = None
-            while (return_message := return_q.get_nowait()) is not None:
-                if return_message[0] == 'failed':
-                    module_name = return_message[1] + '_module'
-                    module = locals()[module_name]
-                    module.stop()
-        except Empty:
-            pass
+        metrics_push()
 
         time.sleep(0.1)

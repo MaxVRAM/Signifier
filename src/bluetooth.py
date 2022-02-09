@@ -34,6 +34,7 @@ class Bluetooth():
     """
     def __init__(self, name:str, config:dict, *args, **kwargs) -> None:
         self.module_name = name
+        self.main_config = config
         self.config = config[self.module_name]
         logger.setLevel(logging.DEBUG if self.config.get(
                         'debug', True) else logging.INFO)

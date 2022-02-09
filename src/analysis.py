@@ -148,7 +148,6 @@ class Analysis():
             self.source_in = parent.source_in
             self.source_values = {f'{self.module_name}_peak':0}
 
-
         def run(self):
             """
             Begin executing Analyser thread to produce audio descriptors.

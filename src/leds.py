@@ -90,7 +90,7 @@ class Leds():
 
     def start(self):
         """
-        Creating a multi-core LED process and starts the routine.
+        Creates a multi-core LED process and starts the routine.
         """
         if self.enabled:
             if self.process is not None:

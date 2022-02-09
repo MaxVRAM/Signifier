@@ -139,7 +139,7 @@ sudo apt install -y ufw python3-pip alsa-utils libasound2-dev
 echo
 
 echo Configuring firewall...
-sudo ufw allow 22,80,443,9001,9090,9091,9100,5000,3000/tcp
+sudo ufw allow 22,80,443,9001,9090,9091,9092,9100,5000,3000/tcp
 sudo ufw --force enable
 echo
 

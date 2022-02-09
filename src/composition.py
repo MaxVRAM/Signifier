@@ -37,6 +37,7 @@ from src.metrics import MetricsPusher
 logger = logging.getLogger(__name__)
 
 
+
 class Composition():
     """
     Audio playback composition manager module.
@@ -47,8 +48,11 @@ class Composition():
     def __init__(self, name:str, config:dict, *args, **kwargs) -> None:
         self.module_name = name
         self.config = config[self.module_name]
-        logger.setLevel(logging.DEBUG if self.config.get(
-                        'debug', True) else logging.INFO)
+        self.log_level = logging.DEBUG if self.config.get(
+                        'debug', True) else logging.INFO 
+        logger.setLevel(self.log_level)
+        logging.getLogger("clip.py").setLevel(self.log_level)
+        logging.getLogger("clipUtils.py").setLevel(self.log_level)
         self.enabled = self.config.get('enabled', False)
         self.active = False
         self.clip_event = pg.USEREVENT + 1
@@ -129,7 +133,7 @@ class Composition():
         """
         if self.manager is not None:
             logger.debug(f'Composition module shutting down...')
-            self.stop_scheduler()
+            schedule.clear()
             self.manager.stop_all_clips()
             self.manager.wait_for_silence()
             pg.quit()
@@ -138,13 +142,6 @@ class Composition():
         else:
             logger.debug('Ignoring request to stop Composition, module is not enabled.')
         self.active = False
-
-
-    def stop_scheduler(self):
-        """
-        Simply calls `schedule.clear()`. Placeholder in case more needs to be added.
-        """
-        schedule.clear()
 
 
     def tick(self):
@@ -175,6 +172,7 @@ class Composition():
                 logger.error(f'Invalid root path for library: {parent.config["base_path"]}.')
                 raise OSError
             self.config = parent.config
+            self.module_name = parent.module_name
             self.mixer = pg.mixer
             self.clip_event = parent.clip_event
             self.channels = None
@@ -264,6 +262,7 @@ class Composition():
                 self.inactive_pool = pool
                 self.channels = self.get_channels(self.inactive_pool)
                 init_sounds(self.inactive_pool, self.channels)
+                self.metrics.update(f'{self.module_name}_collection', name)
                 return self.current_collection
             else:
                 logger.error(f'Failed to retrieve a collection "{name}"! Audio files might be corrupted.')

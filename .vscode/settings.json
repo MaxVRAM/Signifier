@@ -3,5 +3,7 @@
     "python.linting.enabled": false,
     "cwd": "${workspaceRoot}",
     "env": {"PYTHONPATH": "${workspaceRoot}"},
-    "cSpell.words": []
+    "cSpell.words": [],
+    "python.autoComplete.extraPaths": [
+        "~/pyalsaaudio/*"]
 }
