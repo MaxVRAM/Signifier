@@ -32,7 +32,7 @@ fi
 VPN_FILE=$(find $HOME -name "$HOSTNAME.ovpn" | sed -n 1p)
 if [ -f "$VPN_FILE" ]; then
     echo "Found VPN credentials: $VPN_FILE. Adding to OpenVPN..."
-    cp $VPN_FILE $HOME/client.ovpn
+    sudo cp $VPN_FILE $HOME/client.ovpn
     VPN_FILE=$HOME/client.ovpn
     sudo chown root:root $VPN_FILE
     sudo chmod 700 $VPN_FILE
