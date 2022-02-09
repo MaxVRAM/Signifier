@@ -50,6 +50,7 @@ class Composition():
         logger.setLevel(logging.DEBUG if self.config.get(
                         'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
+        self.active = False
         self.clip_event = pg.USEREVENT + 1
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
         # Process management
@@ -112,7 +113,7 @@ class Composition():
             if self.manager is not None:
                 if self.manager is not None:
                     self.manager.collection_job()
-                    #self.manager.start_job()
+                    self.active = True
                     logger.info(f'Clip Manager started.')
                 else:
                     logger.warning(f'Cannot start Clip Manager, already running!')
@@ -136,6 +137,7 @@ class Composition():
             logger.info(f'Composition module stopped.')
         else:
             logger.debug('Ignoring request to stop Composition, module is not enabled.')
+        self.active = False
 
 
     def stop_scheduler(self):

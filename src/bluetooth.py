@@ -38,6 +38,7 @@ class Bluetooth():
         logger.setLevel(logging.DEBUG if self.config.get(
                         'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
+        self.active = False
         # Process management
         self.process = None
         self.state_q = mp.Queue(maxsize=1)
@@ -91,6 +92,7 @@ class Bluetooth():
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
+                    self.active = True
                     logger.info(f'Bluetooth process started.')
                 else:
                     logger.warning(f'Cannot start Bluetooth process, already running!')
@@ -108,13 +110,15 @@ class Bluetooth():
             if self.process.is_alive():
                 logger.debug(f'Bluetooth process shutting down...')
                 self.state_q.put('close', timeout=2)
-                self.process.join(timeout=1)
+                self.process.join(timeout=2)
                 self.process = None
+                self.active = False
                 logger.info(f'Bluetooth process stopped and joined main thread.')
             else:
                 logger.debug(f'Cannot stop Bluetooth process, not running.')
         else:
             logger.debug('Ignoring request to stop Bluetooth process, module is not enabled.')
+        self.active = False
 
 
 

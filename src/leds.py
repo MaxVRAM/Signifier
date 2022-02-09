@@ -39,10 +39,12 @@ class Leds():
         logger.setLevel(logging.DEBUG if self.config.get(
                         'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
+        self.active = False
         self.start_delay = self.config.get('start_delay', 2)
         self.process = None
         # Process management
         self.state_q = mp.Queue(maxsize=1)
+        self.return_q = kwargs.get('return_q', None)
         self.source_in, self.source_out = mp.Pipe()
         self.destination_in, self.destination_out = mp.Pipe()
         self.metrics_q = kwargs.get('metrics_q', None)
@@ -94,6 +96,7 @@ class Leds():
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
+                    self.active = True
                     logger.info(f'LED process started.')
                     if self.start_delay > 0:
                         logger.debug(f'Pausing for {self.start_delay} '
@@ -112,16 +115,18 @@ class Leds():
         """
         if self.process is not None:
             if self.process.is_alive():
+                print('process is alive to stop')
                 logger.debug(f'LED process shutting down...')
                 self.set_state('close', timeout=2)
-                #self.arduino_process.event.set()
-                self.process.join(timeout=1)
+                self.process.join(timeout=2)
+                self.process.event.set()
                 self.process = None
                 logger.info(f'LED process stopped and joined main thread.')
             else:
                 logger.debug(f'Cannot stop LED process, not running.')
         else:
             logger.debug(f'Ignoring request to stop LED process, module is not enabled.')
+        self.active = False
 
 
     def set_state(self, state:str, timeout=0.5):
@@ -153,6 +158,7 @@ class Leds():
             self.module_name = parent.module_name
             self.event = mp.Event()
             self.state_q = parent.state_q
+            self.return_q = parent.return_q
             # Serial communication
             self.link = None
             self.state = ArduinoState.idle
@@ -228,7 +234,7 @@ class Leds():
             self.open_connection()
             self.start_time = time.time()
             # Loop to process queue/pipe updates and serial packets
-            while self.state != ArduinoState.closed:
+            while self.state != ArduinoState.closed and self.link is not None:
                 # Prioritise apply a new state if one is in the queue
                 try:
                     state = self.state_q.get_nowait()
@@ -400,6 +406,7 @@ class Leds():
                              'and update `config.json`')
                 self.state = ArduinoState.closed
                 self.event.set()
+                self.return_q.put(['failed', self.module_name], timeout=2)
 
 
 class ArduinoState(enum.Enum):

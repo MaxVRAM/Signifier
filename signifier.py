@@ -26,6 +26,7 @@ import time
 import socket
 import signal
 
+from queue import Empty
 import multiprocessing as mp
 
 import logging
@@ -50,6 +51,7 @@ HOST_NAME = socket.gethostname()
 CONFIG_FILE = 'config.json'
 config_dict = None
 
+return_q = mp.Queue(maxsize=50)
 metrics_q = mp.Queue(maxsize=500)
 
 source_pipes = {'arduino':None, 'analysis':None, 'bluetooth':None, 'composition':None}
@@ -144,13 +146,32 @@ if __name__ == '__main__':
     logger.info(f'Starting Signifier on [{config_dict["general"]["hostname"]}]')
     print()
 
-    leds_module = Leds('leds', config_dict, metrics_q=metrics_q)
+    leds_module = Leds(
+        'leds',
+        config_dict,
+        metrics_q=metrics_q,
+        return_q=return_q)
     leds_module.start()
-    analysis_module = Analysis('analysis', config_dict, metrics_q=metrics_q)
+
+    analysis_module = Analysis(
+        'analysis',
+        config_dict,
+        metrics_q=metrics_q,
+        return_q=return_q)
     analysis_module.start()
-    bluetooth_module = Bluetooth('bluetooth', config_dict, metrics_q=metrics_q)
+
+    bluetooth_module = Bluetooth(
+        'bluetooth',
+        config_dict,
+        metrics_q=metrics_q,
+        return_q=return_q)
     bluetooth_module.start()
-    composition_module = Composition('composition', config_dict, metrics_q=metrics_q)
+
+    composition_module = Composition(
+        'composition',
+        config_dict,
+        metrics_q=metrics_q,
+        return_q=return_q)
     composition_module.start()
 
     time.sleep(0.5)
@@ -167,10 +188,19 @@ if __name__ == '__main__':
         'composition':composition_module.source_out}
     
     mapping_module = Mapping(
-        'mapping', config_dict, dest_pipes, source_pipes, metrics_q)
+        'mapping',
+        config_dict,
+        dest_pipes,
+        source_pipes,
+        metrics_q,
+        return_q)
     mapping_module.start()
-    
-    metrics_module = Metrics('metrics', config_dict, metrics_q)
+
+    metrics_module = Metrics(
+        'metrics',
+        config_dict,
+        metrics_q,
+        return_q)
     metrics_module.start()
 
     while True:
@@ -179,4 +209,15 @@ if __name__ == '__main__':
             composition_module.tick()
         except:
             print('DEBUG --- error in composition module tick.')
+
+        try:
+            return_message = None
+            while (return_message := return_q.get_nowait()) is not None:
+                if return_message[0] == 'failed':
+                    module_name = return_message[1] + '_module'
+                    module = locals()[module_name]
+                    module.stop()
+        except Empty:
+            pass
+
         time.sleep(0.1)

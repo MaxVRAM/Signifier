@@ -39,6 +39,7 @@ class Metrics():
         logger.setLevel(logging.DEBUG if self.config.get(
                         'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
+        self.active = False
         self.metrics_q = metrics_q
         Metrics.push_period = self.config['push_period']
         # Process management
@@ -94,6 +95,7 @@ class Metrics():
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
+                    self.active = True
                     logger.info(f'[{self.module_name}] process started.')
                 else:
                     logger.warning(f'Cannot start [{self.module_name}] '
@@ -114,7 +116,7 @@ class Metrics():
             if self.process.is_alive():
                 logger.debug(f'[{self.module_name}] process shutting down...')
                 self.state_q.put('close', timeout=2)
-                self.process.join(timeout=1)
+                self.process.join(timeout=2)
                 self.process = None
                 logger.info(f'[{self.module_name}] process stopped and joined '
                             f'main thread.')
@@ -124,6 +126,7 @@ class Metrics():
         else:
             logger.debug('Ignoring request to stop [{self.module_name}] '
                          'process, module is not enabled.')
+        self.active = False
 
 
 

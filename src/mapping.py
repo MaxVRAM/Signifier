@@ -35,6 +35,7 @@ class Mapping():
         logger.setLevel(logging.DEBUG if self.config.get(
                         'debug', True) else logging.INFO)
         self.enabled = self.config.get('enabled', False)
+        self.active = False
         # Pipes
         self.destination_pipes = destination_pipes
         self.source_pipes = source_pipes
@@ -90,6 +91,7 @@ class Mapping():
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
+                    self.active = True
                     logger.info(f'Mapping process started.')
                 else:
                     logger.warning(f'Cannot start Mapping process, already running!')
@@ -107,13 +109,14 @@ class Mapping():
             if self.process.is_alive():
                 logger.debug(f'Mapping process shutting down...')
                 self.state_q.put('close', timeout=2)
-                self.process.join(timeout=1)
+                self.process.join(timeout=2)
                 self.process = None
                 logger.info(f'Mapping process stopped and joined main thread.')
             else:
                 logger.debug(f'Cannot stop Mapping process, not running.')
         else:
             logger.debug('Ignoring request to stop Mapping process, module is not enabled.')
+        self.active = False
 
 
 
