@@ -115,7 +115,6 @@ class Leds():
         """
         if self.process is not None:
             if self.process.is_alive():
-                print('process is alive to stop')
                 logger.debug(f'LED process shutting down...')
                 self.set_state('close', timeout=2)
                 self.process.join(timeout=2)

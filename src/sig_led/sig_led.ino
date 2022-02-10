@@ -10,7 +10,7 @@
 
 // Compile using Ardino-CLI: https://github.com/arduino/arduino-cli
 // Use command:
-// acompile ~/Signifier/signifier/sig_led && aupload ~/Signifier/signifier/sig_led -v
+// acompile ~/Signifier/src/sig_led && aupload ~/Signifier/src/sig_led -v
 
 
 #define FASTLED_ALLOW_INTERRUPTS 0

@@ -84,6 +84,9 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE=$"export SIGNIFIER=\"$SIG_PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
+LINE=$"source $HOME/.aliases"
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+
 source $HOME/.profile
 echo
 
@@ -93,13 +96,14 @@ then
     ARDUINO_PATH="$HOME/Arduino"
     mkdir $ARDUINO_PATH
     curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=$ARDUINO_PATH sh
-    arduino-cli core download arduino:megaavr
-    arduino-cli core install arduino:megaavr
-    arduino-cli lib install FastLED
-    arduino-cli lib install SerialTransfer
 else
     echo "Arduino-CLI already installed, skipping."
 fi
+arduino-cli core download arduino:megaavr
+arduino-cli core install arduino:megaavr
+arduino-cli lib install FastLED
+arduino-cli lib install SerialTransfer
+acompile ~/$SIG_PATH/src/sig_led && aupload ~/$SIG_PATH/src/sig_led -v
 echo
 
 echo Setting up audio environment...
@@ -176,13 +180,13 @@ fi
 echo
 
 echo
-sudo docker compose -f "$SIG_PATH/docker/portainer/docker-compose.yaml" up -d
-sudo docker compose -f "$SIG_PATH/docker/metrics/docker-compose.yaml" up -d
+docker compose -f "$SIG_PATH/docker/portainer/docker-compose.yaml" up -d
+docker compose -f "$SIG_PATH/docker/metrics/docker-compose.yaml" up -d
 echo
 
 echo Enabling Signifier startup service...
 SERVICE_TEMP=$HOME/signifier.service
-cp "$SIG_PATH/sys/signifier.service" "$HOME/signifier.service"
+cp "$SIG_PATH/sys/signifier.service" $SERVICE_TEMP
 PYTHON_EXEC="ExecStart=/usr/bin/python $SIG_PATH/signifier.py"
 sed -i "/ExecStart=/c\\$PYTHON_EXEC" $SERVICE_TEMP
 sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
