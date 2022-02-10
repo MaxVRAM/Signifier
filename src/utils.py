@@ -52,6 +52,13 @@ def lerp(a, b, pos) -> float:
     return lerp_out
 
 
+def db_to_amp(db: float) -> float:
+    """
+    Convert dB to amplitude
+    """
+    return pow(10, float(db)/100)
+
+
 def validate_library(config_file:dict) -> bool:
     """
     Utility for checking validity of audio clip library.

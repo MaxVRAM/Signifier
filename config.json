@@ -11,7 +11,7 @@
         "push_period": 1,
         "timeout": 0.1
     },
-    "mapping": {
+    "mapper": {
         "enabled": true,
         "debug": false,
         "rules": [

@@ -36,23 +36,21 @@ logging.basicConfig(level=logging.DEBUG, format=LOG_MSG, datefmt=LOG_DT)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-from src.utils import validate_library
-
-from src.leds import Leds
-from src.metrics import Metrics, MetricsPusher
-from src.mapping import Mapping
-from src.analysis import Analysis
-from src.bluetooth import Bluetooth
-from src.composition import Composition
+from utils import validate_library
+from leds import Leds
+from mapper import Mapper
+from metrics import Metrics, MetricsPusher
+from analysis import Analysis
+from bluetooth import Bluetooth
+from composition import Composition
 
 
 HOST_NAME = socket.gethostname()
 CONFIG_FILE = 'config.json'
-config_dict = None
+config = None
 
-return_q = mp.Queue(maxsize=50)
-metrics_q = mp.Queue(maxsize=500)
-metrics_pusher = MetricsPusher(metrics_q)
+queues = {'return':mp.Queue(maxsize=50), 'metrics':mp.Queue(maxsize=500)}
+metrics_pusher = MetricsPusher(queues['metrics'])
 
 modules = {}
 
@@ -91,34 +89,13 @@ class ExitHandler:
                 self.exiting = True
                 print()
                 logger.info('Shutdown sequence started...')
-                try:
-                    composition_module.stop()
-                except (NameError, AttributeError):
-                    pass
-                try:
-                    bluetooth_module.stop()
-                except (NameError, AttributeError):
-                    pass
-                try:
-                    analysis_module.stop()
-                except (NameError, AttributeError):
-                    pass
-                try:
-                    mapping_module.stop()
-                except (NameError, AttributeError):
-                    pass
-                try:
-                    leds_module.stop()
-                except (NameError, AttributeError):
-                    pass
-                try:
-                    metrics_module.stop()
-                except (NameError, AttributeError):
-                    pass
 
-                return_q.cancel_join_thread()
-                metrics_q.cancel_join_thread()
-                
+                for k, v in modules:
+                    v.stop()
+
+                for k, v in queues:
+                    v.cancel_join_thread()
+
                 logger.info('Signifier shutdown complete!')
                 self.exiting = False
                 print()
@@ -127,16 +104,13 @@ class ExitHandler:
             return None
 
 
-def metrics_push():
+def process_returns():
     try:
         return_message = None
-        while (return_message := return_q.get_nowait()) is not None:
+        while (return_message := queues['return'].get_nowait()) is not None:
             if return_message[0] == 'failed':
-                module_name = return_message[1] + '_module'
                 try:
-                    module = locals()[module_name]
-                    module.stop()
-                    logger.warning(f'Failed module [{return_message[1]}] has been stopped.')
+                    modules[return_message[1]].stop()
                 except KeyError:
                     logger.warning(f'[{return_message[1]}] module failed '
                                    f'before initialisation.')
@@ -144,10 +118,9 @@ def metrics_push():
     except Empty:
         pass
 
-    for m in module_list:
+    for k, v in modules:
         try:
-            metrics_pusher.update(f'{m.module_name}_active',
-                                    1 if m.active else 0)
+            metrics_pusher.update(f'{k}_active', 1 if v.active else 0)
         except AttributeError:
             pass
     metrics_pusher.queue()
@@ -165,94 +138,43 @@ if __name__ == '__main__':
     exit_handler = ExitHandler()
 
     with open(CONFIG_FILE) as c:
-        config_dict = json.load(c)
-    if config_dict['general']['hostname'] != HOST_NAME:
-        config_dict['general']['hostname'] = HOST_NAME
+        config = json.load(c)
+    if config['general']['hostname'] != HOST_NAME:
+        config['general']['hostname'] = HOST_NAME
     with open(CONFIG_FILE, 'w', encoding ='utf8') as c:
-        json.dump(config_dict, c, ensure_ascii = False, indent=4)
+        json.dump(config, c, ensure_ascii = False, indent=4)
 
-    if not validate_library(config_dict['composition']):
+    if not validate_library(config['composition']):
         logger.info('Aborting Signifier startup!')
         exit_handler.shutdown()
-        
+
     print()
-    logger.info(f'Starting Signifier on [{config_dict["general"]["hostname"]}]')
+    logger.info(f'Starting Signifier on [{config["general"]["hostname"]}]')
     print()
 
     modules = {
-        'leds': leds_module,
-        mapping_module,
-        analysis_module,
-        bluetooth_module,
-        composition_module
+        'leds': Leds('leds', config, queues=queues),
+        'mapper': Mapper('mapper', config, queues=queues),
+        'metrics': Metrics('metrics', config, queues=queues),
+        'analysis': Analysis('analysis', config, queues=queues),
+        'bluetooth': Bluetooth('bluetooth', config, queues=queues),
+        'composition': Composition('composition', config, queues=queues)
     }
 
-    leds_module = Leds(
-        'leds',
-        config_dict,
-        metrics_q=metrics_q,
-        return_q=return_q)
+    pipes = {}
+    pipes['sources'] = {k:v.source_out for k, v in modules.items()}
+    pipes['destinations'] = {k:v.dest_in for k, v in modules.items()}
 
-    analysis_module = Analysis(
-        'analysis',
-        config_dict,
-        metrics_q=metrics_q,
-        return_q=return_q)
+    modules['mapper'].set_pipes(pipes)
 
-    bluetooth_module = Bluetooth(
-        'bluetooth',
-        config_dict,
-        metrics_q=metrics_q,
-        return_q=return_q)
+    for k, v in modules:
+        v.initialise()
 
-    composition_module = Composition(
-        'composition',
-        config_dict,
-        metrics_q=metrics_q,
-        return_q=return_q)
+    time.sleep(2)
 
-    leds_module.start()
-    analysis_module.start()
-    bluetooth_module.start()
-    composition_module.start()
-
-    time.sleep(0.5)
-
-    dest_pipes = {
-        'leds':leds_module.destination_in,
-        'analysis':analysis_module.destination_in,
-        'bluetooth':bluetooth_module.destination_in,
-        'composition':composition_module.destination_in}
-    source_pipes = {
-        'leds':leds_module.source_out,
-        'analysis':analysis_module.source_out,
-        'bluetooth':bluetooth_module.source_out,
-        'composition':composition_module.source_out}
-    
-    mapping_module = Mapping(
-        'mapping',
-        config_dict,
-        dest_pipes,
-        source_pipes,
-        metrics_q,
-        return_q)
-
-    metrics_module = Metrics(
-        'metrics',
-        config_dict,
-        metrics_q,
-        return_q)
-
-    mapping_module.start()
-    metrics_module.start()
+    for k, v in modules:
+        v.start()
 
     while True:
-        # TODO Change composition module over to threaded loop
-        try:
-            composition_module.tick()
-        except:
-            print('DEBUG --- error in composition module tick.')
-
-        metrics_push()
-
+        process_returns()
         time.sleep(0.1)
