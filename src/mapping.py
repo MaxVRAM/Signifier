@@ -37,6 +37,8 @@ class Mapping():
         self.enabled = self.config.get('enabled', False)
         self.active = False
         # Pipes
+        self.source_pipes = kwargs.get('source_pipes', None)
+        self.destination_pipes = kwargs.get('destination_pipes', None)
         self.destination_pipes = destination_pipes
         self.source_pipes = source_pipes
         # Process management

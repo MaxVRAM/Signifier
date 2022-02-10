@@ -232,6 +232,13 @@ class Composition():
                         f'collection{plural(self.collections)}.')
 
 
+        def start(self):
+            """
+            Starts the Composition module's Collection job.
+            """
+            self.collection_job()
+
+
         def select_collection(self, **kwargs):
             """
             Selects a collection from the library, prepares clips and playback pools.\n

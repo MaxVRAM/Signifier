@@ -19,7 +19,6 @@ Copyright (c) 2022 Chris Vik - MIT License
 """
 
 
-
 import sys
 import json
 import time
@@ -53,22 +52,9 @@ config_dict = None
 
 return_q = mp.Queue(maxsize=50)
 metrics_q = mp.Queue(maxsize=500)
-
 metrics_pusher = MetricsPusher(metrics_q)
 
-leds_module = None
-mapping_module = None
-analysis_module = None
-bluetooth_module = None
-composition_module = None
-
-module_list = [
-    leds_module,
-    mapping_module,
-    analysis_module,
-    bluetooth_module,
-    composition_module
-]
+modules = {}
 
 source_pipes = {'arduino':None, 'analysis':None, 'bluetooth':None, 'composition':None}
 dest_pipes = {'arduino':None, 'analysis':None, 'bluetooth':None, 'composition':None}
@@ -129,6 +115,10 @@ class ExitHandler:
                     metrics_module.stop()
                 except (NameError, AttributeError):
                     pass
+
+                return_q.cancel_join_thread()
+                metrics_q.cancel_join_thread()
+                
                 logger.info('Signifier shutdown complete!')
                 self.exiting = False
                 print()
@@ -188,6 +178,14 @@ if __name__ == '__main__':
     print()
     logger.info(f'Starting Signifier on [{config_dict["general"]["hostname"]}]')
     print()
+
+    modules = {
+        'leds': leds_module,
+        mapping_module,
+        analysis_module,
+        bluetooth_module,
+        composition_module
+    }
 
     leds_module = Leds(
         'leds',

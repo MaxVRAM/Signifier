@@ -144,11 +144,12 @@ class Metrics():
             self.config = parent.config
             self.metrics_q = parent.metrics_q
             # Prometheus config
-            self.registry = CollectorRegistry()
             self.push_period = self.config['push_period']
+            
+            self.registry = CollectorRegistry()
             self.metrics = {}
             self.build_metrics()
-            start_http_server(self.config['server_port'])
+            #start_http_server(self.config['server_port'])
 
 
         def run(self):
