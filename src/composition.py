@@ -34,8 +34,6 @@ from src.clipUtils import *
 from src.clip import Clip
 from src.sigmodule import SigModule, ModuleProcess
 
-logger = logging.getLogger(__name__)
-
 
 class Composition(SigModule):
     """
@@ -52,7 +50,7 @@ class Composition(SigModule):
         module-specific object.
         """
         new_comp = CompositionProcess(self)
-        if new_comp.is_valid():
+        if new_comp.is_valid:
             return CompositionProcess(self)
         else:
             return None
@@ -94,7 +92,7 @@ class CompositionProcess(ModuleProcess):
         """
         Initialises PyGame audio mixer.
         """
-        logger.info('Initialising audio mixer...')
+        self.logger.info('Initialising audio mixer...')
         pg.mixer.pre_init(
             frequency=self.config['sample_rate'],
             size=self.config['bit_size'],
@@ -109,7 +107,7 @@ class CompositionProcess(ModuleProcess):
         """
         Initialises the Clip Manager with a library of Clips.
         """
-        logger.debug(f'Library path: {self.config["base_path"]}...')
+        self.logger.debug(f'Library path: {self.config["base_path"]}...')
         titles = [d for d in os.listdir(self.config['base_path']) \
             if os.path.isdir(os.path.join(self.config['base_path'], d))]
         for title in sorted(titles):
@@ -120,7 +118,7 @@ class CompositionProcess(ModuleProcess):
                     names.append(f)
             if len(names) != 0:
                 self.collections[title] = {'path':path, 'names':names}
-        logger.info(f'Clip Manager initialised with ({len(self.collections)}) '
+        self.logger.info(f'Clip Manager initialised with ({len(self.collections)}) '
                     f'collection{plural(self.collections)}.')
 
 
@@ -161,16 +159,16 @@ class CompositionProcess(ModuleProcess):
         """
         name = kwargs.get('name', None)
         num_clips = kwargs.get('num_clips', self.config['default_pool_size'])
-        logger.debug(f'Importing {"random " if name is None else ""}collection '
+        self.logger.debug(f'Importing {"random " if name is None else ""}collection '
                     f'{(str(name) + " ") if name is not None else ""}from library.')
         if name is not None and name not in self.collections:
-            logger.warning('Requested collection name does not exist. '
+            self.logger.warning('Requested collection name does not exist. '
                             'One will be randomly selected.')
             name = None
         if name is None:
             name = random.choice(list(self.collections.keys()))
         path, names = (self.collections[name]['path'], self.collections[name]['names'])
-        logger.info(f'Collection "{name}" selected with ({len(names)}) '
+        self.logger.info(f'Collection "{name}" selected with ({len(names)}) '
                     f'audio file{plural(names)}')
         self.current_collection = {'title':name, 'path':path, 'names':names}
         # Build clips from collection to populate clip manager
@@ -187,7 +185,8 @@ class CompositionProcess(ModuleProcess):
             self.metrics.update(f'{self.module_name}_collection', name)
             return self.current_collection
         else:
-            logger.error(f'Failed to retrieve a collection "{name}"! Audio files might be corrupted.')
+            self.logger.error(f'Failed to retrieve a collection "{name}"! '
+                              f'Audio files might be corrupted.')
             return None
 
 
@@ -203,7 +202,7 @@ class CompositionProcess(ModuleProcess):
         if num_chans != num_wanted:
             self.mixer.set_num_channels(num_wanted)
             num_chans = self.mixer.get_num_channels()
-            logger.debug(f'Mixer now has {num_chans} channels.')
+            self.logger.debug(f'Mixer now has {num_chans} channels.')
         for i in range(num_chans):
             channels[i] = self.mixer.Channel(i)
         return channels
@@ -232,7 +231,7 @@ class CompositionProcess(ModuleProcess):
         fade_time = kwargs.get('fade_time', self.config.get('fade_out', 0))
         if pg.mixer.get_init():
             if pg.mixer.get_busy():
-                logger.info(f'Stopping audio clips: {fade_time}ms fade...')
+                self.logger.info(f'Stopping audio clips: {fade_time}ms fade...')
                 if kwargs.get('disable_events', False) is True:
                     self.clear_events()
                 pg.mixer.fadeout(fade_time)
@@ -245,7 +244,7 @@ class CompositionProcess(ModuleProcess):
         """
         for event in pg.event.get():
             if event.type == self.clip_event:
-                logger.info(f'Clip end event: {event}')
+                self.logger.info(f'Clip end event: {event}')
                 self.check_finished()
 
 
@@ -253,11 +252,11 @@ class CompositionProcess(ModuleProcess):
         """
         Stops the main thread until all channels have faded out.
         """
-        logger.debug('Waiting for audio mixer to release all channels...')            
+        self.logger.debug('Waiting for audio mixer to release all channels...')            
         if pg.mixer.get_init():
             while pg.mixer.get_busy():
                 time.sleep(0.1)
-        logger.debug('Mixer empty.')
+        self.logger.debug('Mixer empty.')
 
 
     def move_to_inactive(self, clips: set):
@@ -267,7 +266,7 @@ class CompositionProcess(ModuleProcess):
         for clip in clips:
             self.active_pool.remove(clip)
             self.inactive_pool.add(clip)
-            logger.debug(f'MOVED: {clip.name} | active >>> INACTIVE.')
+            self.logger.debug(f'MOVED: {clip.name} | active >>> INACTIVE.')
 
 
     def move_to_active(self, clips: set):
@@ -277,7 +276,7 @@ class CompositionProcess(ModuleProcess):
         for clip in clips:
             self.inactive_pool.remove(clip)
             self.active_pool.add(clip)
-            logger.debug(f'MOVED: {clip.name} | inactive >>> ACTIVE.')
+            self.logger.debug(f'MOVED: {clip.name} | inactive >>> ACTIVE.')
 
 
     def check_finished(self) -> set:
@@ -384,7 +383,7 @@ class CompositionProcess(ModuleProcess):
         while self.select_collection(
                 name=kwargs.get('collection'),
                 pool_size=pool_size) is None:
-            logger.warning('Trying another collection in 2 seconds.')
+            self.logger.warning('Trying another collection in 2 seconds.')
             time.sleep(2)
             self.select_collection(pool_size=pool_size)
         self.start_job()
@@ -445,7 +444,7 @@ class CompositionProcess(ModuleProcess):
         for job in jobs:
             self.active_jobs[job] = schedule.every(self.jobs[job]['timer'])\
                                 .seconds.do(self.jobs_dict[job])
-        logger.debug(f'({len(self.active_jobs)}) jobs currently scheduled.')
+        self.logger.debug(f'({len(self.active_jobs)}) jobs currently scheduled.')
 
 
     def stop_job(self, *args, **kwargs):
@@ -462,6 +461,6 @@ class CompositionProcess(ModuleProcess):
         if (ignore := kwargs.get('ignore', None)) is not None:
             jobs.remove(ignore)
         jobs.intersection_update(self.active_jobs.keys())
-        logger.debug(f'Stopping jobs: {jobs}')
+        self.logger.debug(f'Stopping jobs: {jobs}')
         for job in jobs:
             schedule.cancel_job(self.active_jobs.pop(job))

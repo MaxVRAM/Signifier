@@ -36,13 +36,14 @@ logging.basicConfig(level=logging.DEBUG, format=LOG_MSG, datefmt=LOG_DT)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-from utils import validate_library
-from leds import Leds
-from mapper import Mapper
-from metrics import Metrics, MetricsPusher
-from analysis import Analysis
-from bluetooth import Bluetooth
-from composition import Composition
+from src.utils import validate_library
+from src.leds import Leds
+from src.mapper import Mapper
+from src.pusher import MetricsPusher
+from src.metrics import Metrics
+from src.analysis import Analysis
+from src.bluetooth import Bluetooth
+from src.composition import Composition
 
 
 HOST_NAME = socket.gethostname()
@@ -90,11 +91,11 @@ class ExitHandler:
                 print()
                 logger.info('Shutdown sequence started...')
 
-                for k, v in modules:
-                    v.stop()
-
-                for k, v in queues:
+                for v in queues.values():
                     v.cancel_join_thread()
+
+                for v in modules.values():
+                    v.stop()
 
                 logger.info('Signifier shutdown complete!')
                 self.exiting = False
@@ -118,7 +119,7 @@ def process_returns():
     except Empty:
         pass
 
-    for k, v in modules:
+    for k, v in modules.items():
         try:
             metrics_pusher.update(f'{k}_active', 1 if v.active else 0)
         except AttributeError:
@@ -167,12 +168,12 @@ if __name__ == '__main__':
 
     modules['mapper'].set_pipes(pipes)
 
-    for k, v in modules:
+    for v in modules.values():
         v.initialise()
 
     time.sleep(2)
 
-    for k, v in modules:
+    for v in modules.values():
         v.start()
 
     while True:

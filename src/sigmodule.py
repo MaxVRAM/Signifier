@@ -17,7 +17,7 @@ import logging
 from queue import Full, Empty
 import multiprocessing as mp
 
-from src.metrics import MetricsPusher
+from src.pusher import MetricsPusher
 
 
 class SigModule():
@@ -61,6 +61,7 @@ class SigModule():
                 if self.process is None:
                     self.logger.error(f'[{self.module_name}] Process could '
                                  f'not be created!')
+                    self.enabled = False
                     return None
                 self.logger.debug(f'[{self.module_name}] module initialised.')
             else:

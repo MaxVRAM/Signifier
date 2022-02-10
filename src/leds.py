@@ -41,7 +41,7 @@ class Leds(SigModule):
         module-specific object.
         """
         new_led = LedsProcess(self)
-        if new_led.is_valid():
+        if new_led.is_valid:
             return LedsProcess(self)
         else:
             return None

@@ -29,7 +29,7 @@ class Mapper(SigModule):
     """
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
-        pipes = kwargs.get('pipes', None)
+        pipes = kwargs.get('pipes', {})
         self.source_pipes = pipes.get('sources', None)
         self.dest_pipes = pipes.get('destinations', None)
 
