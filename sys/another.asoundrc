@@ -1,0 +1,76 @@
+pcm.SPEAKER
+{
+    type hw
+    card Headphones
+    device 0
+    subdevice 0
+    nonblock true
+}
+
+ctl.SPEAKER
+{
+    type hw
+    card Headphones
+}
+
+pcm.loopin
+{
+    type plug
+    slave.pcm "hw:Loopback,0,0"
+}
+
+pcm.loopout
+{
+    type plug
+    slave.pcm "hw:Loopback,1,0"
+}
+
+pcm.dmixer
+{
+    type dmix
+    ipc_key 219345
+    slave
+    {
+        pcm SPEAKER
+        format S16_LE
+        period_size 1024
+        buffer_size 4096 
+    }
+}
+
+pcm.!default
+{
+    type plug
+    slave.pcm "dmixer"
+    hint
+    {
+        show on
+        description "Alsa Default Device"
+    }
+}
+
+pcm.multi 
+{
+    type route;
+    slave.pcm 
+    {
+        type multi;
+        slaves.a.pcm "SPEAKER";
+        slaves.b.pcm "loopin";
+        slaves.a.channels 2;
+        slaves.b.channels 2;
+        bindings.0.slave a;
+        bindings.0.channel 0;
+        bindings.1.slave a;
+        bindings.1.channel 1;
+        bindings.2.slave b;
+        bindings.2.channel 0;
+        bindings.3.slave b;
+        bindings.3.channel 1;
+    }
+
+    ttable.0.0 1;
+    ttable.1.1 1;
+    ttable.0.2 1;
+    ttable.1.3 1;
+}

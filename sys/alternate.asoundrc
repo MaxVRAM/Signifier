@@ -1,0 +1,86 @@
+pcm.snd_card { # my usual sound card
+    type hw
+    card 'Headphones'
+}
+
+ctl.!default { # default control; alsamixer and such will use this
+    type hw
+    card 'Headphones'
+}
+
+# software mixer for sound card
+pcm.dmixer {
+    type dmix
+    ipc_key 1024
+    ipc_perm 0666 # allow other users
+    slave.pcm "snd_card"
+    slave {
+        period_time 0
+        period_size 512
+        buffer_size 1024
+        channels 1 # must match bindings
+    }
+    bindings {
+        0 0
+    }
+}
+
+# software mixer for loopback device
+pcm.dmixerloop {
+    type dmix
+    ipc_key 2048
+    ipc_perm 0666 # allow other users
+    slave.pcm "hw:Loopback,0"
+    slave {
+        period_time 0
+        period_size 512
+        buffer_size 1024
+        channels 1 # must match bindings
+    }
+    bindings {
+        0 0
+    }
+}
+
+# allows multiple programs to capture simultaneously
+pcm.dsnooper {
+    type dsnoop
+    ipc_key 2048
+    ipc_perm 0666
+    slave.pcm "snd_card"
+    slave
+    {
+        period_time 0
+        period_size 512
+        buffer_size 1024
+        channels 1
+    }
+    bindings {
+        0 0
+    }
+}
+
+# Multi, splitting onto usual card and loopback
+pcm.out {
+    type plug
+    slave.pcm {
+        type multi
+        slaves {
+            a { channels 1 pcm "dmixer" }
+            b { channels 1 pcm "dmixerloop" }
+        }
+        bindings {
+            0 { slave a channel 0 }
+            1 { slave b channel 0 }
+        }
+    }
+    ttable [
+        [ 1 0 1 0 ]   # left  -> a.left,  b.left
+    ]
+}
+
+pcm.!default {
+    type asym
+    playback.pcm "out"
+    capture.pcm "dsnooper"
+}
