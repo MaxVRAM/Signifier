@@ -12,7 +12,6 @@ Processes module source values and sends them to module destination parameters.
 
 from __future__ import annotations
 
-import time
 import logging
 
 from src.utils import scale
@@ -29,9 +28,7 @@ class Mapper(SigModule):
     """
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
-        pipes = kwargs.get('pipes', {})
-        self.source_pipes = pipes.get('sources', None)
-        self.dest_pipes = pipes.get('destinations', None)
+        self.pipes = kwargs.get('pipes', None)
 
 
     def create_process(self) -> ModuleProcess:
@@ -46,42 +43,49 @@ class Mapper(SigModule):
         """
         Update Mapper's return and destination pipes after initialisation.
         """
-        self.source_pipes = pipes['sources']
-        self.dest_pipes = pipes['destinations']        
+        self.pipes = pipes    
 
 
 class MapperProcess(ModuleProcess):
     """
     Perform audio analysis on an input device.
     """
-    def __init__(self, parent:Mapper) -> None:
+    def __init__(self, parent: Mapper) -> None:
         super().__init__(parent)
-        # Mapping parameters
-        self.rules = self.config.get('rules', {})
-        # Values
+        # Mapping
         self.source_values = {}
-        self.prev_dest_values = dict.fromkeys(self.parent.dest_pipes, {})
-        self.new_destinations = dict.fromkeys(self.parent.dest_pipes, {})
+        self.pipes = parent.pipes
+        self.rules = self.config.get('rules', {})
+        if self.parent_pipe.writable:
+            self.parent_pipe.send('initialised')
 
 
-    def run(self):
+    def pre_run(self):
         """
-        Start processing output values and mapping configurations.
+        Module-specific Process run preparation.
         """
-        while not self.event.is_set():
-            self.gather_source_values()
-            self.process_mappings()
-            # Send destinations through pipes and clear sent modules
-            for module, destinations in self.new_destinations.items():
-                if destinations is not None and destinations != {}:
-                    self.parent.dest_pipes[module].send(destinations)
+        self.prev_dest_values = dict.fromkeys(self.pipes, {})
+        self.new_destinations = dict.fromkeys(self.pipes, {})
+        return True
+
+
+    def mid_run(self):
+        """
+        Module-specific Process run commands. Where the bulk of the module's
+        computation occurs.
+        """
+        self.gather_source_values()
+        self.process_mappings()
+        # Send destinations through pipes and clear sent modules
+        for module, destinations in self.new_destinations.items():
+            if destinations is not None and destinations != {}:
+                if self.pipes[module].writable:
+                    self.pipes[module].send(destinations)
                     self.new_destinations[module] = {}
-            time.sleep(0.001)
-            self.check_control_q()
 
 
     def gather_source_values(self):
-        for module, pipe in self.parent.source_pipes.items():
+        for pipe in self.pipes.values():
             if pipe.poll():
                 sources = pipe.recv()
                 for k,v in sources.items():

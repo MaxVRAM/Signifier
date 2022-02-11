@@ -353,6 +353,11 @@ There are several conveniences that PulseAudio adds, including a slightly easier
     }
     ```
 
+    - **NOTE** OTHER OPTIONS:
+        - <https://unix.stackexchange.com/questions/194547/how-can-i-use-alsa-dmix-and-multi-plugins-together>
+        - Details unpacking of another option:
+            - <https://unix.stackexchange.com/questions/686940/alsa-record-everything-on-given-sound-card>
+
     I profiled this using `htop` for a couple of minutes streaming noise across the shared audio devices, and I ran `alsaaudio` Python module at the same time to print a sample count each buffer, and man, the CPU is taking a fucking holiday! This is exactly how it should have been from the start... I'm gonna do the ol' last minute 'I've optimised the other option' thing and deliver non-clock-compromised Signifiers to my client.
 
     The buffers I've read using this have alternated between actual audio buffer data and byte arrays that contained nothing but zeros. My first thought was maybe something to do with mono/stereo, but have zero insight at this point, I'm just trying to get shit working fast... and it does... This script uses almost no CPU on the RPi.

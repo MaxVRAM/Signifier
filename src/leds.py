@@ -13,13 +13,10 @@ Signifier module to manage communication with the Arduino LED system.
 from __future__ import annotations
 
 import time
-import enum
 import logging
-from queue import Full
-
-from pySerialTransfer import pySerialTransfer as Arduino
 
 from serial import SerialException
+from pySerialTransfer import pySerialTransfer as Arduino
 
 from src.utils import scale
 from src.sigmodule import SigModule, ModuleProcess
@@ -40,9 +37,9 @@ class Leds(SigModule):
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        new_led = LedsProcess(self)
-        if new_led.is_valid:
-            return LedsProcess(self)
+        new_process = LedsProcess(self)
+        if new_process.is_valid:
+            return new_process
         else:
             return None
 
@@ -51,78 +48,80 @@ class LedsProcess(ModuleProcess):
     """
     Process to handle threaded duplex serial communication with the Arduino.
     """
-    def __init__(self, parent:Leds) -> None:
+    def __init__(self, parent: Leds) -> None:
         super().__init__(parent)
         # Serial communication
         self.link = None
-        self.rx_packet = ReceivePacket
-        self.state = ArduinoState.idle
         self.port = self.config.get('port', '/dev/ttyACM0')
+        self.backup_port = self.config.get('backup_port', '/dev/ttyACM1')
         self.baud = self.config.get('baud', 38400)
         self.update_ms = self.config.get('update_ms', 30)
         self.dur_multiplier = self.config.get('duration_multiplier', 3)
+        self.rx_packet = ReceivePacket
 
-        if self.open_connection():
-            self.is_valid = False
+        if not self.open_connection(self.port):
+            logger.error(f'Port [{self.port}] invalid. Attempting backup '
+                         f'port [{self.backup_port}].')
+            if not self.open_connection(self.backup_port):
+                self.failed(f'Unable to open serial port. '
+                            f'Terminating [{self.module_name}].')
         else:
             for k, v in self.config['destinations'].items():
-                self.destinations[k] = self.LedValue(k, v, self)
-            logger.debug(f'Arduino commands: {[c for c in self.destinations.keys()]}')
+                self.destinations[k] = LedValue(k, v, self)
+            if self.parent_pipe.writable:
+                self.parent_pipe.send('initialised')
 
 
-    def run(self):
+    def pre_run(self) -> bool:
         """
-        Begin executing Arduino communication thread to control LEDs.
+        Module-specific Process run preparation.
         """
         self.start_time = time.time()
+        return True
 
-        while not self.event.is_set():
-            if self.dest_out.poll():
-                dest_values = self.dest_out.recv()
-                for k in dest_values.keys():
-                    if k in self.destinations:
-                        self.destinations[k].set_value(**dest_values[k])
-            try:
-                if self.link.available():
-                    recSize = 0
-                    self.rx_packet.command = self.link.rx_obj(
-                        obj_type='c', start_pos=recSize)
-                    recSize += Arduino.STRUCT_FORMAT_LENGTHS['c']
-                    self.rx_packet.valA = self.link.rx_obj(
-                        obj_type='l', start_pos=recSize)
-                    recSize += Arduino.STRUCT_FORMAT_LENGTHS['l']
-                    self.rx_packet.valB = self.link.rx_obj(
-                        obj_type='l', start_pos=recSize)
-                    recSize += Arduino.STRUCT_FORMAT_LENGTHS['l']
-                    self.process_packet()
-                else:
-                    # If not, check for serial link errors
-                    if self.link.status < 0:
-                        if self.link.status == Arduino.CRC_ERROR:
-                            logger.error('Arduino: CRC_ERROR')
-                        elif self.link.status == Arduino.PAYLOAD_ERROR:
-                            logger.error('Arduino: PAYLOAD_ERROR')
-                        elif self.link.status == Arduino.STOP_BYTE_ERROR:
-                            logger.error('Arduino: STOP_BYTE_ERROR')
-                        else:
-                            logger.error('ERROR: {}'.format(self.link.status))
-                try:
-                    self.source_in.send(self.source_values)
-                except Full:
-                    pass
-                self.metrics.update_dict(self.source_values)
-                self.metrics.queue()
-                time.sleep(0.001)
-                self.check_control_q()
 
-            except SerialException as exception:
-                logger.critical(f'Fatal error communicating with Arduino. '
-                                f'A restart may be required! {exception}')
-                logger.warning(f'Due to error, LED/Arduino module will now '
-                                f'be disabled for this session.')
-                self.event.set()
+    def mid_run(self):
+        """
+        Module-specific Process run commands. Where the bulk of the module's
+        computation occurs.
+        """
+        for k in self.dest_values.keys():
+            if k in self.destinations:
+                self.destinations[k].set_value(**self.dest_values[k])
+        try:
+            if self.link.available():
+                recSize = 0
+                self.rx_packet.command = self.link.rx_obj(
+                    obj_type='c', start_pos=recSize)
+                recSize += Arduino.STRUCT_FORMAT_LENGTHS['c']
+                self.rx_packet.valA = self.link.rx_obj(
+                    obj_type='l', start_pos=recSize)
+                recSize += Arduino.STRUCT_FORMAT_LENGTHS['l']
+                self.rx_packet.valB = self.link.rx_obj(
+                    obj_type='l', start_pos=recSize)
+                recSize += Arduino.STRUCT_FORMAT_LENGTHS['l']
+                self.process_packet()
+            else:
+                # If not, check for serial link errors
+                if self.link.status < 0:
+                    if self.link.status == Arduino.CRC_ERROR:
+                        logger.error('Arduino: CRC_ERROR')
+                    elif self.link.status == Arduino.PAYLOAD_ERROR:
+                        logger.error('Arduino: PAYLOAD_ERROR')
+                    elif self.link.status == Arduino.STOP_BYTE_ERROR:
+                        logger.error('Arduino: STOP_BYTE_ERROR')
+                    else:
+                        logger.error('ERROR: {}'.format(self.link.status))
+        except SerialException as exception:
+            self.failed(exception)
 
-        return None
+
+    def update_values(self):
+        """
+        Updates LED commands and sends each to Arduino via serial connection. 
+        """
+        for v in self.destinations.values():
+            v.send(self.send_packet)
 
 
     def process_packet(self):
@@ -132,43 +131,11 @@ class LedsProcess(ModuleProcess):
         cmd = self.rx_packet.command.decode("utf-8")
         # `r` = "ready to receive packets" - Arduino
         if cmd == 'r':
-            self.metrics.update(
+            self.metrics_pusher.update(
                 f'{self.module_name}_loop_duration', self.rx_packet.valA)
-            self.metrics.update(
+            self.metrics_pusher.update(
                 f'{self.module_name}_serial_rx_window', self.rx_packet.valB)
             self.update_values()
-
-
-    def update_values(self):
-        for k, v in self.destinations.items():
-            v.send(self.send_packet)
-
-
-    def set_closed(self) -> bool:
-        logger.debug(f'Trying to fade out LEDs and close serial port...')
-        timeout_start = time.time()
-        if self.link.available():
-            while time.time() < timeout_start + 1:
-                if self.send_packet(SendPacket('B', 0, 1000)) is None:
-                    logger.debug(f'Arduino received shutdown request.')
-                    self.link.close()
-                    logger.debug(f'Arduino connection terminated.')
-                    self.event.set()
-                    timeout_start = 0
-                    return True
-            else:
-                time.sleep(0.001)
-        logger.error(f'Could not gracefully shutdown Arduino. '
-                    f'Forced [{self.state.name}] state')
-        self.event.set()
-        return False
-
-
-    def pre_shutdown(self):
-        """
-        Module-specific shutdown preparation.
-        """
-        self.set_closed()
 
 
     def send_packet(self, packet:SendPacket) -> SendPacket:
@@ -189,38 +156,53 @@ class LedsProcess(ModuleProcess):
         return None
 
 
-    def open_connection(self) -> bool:
+    def open_connection(self, port) -> bool:
         """
-        TODO will populate with checks and timeouts for Arduino serial\
-        connection.\n If reaches timeout before connection, will disable\
-        Arduino/LED portion of the Signifier code.
+        Attempts to open a connection with Arduino on the supplied serial port.
+        Returns `False` if port is unavailable, otherwise opens the connection
+        and returns `True`.
         """
         try:
-            self.link = Arduino.SerialTransfer(self.port, baud=self.baud)
+            self.link = Arduino.SerialTransfer(port, baud=self.baud)
             self.link.open()
             return True
         except Arduino.InvalidSerialPort:
-            logger.error('Invalid serial port. Run `arduino-cli board list` '
-                            'and update `config.json`')
-            self.return_q.put(['failed', self.module_name], timeout=0.1)
-            self.event.set()
             return False
 
+
+    def pre_shutdown(self):
+        """
+        Module-specific shutdown preparation.
+        """
+        logger.debug(f'Trying to fade out LEDs and close serial port...')
+        timeout_start = time.time()
+        while time.time() < timeout_start + 0.5:
+            if self.link is not None and self.link.available():
+                if self.send_packet(SendPacket('B', 0, 500)) is None:
+                    logger.debug(f'Arduino received shutdown request.')
+                    self.link.close()
+                    logger.debug(f'Arduino connection terminated.')
+                    self.event.set()
+                    timeout_start = 0
+                    return None
+                else:
+                    time.sleep(0.001)
+        logger.error(f'LEDs could not be shutdown gracefully.')
 
 
 class LedValue():
     """
     Generic class for holding and managing LED parameter states for the Arduino.
     """
-    def __init__(self, name:str, config:dict, parent) -> None:
+    def __init__(self, name:str, config:dict, parent:LedsProcess) -> None:
         self.name = name
-        self.metrics = parent.metrics
         self.command = config['command']
         self.min = config.get('min', 0)
         self.max = config.get('max', 255)
         self.default = config.get('default', 0)
         self.duration = parent.update_ms * parent.dur_multiplier
         self.packet = SendPacket(self.command, self.default, self.duration)
+        self.metrics_pusher = parent.metrics_pusher
         self.updated = True
 
 
@@ -243,27 +225,16 @@ class LedValue():
     def send(self, send_function, *args) -> bool:
         """
         Returns the serial packet command for the Arduino process to send
-        and updates the value in the metrics queue dictionary.
+        and updates the value in the metrics pusher.
         """
         if self.packet is None:
             return False
         if 'force' in args or self.updated:
             if send_function(self.packet) is None:
-                self.metrics.update(self.name, self.packet.value)
+                self.metrics_pusher.update(self.name, self.packet.value)
                 self.updated = False
                 return True
         return False
-
-
-
-class ArduinoState(enum.Enum):
-    starting = 1
-    running = 2
-    idle = 3
-    pause = 4
-    paused = 5
-    close = 6
-    closed = 7
 
 
 class ReceivePacket(object):
@@ -284,5 +255,6 @@ class SendPacket():
         self.value = val
         self.duration = dur
     def __str__(self) -> str:
-        return f'Serial Send Packet | "{self.command}", value: ({self.value}), duration ({self.duration})ms.'
+        return (f'Serial Send Packet | "{self.command}", value: ({self.value}), '
+                f'duration ({self.duration})ms.')
 

@@ -46,7 +46,7 @@ class MetricsProcess(ModuleProcess):
     Multiprocessing Process to compute and deliver Signifier
     metrics to the push gateway.
     """
-    def __init__(self, parent:Metrics) -> None:
+    def __init__(self, parent: Metrics) -> None:
         super().__init__(parent)
         # Prometheus config
         self.hostname = parent.main_config['general']['hostname']
@@ -55,58 +55,68 @@ class MetricsProcess(ModuleProcess):
         self.metrics_dict = {}
         self.registry = CollectorRegistry()
         self.build_metrics()
+        if self.parent_pipe.writable:
+            self.parent_pipe.send('initialised')
 
 
-    def run(self):
+    def pre_run(self):
         """
-        Start processing Signifier metrics.
+        Module-specific Process run preparation.
         """
-        prev_push = 0
-        while not self.event.is_set():
-            # Drain queue, bailing after 100 ms ensuring we don't get stuck
-            loop_time = time.time()
-            while time.time() < loop_time + 0.1:
-                try:
-                    input_metric = self.metrics_q.get_nowait()
-                    if (metric := self.metrics_dict.get(input_metric[0])) is not None:
-                        if 'gauge' in metric.keys():
-                            metric['gauge'].labels(self.hostname).set(input_metric[1])
-                            continue
-                        if 'info' in metric.keys():
-                            metric['info'].info(
-                                {'instance':self.hostname,
-                                'value':input_metric[1]})
-                            continue
-                    else:
-                        name = input_metric[0]
-                        self.metrics_dict[name] = self.create_metric(
-                                                name, {'type':'gauge'})
-                        self.metrics_dict[name]['gauge'].labels(
-                                                self.hostname).set(
-                                                input_metric[1])
-                    # TODO Add array metrics
-                except Empty:
-                    break
-            # Push current registry values if enough time has lapsed
-            if time.time() > prev_push + self.push_period:
-                try:
-                    push_to_gateway(self.config['target_gateway'],
-                                    self.config['job_name'],
-                                    self.registry,
-                                    timeout=self.config['timeout'])
-                    self.push_period = self.config['push_period']
-                except (ConnectionResetError,
-                        ConnectionRefusedError,
-                        URLError):
-                    self.increase_push_time()
-                    logger.warning(f'Prometheus gateway '
-                        f'[{self.config["target_gateway"]}] '
-                        f'cannot be reached. Retry in '
-                        f'{self.push_period}s.')
-                    prev_push = time.time()
+        self.prev_push = 0
+        if self.metrics_q is None:
+            self.failed('No metrics_q assigned to module!')
+            return False
+        else:
+            return True
 
-            time.sleep(0.001)
-            self.check_control_q()
+
+    def mid_run(self):
+        """
+        Module-specific Process run commands. Where the bulk of the module's
+        computation occurs.
+        """
+        # Drain queue, bailing after 100 ms ensuring we don't get stuck
+        loop_time = time.time()
+        while time.time() < loop_time + 0.1:
+            try:
+                input_metric = self.metrics_q.get_nowait()
+                if (metric := self.metrics_dict.get(input_metric[0])) is not None:
+                    if 'gauge' in metric.keys():
+                        metric['gauge'].labels(self.hostname).set(input_metric[1])
+                        continue
+                    if 'info' in metric.keys():
+                        metric['info'].info(
+                            {'instance':self.hostname,
+                            'value':input_metric[1]})
+                        continue
+                else:
+                    name = input_metric[0]
+                    self.metrics_dict[name] = self.create_metric(
+                                            name, {'type':'gauge'})
+                    self.metrics_dict[name]['gauge'].labels(
+                                            self.hostname).set(
+                                            input_metric[1])
+                # TODO Add array metrics
+            except Empty:
+                break
+        # Push current registry values if enough time has lapsed
+        if time.time() > self.prev_push + self.push_period:
+            try:
+                push_to_gateway(self.config['target_gateway'],
+                                self.config['job_name'],
+                                self.registry,
+                                timeout=self.config['timeout'])
+                self.push_period = self.config['push_period']
+            except (ConnectionResetError,
+                    ConnectionRefusedError,
+                    URLError):
+                self.increase_push_time()
+                logger.warning(f'Prometheus gateway '
+                    f'[{self.config["target_gateway"]}] '
+                    f'cannot be reached. Retry in '
+                    f'{self.push_period}s.')
+                self.prev_push = time.time()
 
 
     def build_metrics(self):

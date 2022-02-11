@@ -9,6 +9,7 @@
 
 import os
 import logging
+import numpy as np 
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,15 @@ def db_to_amp(db: float) -> float:
     Convert dB to amplitude
     """
     return pow(10, float(db)/100)
+
+
+def rms_flat(a):
+    """
+    Return the root mean square of all the elements of *a*, flattened out.
+    """
+    # https://github.com/SiggiGue/pyfilterbank/issues/17
+    rms = np.sqrt(np.mean(np.absolute(a)**2))
+    return rms
 
 
 def validate_library(config_file:dict) -> bool:

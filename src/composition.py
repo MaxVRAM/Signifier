@@ -27,9 +27,9 @@ sys.stderr = open(os.devnull,'w')
 import pygame as pg
 sys.stdout = stdout
 sys.stderr = stderr
-os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
 from src.utils import plural
+from src.utils import validate_library
 from src.clipUtils import *
 from src.clip import Clip
 from src.sigmodule import SigModule, ModuleProcess
@@ -40,8 +40,8 @@ class Composition(SigModule):
     Audio playback composition manager module.
     """
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
-        self.clip_event = pg.USEREVENT + 1
         super().__init__(name, config, *args, **kwargs)
+        self.clip_event = pg.USEREVENT + 1
 
 
     def create_process(self) -> ModuleProcess:
@@ -49,9 +49,9 @@ class Composition(SigModule):
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        new_comp = CompositionProcess(self)
-        if new_comp.is_valid:
-            return CompositionProcess(self)
+        new_process = CompositionProcess(self)
+        if new_process.is_valid:
+            return new_process
         else:
             return None
 
@@ -61,7 +61,7 @@ class CompositionProcess(ModuleProcess):
     Controls the playback of an audio clip library.
     """
 
-    def __init__(self, parent: SigModule) -> None:
+    def __init__(self, parent: Composition) -> None:
         super().__init__(parent)
         # Composition assets
         self.mixer = pg.mixer
@@ -69,6 +69,9 @@ class CompositionProcess(ModuleProcess):
         self.channels = None
         self.collections = {}
         self.current_collection = {}
+        self.base_path = self.config.get('base_path')
+        self.fade_in = self.config.get('fade_in_ms', 1000)
+        self.fade_out = self.config.get('fade_out_ms', 2000)
         self.inactive_pool = set()
         self.active_pool = set()
         self.active_jobs = {}
@@ -78,14 +81,15 @@ class CompositionProcess(ModuleProcess):
             'clip_selection': self.clip_selection_job,
             'volume': self.volume_job
         }
-        if not os.path.isdir(self.config['base_path']):
-            self.logger.error(f'Invalid root path for library: {self.config["base_path"]}.')
-            self.is_valid = False
+        if not validate_library(self.config):
+            self.failed('Specified audio library path is invalid.')
         else:
             self.init_mixer()
             self.init_library()
             schedule.logger.setLevel(logging.DEBUG if self.config.get(
                                     'debug', True) else logging.INFO)
+            if self.parent_pipe.writable:
+                self.parent_pipe.send('initialised')
 
 
     def init_mixer(self):
@@ -93,6 +97,8 @@ class CompositionProcess(ModuleProcess):
         Initialises PyGame audio mixer.
         """
         self.logger.info('Initialising audio mixer...')
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        os.environ['SDL_AUDIODRIVER'] = 'alsa'
         pg.mixer.pre_init(
             frequency=self.config['sample_rate'],
             size=self.config['bit_size'],
@@ -107,26 +113,37 @@ class CompositionProcess(ModuleProcess):
         """
         Initialises the Clip Manager with a library of Clips.
         """
-        self.logger.debug(f'Library path: {self.config["base_path"]}...')
-        titles = [d for d in os.listdir(self.config['base_path']) \
-            if os.path.isdir(os.path.join(self.config['base_path'], d))]
+        self.logger.debug(f'Library path: {self.base_path}...')
+        titles = [d for d in os.listdir(self.base_path) \
+            if os.path.isdir(os.path.join(self.base_path, d))]
         for title in sorted(titles):
-            path = os.path.join(self.config['base_path'], title)
+            path = os.path.join(self.base_path, title)
             names = []
             for f in os.listdir(path):
                 if os.path.splitext(f)[1][1:] in self.config['valid_extensions']:
                     names.append(f)
             if len(names) != 0:
                 self.collections[title] = {'path':path, 'names':names}
-        self.logger.info(f'Clip Manager initialised with ({len(self.collections)}) '
-                    f'collection{plural(self.collections)}.')
+        self.logger.debug(f'[{self.module_name}] initialised with '
+                          f'({len(self.collections)}) '
+                          f'collection{plural(self.collections)}.')
 
 
-    def start(self):
+    def pre_run(self) -> bool:
         """
-        Starts the Composition module's Collection job.
+        Module-specific Process run preparation.
         """
         self.collection_job()
+        return True
+
+
+    def mid_run(self):
+        """
+        Module-specific Process run commands. Where the bulk of the module's
+        computation occurs.
+        """
+        schedule.run_pending()
+        self.manage_audio_events()
 
 
     def pre_shutdown(self):
@@ -137,19 +154,6 @@ class CompositionProcess(ModuleProcess):
         self.stop_all_clips()
         self.wait_for_silence()
         pg.quit()
-
-
-    def run(self):
-        """
-        Begin executing Analyser thread to produce audio descriptors.
-        """
-        while not self.event.is_set():
-            schedule.run_pending()
-            self.manage_audio_events()
-            self.metrics.update_dict(self.source_values)
-            self.metrics.queue()
-            time.sleep(0.001)
-            self.check_control_q()
 
 
     def select_collection(self, **kwargs):
@@ -182,7 +186,7 @@ class CompositionProcess(ModuleProcess):
             self.inactive_pool = pool
             self.channels = self.get_channels(self.inactive_pool)
             init_sounds(self.inactive_pool, self.channels)
-            self.metrics.update(f'{self.module_name}_collection', name)
+            self.metrics_pusher.update(f'{self.module_name}_collection', name)
             return self.current_collection
         else:
             self.logger.error(f'Failed to retrieve a collection "{name}"! '
@@ -190,7 +194,7 @@ class CompositionProcess(ModuleProcess):
             return None
 
 
-    def get_channels(self, clip_set:set) -> dict:
+    def get_channels(self, clip_set: set) -> dict:
         """
         Return dict with Channel indexes keys and Channel objects as values.
         Updates the mixer if there aren't enough channels
@@ -228,13 +232,26 @@ class CompositionProcess(ModuleProcess):
         value from the config.json will be used.\n Use 'disable_events=True'\
         to prevent misfiring audio jobs that use clip end events to launch more.
         """
-        fade_time = kwargs.get('fade_time', self.config.get('fade_out', 0))
+        fade = kwargs.get('fade_time', self.fade_out)
         if pg.mixer.get_init():
             if pg.mixer.get_busy():
-                self.logger.info(f'Stopping audio clips: {fade_time}ms fade...')
+                self.logger.info(f'Stopping audio clips: {fade}ms fade...')
                 if kwargs.get('disable_events', False) is True:
                     self.clear_events()
-                pg.mixer.fadeout(fade_time)
+                pg.mixer.fadeout(fade)
+
+
+    def wait_for_silence(self):
+        """
+        Stops the main thread until all channels have faded out.
+        """
+        self.logger.debug('Waiting for audio mixer to release all channels...')            
+        if pg.mixer.get_init():
+            start_time = time.time()
+            while time.time() < start_time + self.fade_out / 1000 + 0.1\
+                    and pg.mixer.get_busy():
+                time.sleep(0.01)
+        self.logger.debug('Mixer empty.')
 
 
     def manage_audio_events(self):
@@ -246,17 +263,6 @@ class CompositionProcess(ModuleProcess):
             if event.type == self.clip_event:
                 self.logger.info(f'Clip end event: {event}')
                 self.check_finished()
-
-
-    def wait_for_silence(self):
-        """
-        Stops the main thread until all channels have faded out.
-        """
-        self.logger.debug('Waiting for audio mixer to release all channels...')            
-        if pg.mixer.get_init():
-            while pg.mixer.get_busy():
-                time.sleep(0.1)
-        self.logger.debug('Mixer empty.')
 
 
     def move_to_inactive(self, clips: set):
@@ -311,7 +317,7 @@ class CompositionProcess(ModuleProcess):
         Clips stopped are moved to the inactive pool and are returned as a set. `'balance'` in args will
         remove clips based on the most active category, overriding category in arguments if provided.
         """
-        fade = kwargs.get('fade', self.config.get('fade_out', 0))
+        fade = kwargs.get('fade', self.fade_out)
         if len(clips) == 0:
             # Finds the category with the greatest number of active clips.
             if 'balance' in args:
@@ -319,8 +325,7 @@ class CompositionProcess(ModuleProcess):
                 clips = contents[max(contents, key = contents.get)]
                 kwargs.update('category', None)
             clips = get_clip(self.active_pool, kwargs)
-        stopped = set([c for c in clips if c.stop(kwargs.get('fade',
-                    self.config.get('fade_out', 0))) is not None])
+        stopped = set([c for c in clips if c.stop(fade) is not None])
         self.move_to_inactive(stopped)
         return stopped
 
