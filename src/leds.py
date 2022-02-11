@@ -15,11 +15,13 @@ from __future__ import annotations
 import time
 import logging
 
+import multiprocessing as mp
 from serial import SerialException
 from pySerialTransfer import pySerialTransfer as Arduino
 
 from src.utils import scale
-from src.sigmodule import SigModule, ModuleProcess
+from src.sigmodule import SigModule
+from src.sigprocess import ModuleProcess
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ class Leds(SigModule):
             return None
 
 
-class LedsProcess(ModuleProcess):
+class LedsProcess(ModuleProcess, mp.Process):
     """
     Process to handle threaded duplex serial communication with the Arduino.
     """

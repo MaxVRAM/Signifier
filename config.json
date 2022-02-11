@@ -4,7 +4,7 @@
         "process_loop_sleep": 0.001
     },
     "metrics": {
-        "enabled": false,
+        "enabled": true,
         "debug": true,
         "start_delay": 0,
         "target_gateway": "localhost:9091",
@@ -14,7 +14,7 @@
         "timeout": 0.1
     },
     "mapper": {
-        "enabled": false,
+        "enabled": true,
         "debug": true,
         "start_delay": 0,
         "rules": [
@@ -34,7 +34,7 @@
                         0,
                         1
                     ],
-                    "duration": 1000
+                    "duration": 100
                 }
             },
             {
@@ -125,7 +125,7 @@
         }
     },
     "bluetooth": {
-        "enabled": false,
+        "enabled": true,
         "debug": true,
         "start_delay": 0,
         "scan_dur": 3,
@@ -197,13 +197,13 @@
         "destinations": {}
     },
     "composition": {
-        "enabled": false,
-        "debug": true,
+        "enabled": true,
+        "debug": false,
         "start_delay": 0,
         "output_device": "default",
         "sample_rate": 48000,
         "bit_size": -16,
-        "buffer": 4096,
+        "buffer": 1024,
         "base_path": "/home/pi/Signifier/media/audio/",
         "force_collection": null,
         "valid_extensions": [

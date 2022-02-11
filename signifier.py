@@ -26,7 +26,6 @@ import socket
 import signal
 
 import multiprocessing as mp
-
 import logging
 
 LOG_DT = "%d-%b-%y %H:%M:%S"
@@ -48,7 +47,6 @@ config = None
 
 modules = {}
 metrics_q = mp.Queue(maxsize=500)
-
 
 #    _________.__            __      .___
 #   /   _____/|  |__  __ ___/  |_  __| _/______  _  ______

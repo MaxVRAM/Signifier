@@ -17,9 +17,12 @@ import logging
 from queue import Empty
 from urllib.error import URLError
 
+import multiprocessing as mp
+
 from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway
 
-from src.sigmodule import SigModule, ModuleProcess
+from src.sigmodule import SigModule
+from src.sigprocess import ModuleProcess
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +44,7 @@ class Metrics(SigModule):
         return MetricsProcess(self)
 
 
-class MetricsProcess(ModuleProcess):
+class MetricsProcess(ModuleProcess, mp.Process):
     """
     Multiprocessing Process to compute and deliver Signifier
     metrics to the push gateway.

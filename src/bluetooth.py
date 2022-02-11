@@ -16,11 +16,13 @@ import time
 import logging
 
 import numpy as np
+import multiprocessing as mp
 from bleson import get_provider, Observer
 from bleson import logger as blelogger
 
 from src.utils import lerp, db_to_amp
-from src.sigmodule import SigModule, ModuleProcess
+from src.sigmodule import SigModule
+from src.sigprocess import ModuleProcess
 
 blelogger.set_level(blelogger.ERROR)
 logger = logging.getLogger(__name__)
@@ -42,7 +44,7 @@ class Bluetooth(SigModule):
         return BluetoothProcess(self)
 
 
-class BluetoothProcess(ModuleProcess):
+class BluetoothProcess(ModuleProcess, mp.Process):
     """
     Perform audio analysis on an input device.
     """
@@ -79,7 +81,10 @@ class BluetoothProcess(ModuleProcess):
         """
         Module-specific Process run preparation.
         """
-        self.adapter = get_provider().get_adapter()
+        try:
+            self.adapter = get_provider().get_adapter()
+        except InterruptedError as exception:
+            self.failed(exception)
         self.observer = Observer(self.adapter)
         self.observer.on_advertising_data = self.scan_callback
         return True

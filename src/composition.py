@@ -19,6 +19,8 @@ import random
 import logging
 import schedule
 
+from threading import Thread
+
 # Silence PyGame greeting mesage
 stdout = sys.__stdout__
 stderr = sys.__stderr__
@@ -32,7 +34,9 @@ from src.utils import plural
 from src.utils import validate_library
 from src.clipUtils import *
 from src.clip import Clip
-from src.sigmodule import SigModule, ModuleProcess
+from src.pusher import MetricsPusher
+from src.sigmodule import SigModule
+from src.sigprocess import ModuleProcess
 
 
 class Composition(SigModule):
@@ -44,7 +48,7 @@ class Composition(SigModule):
         self.clip_event = pg.USEREVENT + 1
 
 
-    def create_process(self) -> ModuleProcess:
+    def create_process(self) -> CompositionProcess:
         """
         Called by the module's `initialise()` method to return a
         module-specific object.
@@ -56,7 +60,7 @@ class Composition(SigModule):
             return None
 
 
-class CompositionProcess(ModuleProcess):
+class CompositionProcess(ModuleProcess, Thread):
     """
     Controls the playback of an audio clip library.
     """

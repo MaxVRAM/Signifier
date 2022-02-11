@@ -14,8 +14,11 @@ from __future__ import annotations
 
 import logging
 
+import multiprocessing as mp
+
 from src.utils import scale
-from src.sigmodule import SigModule, ModuleProcess
+from src.sigmodule import SigModule
+from src.sigprocess import ModuleProcess
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +49,7 @@ class Mapper(SigModule):
         self.pipes = pipes    
 
 
-class MapperProcess(ModuleProcess):
+class MapperProcess(ModuleProcess, mp.Process):
     """
     Perform audio analysis on an input device.
     """
