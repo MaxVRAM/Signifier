@@ -10,6 +10,11 @@ pcm.shared {
 pcm.out2both {
     type route
     slave.pcm "shared"
+    slave.format S16_LE
+    slave.period_size 512
+
+        frame_size 
+    }
     ttable.0.0 1
     ttable.1.1 1
 }

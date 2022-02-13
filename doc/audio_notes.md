@@ -102,6 +102,14 @@ Default audio system for many Linux distributions (importantly, Debian, which I 
 - Some interesting stuff here if I need to dig more into ALSA for converting formats: <https://alsa.opensrc.org/Asoundrc>
 
 
+- Cleaning up excess ALSA devices. The path `/usr/share/alsa/pcm` hosts the configurations for each ALSA device. There's a mess of surround sound devices cluttering things up. I'll try moving the config files of devices I don't need to a backup location to see if that cleans things up for me.
+
+    - I should have done this ages ago, it's much cleaner.
+
+- ALSA `.asoundrc` example that uses the DSP (OSS) stream in an ALSA routing.
+
+    > More information <https://d-meeus.be/linux/asoundrc.txt>
+
 
 
 ## PulseAudio
@@ -819,19 +827,25 @@ Early in the project, I was attempting to keep all audio systems within native A
 
     - Changing the buffer sizes did not seem to solve the issue.
 
-    - Attempting to solve by using `DSP` audio driver for PyGame.
+- Attempting to solve buffer underrun by using `DSP` audio driver for PyGame.
 
-        > More information: <https://raspberrypi.stackexchange.com/questions/83254/pygame-and-alsa-lib-error>
+    > More information: <https://raspberrypi.stackexchange.com/questions/83254/pygame-and-alsa-lib-error>
 
-    - DPS/OSS is legacy, and not default in the current Debian releases, so requires an additional module.
-    
+    - Defining `SDL_AUDIODRIVER` variable tells PyGame which audio driver to use. So I defined it at the start of the composition.py module:
+        
+        ```
+        os.environ['SDL_AUDIODRIVER'] = 'dsp'
+        ```
+
+    - Running the Signifier application would create an unhandled and undefined error, exiting the application. Apparently OSS/DSP is not enabled by default on current-day Debian systems. So I needed to install some kind of package.
+
     - I attempted to use `alsa-oss` first, which enable OSS/DSP in ALSA applications.
 
         > More information: <https://wiki.debian.org/OSS>
 
         - Two sound modules need to be enabled:
         
-            - `sudo modprobe snd_pcm_oss` and `sudo modprobe snd_mixer_oss`.
+            - `modprobe snd_pcm_oss` and `modprobe snd_mixer_oss`.
 
             - These can be added to be enabled on system start (like the loopback driver from earlier) using:
             
@@ -853,6 +867,69 @@ Early in the project, I was attempting to keep all audio systems within native A
             ```bash
             sudo apt install osspd-alsa
             ```
+
+        - It wasn't super clear how I could get this working. I found a forum post mentioning that the osspd slave needed to be defined:
+
+            > More information <https://bugs.launchpad.net/ubuntu/+source/osspd/+bug/1857810>
+
+            Available slaves can be listed here:
+
+            ```bash
+            ls -la /usr/lib/osspd
+            ```
+
+            ```bash
+            osspd --dsp-slave /usr/lib/osspd/ossp-alsap
+            ```
+
+            From the looks of it, this can be confirmed by listing the alternative sym-link:
+
+            ```bash
+            ls -la /etc/alternatives | grep ossp
+            ```
+
+        - I restarted, then checked how the osspd service was going:
+        
+            ```bash
+            $ sudo systemctl status osspd
+            ● osspd.service - OSS Proxy Daemon
+                Loaded: loaded (/lib/systemd/system/osspd.service; enabled; vendor preset: enabled)
+                Active: inactive (dead) since Sun 2022-02-13 13:31:32 AEDT; 52min ago
+                Docs: man:osspd
+                Process: 548 ExecStart=/usr/sbin/osspd -f --dsp-slave=/usr/lib/osspd/ossp-slave (code=exited, status=0/SUCCESS)
+            Main PID: 548 (code=exited, status=0/SUCCESS)
+                    CPU: 17ms
+
+            Feb 13 13:31:32 mmwSigB systemd[1]: Started OSS Proxy Daemon.
+            Feb 13 13:31:32 mmwSigB osspd[548]: osspd: OSS Proxy v1.3.2 (C) 2008-2010 by Tejun Heo <teheo@suse.de>
+            Feb 13 13:31:32 mmwSigB osspd[548]: osspd: Creating dsp (14:3), adsp (14:12), mixer (14:0)
+            Feb 13 13:31:32 mmwSigB systemd[1]: osspd.service: Succeeded.
+            ```
+        
+        - Looked good, try to start the two sound modules `sudo modprobe snd_pcm_oss` and `sudo modprobe snd_mixer_oss`. But I got an error when attempting to run the mixer module.
+
+        - Despite this, I ran the Signifier application, which ran and output sound, but as before, the analysis module was not getting audio. So it's possible that the OSS/DSP device is routing to ALSA, but the device isn't listed in when printing `aplay -L`.
+
+        - I checked `/etc/modprobe.d`, which contains blacklist modules, `alsa-base.conf`, and now `osspd.conf` from the newly installed OSS module. However the contents of the latter are as follows:
+
+            ```bash
+            blacklist snd-pcm-oss
+            blacklist snd-mixer-oss
+            blacklist snd-seq-oss
+            ```
+
+            Should these be blacklisted?
+
+            I'll try removing the `snd-pcm-oss` module, and instead move it to the `alsa-base.conf` as `option snd-pcm-oss index=2` to mirror the working ALSA modules.
+
+            This didn't create any ALSA devices like I was hoping. However, I did find a post mentioning that configuring an ALSA device with the `/dev/dsp` audio stream can potentially be done via `AOSS ALSA_OSS_PCM_DEVICE="channel1"`, where `channel1` was the ALSA device the OP had created.
+
+                > More information <https://www.mail-archive.com/alsa-user@lists.sourceforge.net/msg16458.html> 
+
+
+        
+
+        
 
 
 ### Raw notes
