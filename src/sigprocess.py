@@ -1,4 +1,13 @@
+#    _________.__      __________
+#   /   _____/|__| ____\______   \_______  ____   ____  ____   ______ ______
+#   \_____  \ |  |/ ___\|     ___/\_  __ \/  _ \_/ ___\/ __ \ /  ___//  ___/
+#   /        \|  / /_/  >    |     |  | \(  <_> )  \__\  ___/ \___ \ \___ \
+#  /_______  /|__\___  /|____|     |__|   \____/ \___  >___  >____  >____  >
+#          \/   /_____/                              \/    \/     \/     \/
 
+"""
+A generic class defining processes controlled by Signifier modules.
+"""
 
 from __future__ import annotations
 
@@ -8,11 +17,12 @@ from src.pusher import MetricsPusher
 from src.sigmodule import SigModule
 
 
-class ModuleProcess():
+class ModuleProcess:
     """
     Generic Signifier Process object.
     """
-    def __init__(self, parent:SigModule) -> None:
+
+    def __init__(self, parent: SigModule) -> None:
         # Module elements
         super().__init__()
         self.is_valid = True
@@ -24,16 +34,15 @@ class ModuleProcess():
         self.event = mp.Event()
         self.prev_process_time = time.time()
         self.parent_pipe = parent.parent_pipe
-        self.control_functions = {'close':self.shutdown}
-        self.start_delay = self.config.get('start_delay', 0)
-        self.loop_sleep = parent.main_config.get('process_loop_sleep', 0.001)
+        self.control_functions = {"close": self.shutdown}
+        self.start_delay = self.config.get("start_delay", 0)
+        self.loop_sleep = parent.main_config.get("process_loop_sleep", 0.001)
         # Mapping and metrics
         self.metrics_pusher = MetricsPusher(parent.metrics_q)
         self.mapping_pipe = parent.mapping_pipe
         self.source_values = {}
         self.destinations = {}
         self.dest_values = {}
-
 
     def run(self):
         """
@@ -43,7 +52,7 @@ class ModuleProcess():
         if self.pre_run():
             time.sleep(self.start_delay)
             if self.parent_pipe.writable:
-                self.parent_pipe.send('started')
+                self.parent_pipe.send("started")
             while not self.event.is_set():
                 self.poll_control()
                 if self.event.is_set():
@@ -59,15 +68,13 @@ class ModuleProcess():
                 self.metrics_pusher.queue()
                 time.sleep(self.loop_sleep)
         if self.parent_pipe.writable:
-            self.parent_pipe.send('closed')
-
+            self.parent_pipe.send("closed")
 
     def pre_run(self) -> bool:
         """
         Module-specific Process run preparation to ensure module is ready.
         """
         True
-
 
     def mid_run(self):
         """
@@ -76,13 +83,12 @@ class ModuleProcess():
         """
         pass
 
-
     def poll_control(self, block_for=0):
         """
         Generic Process call to manage incoming control messages.
         Provide `block_for=(float)` to force checking for a period of seconds.
         Useful in scenarios like BLE scanning, where using `time.sleep()` to
-        create the scanning period would hold up the Signifier shutdown process. 
+        create the scanning period would hold up the Signifier shutdown process.
         """
         command = None
         args = []
@@ -97,24 +103,27 @@ class ModuleProcess():
                     command = message[0]
                     args = list(message[1:])
                 except TypeError:
-                    self.logger.warning(f'[{self.module_name}] received '
-                                        f'Malformed command: {message}')
+                    self.logger.warning(
+                        f"[{self.module_name}] received "
+                        f"Malformed command: {message}"
+                    )
                     return None
             if (func := self.control_functions.get(message)) is not None:
-                self.logger.debug(f'[{self.module_name}] received command '
-                                    f'"{command}", executing...')
+                self.logger.debug(
+                    f"[{self.module_name}] received command "
+                    f'"{command}", executing...'
+                )
                 func(*args)
             else:
-                self.logger.warning(f'[{self.module_name}] does not recognise '
-                                    f'{command} command.')
+                self.logger.warning(
+                    f"[{self.module_name}] does not recognise " f"{command} command."
+                )
 
         if block_for > 0:
-            while time.time() < start_time + block_for\
-                    and not self.event.is_set():        
+            while time.time() < start_time + block_for and not self.event.is_set():
                 time.sleep(0.01)
                 self.poll_control()
         return None
-
 
     def pre_shutdown(self):
         """
@@ -122,16 +131,14 @@ class ModuleProcess():
         """
         pass
 
-
     def shutdown(self, *args):
         """
         Generic shutdown function to prepare Process for joining main thread.
         """
         self.event.set()
         if self.parent_pipe.writable:
-            self.parent_pipe.send('closing')
+            self.parent_pipe.send("closing")
         self.pre_shutdown()
-
 
     def failed(self, exception=None):
         """
@@ -140,8 +147,9 @@ class ModuleProcess():
         A supplied exception in arguments will be logged as a critical.
         """
         self.is_valid = False
-        self.logger.critical(f'[{self.module_name}] encountered critical '
-                             f'error: {exception}')
+        self.logger.critical(
+            f"[{self.module_name}] encountered critical " f"error: {exception}"
+        )
         if self.parent_pipe.writable:
-            self.parent_pipe.send('failed')
+            self.parent_pipe.send("failed")
         self.shutdown()

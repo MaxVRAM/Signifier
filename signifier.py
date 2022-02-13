@@ -115,7 +115,6 @@ if __name__ == "__main__":
     with open(RULES_FILE) as c:
         rules = json.load(c)
 
-
     print()
     logger.info(f'Starting Signifier on [{config["general"]["hostname"]}]')
     print()

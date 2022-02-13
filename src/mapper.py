@@ -33,9 +33,9 @@ class Mapper(SigModule):
 
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
-        self.pipes = kwargs.get('pipes')
-        self.rules = kwargs.get('rules', [])
-        self.period = kwargs.get('period', 10) / 1000
+        self.pipes = kwargs.get("pipes")
+        self.rules = kwargs.get("rules", [])
+        self.period = kwargs.get("period", 10) / 1000
 
     def create_process(self) -> ModuleProcess:
         """
@@ -61,12 +61,11 @@ class MapperProcess(ModuleProcess, mp.Process):
         # Mapping
         self.sources = {}
         self.pipes = parent.pipes
-        self.rules = parent.rules.get('rules')
+        self.rules = parent.rules.get("rules")
         self.period = parent.period
         self.last_output_time = 0
         if self.parent_pipe.writable:
             self.parent_pipe.send("initialised")
-
 
     def pre_run(self):
         """
@@ -76,7 +75,6 @@ class MapperProcess(ModuleProcess, mp.Process):
         self.new_destinations = dict.fromkeys(self.pipes, {})
         self.last_output_time = time.time()
         return True
-
 
     def mid_run(self):
         """
@@ -92,7 +90,6 @@ class MapperProcess(ModuleProcess, mp.Process):
                     self.pipes[module].send(destinations)
                     self.new_destinations[module] = {}
 
-
     def gather_source_values(self):
         """
         Gathers source value updates from each value pipe.
@@ -103,7 +100,6 @@ class MapperProcess(ModuleProcess, mp.Process):
                 for k, v in new_sources.items():
                     self.sources[k] = v
 
-
     def process_mappings(self):
         """
         Iterates over mapping rules, processing source values and sends the
@@ -112,19 +108,34 @@ class MapperProcess(ModuleProcess, mp.Process):
         if time.time() > self.last_output_time + self.period:
             self.last_output_time = time.time()
             for r in self.rules:
-                rule_source = r['source']
-                rule_dest = r['destination']
-                if (source_value := self.sources.get(rule_source['name'])) is not None:
-                    source_value = scale(source_value, rule_source.get('range', [0, 1]), rule_dest.get('range', [0, 1]))
-                    prev_value = self.prev_dest_values[rule_dest['module']].get(rule_dest['name'])
+                rule_source = r["source"]
+                rule_dest = r["destination"]
+                if (source_value := self.sources.get(rule_source["name"])) is not None:
+                    source_value = scale(
+                        source_value,
+                        rule_source.get("range", [0, 1]),
+                        rule_dest.get("range", [0, 1]),
+                    )
+                    prev_value = self.prev_dest_values[rule_dest["module"]].get(
+                        rule_dest["name"]
+                    )
                     if prev_value is not None and prev_value == source_value:
                         continue
-                    if prev_value is not None and (smoothing := rule_dest.get('smoothing')) is not None:
-                        output_value = SmoothedValue(init=prev_value, amount=tuple(smoothing)).update(source_value)
+                    if (
+                        prev_value is not None
+                        and (smoothing := rule_dest.get("smoothing")) is not None
+                    ):
+                        output_value = SmoothedValue(
+                            init=prev_value, amount=tuple(smoothing)
+                        ).update(source_value)
                     else:
                         output_value = source_value
-                    rule_output = {'value':output_value}
-                    if (duration := rule_dest.get('duration')) is not None:
-                        rule_output.update({'duration':duration})
-                    self.prev_dest_values[rule_dest['module']].update({rule_dest['name']:output_value})
-                    self.new_destinations[rule_dest['module']].update({rule_dest['name']:rule_output})
+                    rule_output = {"value": output_value}
+                    if (duration := rule_dest.get("duration")) is not None:
+                        rule_output.update({"duration": duration})
+                    self.prev_dest_values[rule_dest["module"]].update(
+                        {rule_dest["name"]: output_value}
+                    )
+                    self.new_destinations[rule_dest["module"]].update(
+                        {rule_dest["name"]: rule_output}
+                    )

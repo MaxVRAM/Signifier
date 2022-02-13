@@ -62,13 +62,11 @@ class AnalysisProcess(ModuleProcess, mp.Process):
         if self.parent_pipe.writable:
             self.parent_pipe.send("initialised")
 
-
     def pre_shutdown(self):
         """
         Module-specific Process shutdown preparation.
         """
         self.input_audio.close()
-
 
     def pre_run(self) -> bool:
         """
@@ -122,9 +120,7 @@ class AnalysisProcess(ModuleProcess, mp.Process):
                 if peak != self.source_values[f"{self.module_name}_peak"]:
                     self.source_values[f"{self.module_name}_peak"] = peak
                     self.metrics_pusher.update(f"{self.module_name}_peak", peak)
-                self.metrics_pusher.update(
-                    f"{self.module_name}_buffer_size", length
-                )
+                self.metrics_pusher.update(f"{self.module_name}_buffer_size", length)
                 self.metrics_pusher.update(
                     f"{self.module_name}_buffer_ms",
                     int((time.time() - self.prev_process_time) * 1000),

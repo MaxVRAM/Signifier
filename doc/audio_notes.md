@@ -928,8 +928,41 @@ Early in the project, I was attempting to keep all audio systems within native A
 
 
         
+- OOOOKAY!!! So I think we've go it. It might not be a DSP driver thing. I've changed the `.asoundrc` file to include `period_size` and `buffer_size` definitions that match the guidance on the 
 
-        
+    Here's the current file that's been working for over half an hour:
+
+        ```ruby
+        pcm.shared {
+            type multi
+            slaves.a.pcm "hw:Headphones,0"
+            slaves.a.channels 1
+            slaves.b.pcm "hw:Loopback,0"
+            slaves.b.channels 1
+            bindings.0 { slave a; channel 0; }
+            bindings.1 { slave b; channel 0; }
+        }
+        pcm.out2both {
+            type route
+            slave.pcm "shared"
+            slave.channels 1
+            slave.rate 48000
+            slave.format S16_LE
+            slave.period_size 512
+            slave.periods 8
+            slave.buffer_size 8192
+            ttable.0.0 1
+            ttable.1.1 1
+        }
+        pcm.!default {
+            type asym
+            playback.pcm "plug:out2both"
+            capture.pcm "hw:Loopback,1"
+        }
+        ```
+
+
+
 
 
 ### Raw notes

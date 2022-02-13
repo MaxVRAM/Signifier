@@ -1,10 +1,9 @@
-
-#  __________.__                 __                 __  .__     
-#  \______   \  |  __ __   _____/  |_  ____   _____/  |_|  |__  
-#   |    |  _/  | |  |  \_/ __ \   __\/  _ \ /  _ \   __\  |  \ 
+#  __________.__                 __                 __  .__
+#  \______   \  |  __ __   _____/  |_  ____   _____/  |_|  |__
+#   |    |  _/  | |  |  \_/ __ \   __\/  _ \ /  _ \   __\  |  \
 #   |    |   \  |_|  |  /\  ___/|  | (  <_> |  <_> )  | |   Y  \
 #   |______  /____/____/  \___  >__|  \____/ \____/|__| |___|  /
-#          \/                 \/                             \/ 
+#          \/                 \/                             \/
 
 """
 Signifier module to manage Bluetooth scanner system.
@@ -32,9 +31,9 @@ class Bluetooth(SigModule):
     """
     Bluetooth scanner manager module.
     """
+
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
-
 
     def create_process(self) -> ModuleProcess:
         """
@@ -48,17 +47,17 @@ class BluetoothProcess(ModuleProcess, mp.Process):
     """
     Perform audio analysis on an input device.
     """
+
     def __init__(self, parent: Bluetooth) -> None:
         super().__init__(parent)
         # Bluetooth configuration
-        self.remove_after = self.config.get('remove_after', 15)
-        self.duration = self.config.get('scan_dur', 3)
-        self.signal_threshold = self.config.get('signal_threshold', 0.002)
+        self.remove_after = self.config.get("remove_after", 15)
+        self.duration = self.config.get("scan_dur", 3)
+        self.signal_threshold = self.config.get("signal_threshold", 0.002)
         # Scanner data
         self.devices = {}
         if self.parent_pipe.writable:
-            self.parent_pipe.send('initialised')
-
+            self.parent_pipe.send("initialised")
 
     def scan_callback(self, device):
         """
@@ -76,7 +75,6 @@ class BluetoothProcess(ModuleProcess, mp.Process):
             if mac in self.devices:
                 self.devices.pop(mac)
 
-
     def pre_run(self) -> bool:
         """
         Module-specific Process run preparation.
@@ -88,7 +86,6 @@ class BluetoothProcess(ModuleProcess, mp.Process):
         self.observer = Observer(self.adapter)
         self.observer.on_advertising_data = self.scan_callback
         return True
-
 
     def mid_run(self):
         """
@@ -112,17 +109,16 @@ class BluetoothProcess(ModuleProcess, mp.Process):
         activity_array = [d.activity for d in self.devices.values()]
 
         self.source_values = {
-            f'{self.module_name}_num_devices':len(self.devices),
-            f'{self.module_name}_signal_total': np.sum(signal_array),
-            f'{self.module_name}_signal_mean':np.mean(signal_array),
-            f'{self.module_name}_signal_std':np.std(signal_array),
-            f'{self.module_name}_signal_max':np.amax(signal_array),
-            f'{self.module_name}_activity_total': np.sum(activity_array),
-            f'{self.module_name}_activity_mean':np.mean(activity_array),
-            f'{self.module_name}_activity_std':np.std(activity_array),
-            f'{self.module_name}_activity_max':np.amax(activity_array)
+            f"{self.module_name}_num_devices": len(self.devices),
+            f"{self.module_name}_signal_total": np.sum(signal_array),
+            f"{self.module_name}_signal_mean": np.mean(signal_array),
+            f"{self.module_name}_signal_std": np.std(signal_array),
+            f"{self.module_name}_signal_max": np.amax(signal_array),
+            f"{self.module_name}_activity_total": np.sum(activity_array),
+            f"{self.module_name}_activity_mean": np.mean(activity_array),
+            f"{self.module_name}_activity_std": np.std(activity_array),
+            f"{self.module_name}_activity_max": np.amax(activity_array),
         }
-
 
     def pre_shutdown(self):
         """
@@ -134,11 +130,12 @@ class BluetoothProcess(ModuleProcess, mp.Process):
         self.adapter.close()
 
 
-class Device():
+class Device:
     """
-    BLE device class for managing individual device states. 
+    BLE device class for managing individual device states.
     """
-    def __init__(self, parent:BluetoothProcess, mac, signal) -> None:
+
+    def __init__(self, parent: BluetoothProcess, mac, signal) -> None:
         self.parent = parent
         self.mac = mac
         self.duration = parent.duration
@@ -171,10 +168,10 @@ class Device():
             self.updated = False
         else:
             fraction = (time.time() - self.updated_at) / (
-                self.remove_after - self.duration)
+                self.remove_after - self.duration
+            )
             self.current_signal = lerp(self.scanned_signal, 0, fraction)
             self.difference = self.current_signal - self.scanned_signal
             self.activity = 0
-        if time.time() > self.updated_at + self.remove_after\
-                or self.current_signal < 0:
+        if time.time() > self.updated_at + self.remove_after or self.current_signal < 0:
             return self

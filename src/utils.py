@@ -1,15 +1,13 @@
-
-#    _________.__          ____ ___   __  .__.__          
+#    _________.__          ____ ___   __  .__.__
 #   /   _____/|__| ____   |    |   \_/  |_|__|  |   ______
 #   \_____  \ |  |/ ___\  |    |   /\   __\  |  |  /  ___/
-#   /        \|  / /_/  > |    |  /  |  | |  |  |__\___ \ 
+#   /        \|  / /_/  > |    |  /  |  | |  |  |__\___ \
 #  /_______  /|__\___  /  |______/   |__| |__|____/____  >
-#          \/   /_____/                                \/ 
-
+#          \/   /_____/                                \/
 
 import os
 import logging
-import numpy as np 
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +35,10 @@ def scale(value, source_range, dest_range, *args):
     s_range = source_range[1] - source_range[0]
     d_range = dest_range[1] - dest_range[0]
     scaled_value = ((value - source_range[0]) / s_range) * d_range + dest_range[0]
-    if 'clamp' in args:
+    if "clamp" in args:
         return max(dest_range[0], min(dest_range[1], scaled_value))
     return scaled_value
+
 
 def lerp(a, b, pos) -> float:
     """### Basic linear interpolation.
@@ -57,7 +56,7 @@ def db_to_amp(db: float) -> float:
     """
     Convert dB to amplitude
     """
-    return pow(10, float(db)/100)
+    return pow(10, float(db) / 100)
 
 
 def rms_flat(a):
@@ -65,40 +64,43 @@ def rms_flat(a):
     Return the root mean square of all the elements of *a*, flattened out.
     """
     # https://github.com/SiggiGue/pyfilterbank/issues/17
-    rms = np.sqrt(np.mean(np.absolute(a)**2))
+    rms = np.sqrt(np.mean(np.absolute(a) ** 2))
     return rms
 
 
-def validate_library(config_file:dict) -> bool:
+def validate_library(config_file: dict) -> bool:
     """
     Utility for checking validity of audio clip library.
     Returns `False` unless paths are valid and audio clips exist.
     """
-    audio_path = config_file['base_path']
+    audio_path = config_file["base_path"]
     if not os.path.isdir(audio_path):
-        logger.critical(f'Invalid root path for library: {audio_path}.')
-        logger.info(f'Ensure audio library exists or check path in config.')
+        logger.critical(f"Invalid root path for library: {audio_path}.")
+        logger.info(f"Ensure audio library exists or check path in config.")
         return False
     else:
         collections = [f.path for f in os.scandir(audio_path) if f.is_dir()]
         if len(collections) == 0:
-            logger.critical(f'No collections found in audio library: {audio_path}')
-            logger.info(f'Ensure audio library exists or check path in config.')
+            logger.critical(f"No collections found in audio library: {audio_path}")
+            logger.info(f"Ensure audio library exists or check path in config.")
             return False
         else:
-            logger.info(f'Found {len(collections)} audio clip '
-                        f'collection{plural(collections)}.')
+            logger.info(
+                f"Found {len(collections)} audio clip "
+                f"collection{plural(collections)}."
+            )
             clips = []
             for c in collections:
                 for f in os.listdir(c):
-                    if os.path.splitext(f)[1][1:] in config_file['valid_extensions']:
+                    if os.path.splitext(f)[1][1:] in config_file["valid_extensions"]:
                         clips.append(f)
             if len(clips) == 0:
                 logger.critical(
-                    f'No valid clips found in library with extention '
-                    f'{config_file["valid_extensions"]}.')
+                    f"No valid clips found in library with extention "
+                    f'{config_file["valid_extensions"]}.'
+                )
                 return False
-            logger.info(f'[{len(clips)}] clip{plural(clips)} found in library.')
+            logger.info(f"[{len(clips)}] clip{plural(clips)} found in library.")
             return True
 
 
@@ -107,6 +109,7 @@ class SmoothedValue:
     """
     Simple exponential smoothing filter
     """
+
     def __init__(self, init=0.0, amount=(0.5, 0.5), threshold=9e-5):
         """
         Smoothing arguments:
@@ -117,18 +120,17 @@ class SmoothedValue:
         - `rise=0.5` rise smoothing [0-1], lower = more smoothing
         - `threshold=9e-5` delta of current and new value before snapping
         """
-        assert 0.0 < amount[0] < 1.0, 'Invalid decay smoothing factor'
-        assert 0.0 < amount[1] < 1.0, 'Invalid rise smoothing factor'
+        assert 0.0 < amount[0] < 1.0, "Invalid decay smoothing factor"
+        assert 0.0 < amount[1] < 1.0, "Invalid rise smoothing factor"
         self.decay = amount[0]
         self.rise = amount[1]
         self.value = init
         self.threshold = threshold
 
-
     def update(self, new_value):
         """
         Applies smoothing function between new value in argument to the
-        existing one and returns result. 
+        existing one and returns result.
         """
         if abs(new_value - self.value) > self.threshold:
             if not isinstance(self.value, (int, float)):
