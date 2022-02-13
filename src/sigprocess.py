@@ -43,7 +43,7 @@ class ModuleProcess():
         if self.pre_run():
             time.sleep(self.start_delay)
             if self.parent_pipe.writable:
-                self.parent_pipe.send('running')
+                self.parent_pipe.send('started')
             while not self.event.is_set():
                 self.poll_control()
                 if self.event.is_set():
@@ -51,13 +51,12 @@ class ModuleProcess():
                 self.dest_values = {}
                 if self.mapping_pipe.poll():
                     self.dest_values = self.mapping_pipe.recv()
-                    self.metrics_pusher.update_dict(self.dest_values)
                 self.mid_run()
                 if self.source_values != {}:
                     if self.mapping_pipe.writable:
                         self.mapping_pipe.send(self.source_values)
                         self.metrics_pusher.update_dict(self.source_values)
-                        self.metrics_pusher.queue()
+                self.metrics_pusher.queue()
                 time.sleep(self.loop_sleep)
         if self.parent_pipe.writable:
             self.parent_pipe.send('closed')
@@ -141,8 +140,8 @@ class ModuleProcess():
         A supplied exception in arguments will be logged as a critical.
         """
         self.is_valid = False
-        self.event.set()
         self.logger.critical(f'[{self.module_name}] encountered critical '
                              f'error: {exception}')
         if self.parent_pipe.writable:
             self.parent_pipe.send('failed')
+        self.shutdown()

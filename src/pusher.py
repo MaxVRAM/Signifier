@@ -62,11 +62,12 @@ class MetricsPusher():
             if self.new_values is not None or self.new_values != {}:
                 if self.period == 0 or time.time()\
                         > self.prev_push_time + self.period:
-                    for k in list(self.new_values):
-                        try:
-                            self.metrics_q.put_nowait(
-                                (k, self.new_values.pop(k)))
-                            
-                        except Full:
-                            pass
-                    self.prev_push_time = time.time()
+                    if len(self.new_values) != 0:
+                        for k in list(self.new_values):
+                            try:
+                                self.metrics_q.put_nowait(
+                                    (k, self.new_values.pop(k)))
+                                
+                            except Full:
+                                pass
+                        self.prev_push_time = time.time()

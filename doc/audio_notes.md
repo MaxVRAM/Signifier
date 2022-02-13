@@ -813,6 +813,46 @@ Early in the project, I was attempting to keep all audio systems within native A
 
     - I discovered through trial and error. Device formatting should be in the ASLA `hw:x,y` format, where `hw` is the ALSA device **TYPE** (which also can be "plug", etc..), `x` is the **CARD** number, and `y` is the **DEVICE** number when using `aplay -l` and `arecord -l` to list the available ALSA devices.
 
+- So far, this is be almost entirely a success.
+
+- Major issue occuring is buffer underrun while using both `pyalsaaudio` and having `pygame` audio output via ALSA at the same time. This causes a fatal crash of the composition and analysis modules.
+
+    - Changing the buffer sizes did not seem to solve the issue.
+
+    - Attempting to solve by using `DSP` audio driver for PyGame.
+
+        > More information: <https://raspberrypi.stackexchange.com/questions/83254/pygame-and-alsa-lib-error>
+
+    - DPS/OSS is legacy, and not default in the current Debian releases, so requires an additional module.
+    
+    - I attempted to use `alsa-oss` first, which enable OSS/DSP in ALSA applications.
+
+        > More information: <https://wiki.debian.org/OSS>
+
+        - Two sound modules need to be enabled:
+        
+            - `sudo modprobe snd_pcm_oss` and `sudo modprobe snd_mixer_oss`.
+
+            - These can be added to be enabled on system start (like the loopback driver from earlier) using:
+            
+                ```bash
+                echo "snd_pcm_oss" | sudo tee -a /etc/modules-load.d/modules.conf
+                echo "snd_mixer_oss" | sudo tee -a /etc/modules-load.d/modules.conf
+                ```
+
+            - And can be checked using `cat /etc/modules-load.d/modules.conf`.
+
+        - While sound ended up being sent through the speakers, the analysis module did not receive the audio stream.
+
+    - After reading further down the page linked above, it suggested the up-to-date `osspd-alsa` package instead:
+
+        > More information <https://packages.debian.org/bullseye/osspd-alsa>
+
+        - This will install the `osspd` package and its "experimental" `osspd-alsa` ALSA support module:
+
+            ```bash
+            sudo apt install osspd-alsa
+            ```
 
 
 ### Raw notes

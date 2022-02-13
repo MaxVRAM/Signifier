@@ -24,12 +24,11 @@ logger = logging.getLogger(__name__)
 
 
 class Clip:
-    """Clip objects hold sound file information, its Sound object 
-    and its associated Channel, once playback has been triggerd."""
-
-
+    """
+    Clip objects hold sound file information, its Sound object 
+    and its associated Channel, once playback has been triggerd.
+    """
     def __init__(self, root:str, name:str, categories:dict) -> None:
-        """Initialises a new Clip object."""
         self.root = root
         self.name = name
         self.path = os.path.join(root, name)
@@ -52,8 +51,10 @@ class Clip:
     # Playback methods
     #-----------------
     def play(self, **kwargs) -> Clip:
-        """Starts playback of Clip's Sound object with optional "fade=(int)" in ms
-        and "event=(int)" to produce an end of clip callback. Returns itself if successful."""
+        """
+        Starts playback of Clip's Sound object with optional `fade=(int)` time in ms
+        and "event=(int)" to produce an end of clip callback. Returns itself if successful.
+        """
         if self.channel is None:
             logger.warning(f'Cannot play Clip "{self.name}". Not assigned to Channel.')
             return None
@@ -67,12 +68,14 @@ class Clip:
             self.started = time.time()
             if (event := kwargs.get('event', None)) is not None:
                self.channel.set_endevent(event)
-            logger.info(f'Playing clip "{self.name}" on channel ({self.index}).')
+            logger.debug(f'Playing clip "{self.name}" on channel ({self.index}).')
             return self
 
 
     def stop(self, **kwargs) -> Clip:
-        """Stops the sound playing from the Clip immediately, otherwise supply "fade_time=(int)" in ms."""
+        """
+        Stops the sound playing from the Clip immediately, otherwise supply `fade=(int)` time in ms.
+        """
         if self.channel is None:
             logger.warning(f'Cannot stop "{self.name}". Not assigned to Channel.')
             return None
@@ -86,11 +89,14 @@ class Clip:
                 return self
             else:
                 self.sound.stop()
-                logger.debug(f'Clip "{self.name}" playing on Channel ({self.index}) has been stopped imediately.')
+                logger.debug(f'Clip "{self.name}" playing on Channel ({self.index}) has been stopped immediately.')
                 return self
 
 
     def get_volume(self) -> float:
+        """
+        Return the volume of this audio clip object (0-1).
+        """
         if self.sound is None:
             logger.warning(f'Cannot get volume of "{self.name}". Not assigned to Sound object.')
         else:
@@ -98,6 +104,9 @@ class Clip:
 
 
     def set_volume(self, volume:float):
+        """
+        Set the volume of this audio clip object (0-1).
+        """
         if self.sound is None:
             logger.warning(f'Cannot set volume of "{self.name}". Not assigned to Sound object.')
         else:
@@ -107,7 +116,9 @@ class Clip:
     # Clip utilities
     #---------------
     def set_channel(self, chan:tuple) -> Channel:
-        """Binds supplied (index, Channel) tuple to Clip."""
+        """
+        Binds supplied (index, Channel) tuple to Clip.
+        """
         if chan[1].get_sound():
             logger.warning(f'Channel "{chan[0]}" already assigned to "{chan[1].get_sound()}".')
             return None
@@ -117,7 +128,9 @@ class Clip:
 
 
     def remove_channel(self) -> Channel:
-        """Removes Channel and index number from Clip, returning the Channel object."""
+        """
+        Removes Channel and index number from Clip, returning the Channel object.
+        """
         if (chan := self.channel) is None:
             logger.warning(f'No Channel object assigned to "{self.name}", cannot remove. Skipping request.')
             return None
@@ -128,21 +141,24 @@ class Clip:
 
 
     def build_sound(self, chan:tuple) -> Clip:
-        """Loads the Clip's audio file into memory as a new Sound object and assign it a mixer Channel."""
+        """
+        Loads the Clip's audio file into memory as a new Sound object and assign it a mixer Channel.
+        """
         self.sound = Sound(self.path)
         self.index = chan[0]
         self.set_channel(chan)
         if not self.sound or not self.channel:
             logger.warning(f'Could not build "{self.name}"!')
             return None
-        #logger.debug(f'Loaded clip: {self}.')
         return self
 
 
     def determine_category(self, categories:dict):
-        """Determine clip category and loop properties from its length bisected against category breakpoints."""
-        cats = [(k, categories[k]['threshold']) for k in categories.keys()]
-        cats.sort(key=lambda x: x[1])
-        self.category = cats[bisect.bisect_right(list(c[1] for c in cats), self.length)-1][0]
+        """
+        Determine clip category and loop properties from its length bisected against category breakpoints.
+        """
+        contents = [(k, categories[k]['threshold']) for k in categories.keys()]
+        contents.sort(key=lambda x: x[1])
+        self.category = contents[bisect.bisect_right(list(c[1] for c in contents), self.length)-1][0]
         self.looping = categories[self.category]['is_loop']
         self.loop_range = categories[self.category]['loop_range']

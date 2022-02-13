@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-#    _________.__              .__  _____.__              
-#   /   _____/|__| ____   ____ |__|/ ____\__| ___________ 
+#    _________.__              .__  _____.__
+#   /   _____/|__| ____   ____ |__|/ ____\__| ___________
 #   \_____  \ |  |/ ___\ /    \|  \   __\|  |/ __ \_  __ \
 #   /        \|  / /_/  >   |  \  ||  |  |  \  ___/|  | \/
-#  /_______  /|__\___  /|___|  /__||__|  |__|\___  >__|   
-#          \/   /_____/      \/                  \/       
+#  /_______  /|__\___  /|___|  /__||__|  |__|\___  >__|
+#          \/   /_____/      \/                  \/
 
 """# Signifier
 Version 0.9.0
@@ -28,11 +28,11 @@ import signal
 import multiprocessing as mp
 import logging
 
-LOG_DT = "%d-%b-%y %H:%M:%S"
-LOG_MSG = "%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(funcName)20s: %(message)s"
-logging.basicConfig(level=logging.DEBUG, format=LOG_MSG, datefmt=LOG_DT)
+LOG_DT = "%d-%m-%y %H:%M:%S"
+LOG_MSG = "%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(message)s"
+logging.basicConfig(level=logging.INFO, format=LOG_MSG, datefmt=LOG_DT)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 from src.leds import Leds
 from src.mapper import Mapper
@@ -42,7 +42,8 @@ from src.bluetooth import Bluetooth
 from src.composition import Composition
 
 HOST_NAME = socket.gethostname()
-CONFIG_FILE = 'config.json'
+CONFIG_FILE = "cfg/config.json"
+RULES_FILE = "cfg/rules.json"
 config = None
 
 modules = {}
@@ -55,12 +56,14 @@ metrics_q = mp.Queue(maxsize=500)
 #  /_______  /|___|  /____/ |__| \____ |\____/ \/\_/|___|  /
 #          \/      \/                 \/                 \/
 
+
 class ExitHandler:
     """
     Manages signals `SIGTERM` and `SIGINT`, and houses the subsequently called
     `shutdown()` method which exits the Signifier application gracefully.
     """
-    signals = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}
+
+    signals = {signal.SIGINT: "SIGINT", signal.SIGTERM: "SIGTERM"}
 
     def __init__(self):
         self.exiting = False
@@ -77,17 +80,16 @@ class ExitHandler:
             if not self.exiting:
                 self.exiting = True
                 print()
-                logger.info('Shutdown sequence started...')
+                logger.info("Shutdown sequence started...")
 
                 metrics_q.cancel_join_thread()
 
                 for m in modules.values():
                     m.stop()
 
-                logger.info('Signifier shutdown complete!')
+                logger.info("Signifier shutdown complete!")
                 self.exiting = False
                 print()
-                print(f'Processes still active {mp.active_children()}')
                 sys.exit()
         else:
             return None
@@ -100,32 +102,35 @@ class ExitHandler:
 #  \____|__  (____  /__|___|  /
 #          \/     \/        \/
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
 
     with open(CONFIG_FILE) as c:
         config = json.load(c)
-    if config['general']['hostname'] != HOST_NAME:
-        config['general']['hostname'] = HOST_NAME
-    with open(CONFIG_FILE, 'w', encoding ='utf8') as c:
-        json.dump(config, c, ensure_ascii = False, indent=4)
+    if config["general"]["hostname"] != HOST_NAME:
+        config["general"]["hostname"] = HOST_NAME
+    with open(CONFIG_FILE, "w", encoding="utf8") as c:
+        json.dump(config, c, ensure_ascii=False, indent=4)
+    with open(RULES_FILE) as c:
+        rules = json.load(c)
+
 
     print()
     logger.info(f'Starting Signifier on [{config["general"]["hostname"]}]')
     print()
 
     modules = {
-        'leds': Leds('leds', config, metrics_q),
-        'mapper': Mapper('mapper', config, metrics_q),
-        'metrics': Metrics('metrics', config, metrics_q),
-        'analysis': Analysis('analysis', config, metrics_q),
-        'bluetooth': Bluetooth('bluetooth', config, metrics_q),
-        'composition': Composition('composition', config, metrics_q)
+        "leds": Leds("leds", config, metrics=metrics_q),
+        "mapper": Mapper("mapper", config, metrics=metrics_q, rules=rules),
+        "metrics": Metrics("metrics", config, metrics=metrics_q),
+        "analysis": Analysis("analysis", config, metrics=metrics_q),
+        "bluetooth": Bluetooth("bluetooth", config, metrics=metrics_q),
+        "composition": Composition("composition", config, metrics=metrics_q),
     }
 
-    pipes = {k:v.module_pipe for k, v in modules.items()}
-    modules['mapper'].set_pipes(pipes)
+    pipes = {k: v.module_pipe for k, v in modules.items()}
+    modules["mapper"].set_pipes(pipes)
 
     for m in modules.values():
         m.initialise()
@@ -134,6 +139,8 @@ if __name__ == '__main__':
 
     for m in modules.values():
         m.start()
+
+    time.sleep(1)
 
     while True:
         for m in modules.values():

@@ -75,7 +75,6 @@ def validate_library(config_file:dict) -> bool:
     Returns `False` unless paths are valid and audio clips exist.
     """
     audio_path = config_file['base_path']
-    print()
     if not os.path.isdir(audio_path):
         logger.critical(f'Invalid root path for library: {audio_path}.')
         logger.info(f'Ensure audio library exists or check path in config.')
@@ -103,32 +102,42 @@ def validate_library(config_file:dict) -> bool:
             return True
 
 
-class ExponentialFilter:
+class SmoothedValue:
     # https://gitlab.zenairo.6 com/led-projects/dancyPi-audio-reactive-led/-/raw/262206d35962b2383f2649d726ff9bc513095ec7/python/dsp.py
     """
     Simple exponential smoothing filter
     """
-    def __init__(self, val=0.0, alpha_decay=0.5, alpha_rise=0.5):
+    def __init__(self, init=0.0, amount=(0.5, 0.5), threshold=9e-5):
         """
-        Small rise / decay factors = more smoothing
-        """
-        assert 0.0 < alpha_decay < 1.0, 'Invalid decay smoothing factor'
-        assert 0.0 < alpha_rise < 1.0, 'Invalid rise smoothing factor'
-        self.alpha_decay = alpha_decay
-        self.alpha_rise = alpha_rise
-        self.value = val
+        Smoothing arguments:
 
-    def update(self, value):
+        - `init=0.0` value to initialise the filter with
+        - `amount=(0.5, 0.5)` tuple with decay/rise smoothing amount,
+        lower values increase smoothing.
+        - `rise=0.5` rise smoothing [0-1], lower = more smoothing
+        - `threshold=9e-5` delta of current and new value before snapping
+        """
+        assert 0.0 < amount[0] < 1.0, 'Invalid decay smoothing factor'
+        assert 0.0 < amount[1] < 1.0, 'Invalid rise smoothing factor'
+        self.decay = amount[0]
+        self.rise = amount[1]
+        self.value = init
+        self.threshold = threshold
+
+
+    def update(self, new_value):
         """
         Applies smoothing function between new value in argument to the
         existing one and returns result. 
         """
-        if not isinstance(self.value, (int, long, float)):
-            alpha = value - self.value
-            alpha[alpha > 0.0] = self.alpha_rise
-            alpha[alpha <= 0.0] = self.alpha_decay
+        if abs(new_value - self.value) > self.threshold:
+            if not isinstance(self.value, (int, float)):
+                delta = new_value - self.value
+                delta[delta > 0.0] = self.rise
+                delta[delta <= 0.0] = self.decay
+            else:
+                delta = self.rise if new_value > self.value else self.decay
+            self.value = delta * new_value + (1.0 - delta) * self.value
         else:
-            alpha = self.alpha_rise if value > self.value else self.alpha_decay
-        self.value = alpha * value + (1.0 - alpha) * self.value
+            self.value = new_value
         return self.value
-

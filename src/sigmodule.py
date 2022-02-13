@@ -53,8 +53,8 @@ class SigModule():
             if self.process is None:
                 self.process = self.create_process()
                 if self.process is None:
-                    self.logger.error(f'[{self.module_name}] process could '
-                                      f'not be created!')
+                    self.logger.error(f'[{self.module_name}] process object '
+                                      f'could not be created!')
                     self.enabled = False
                     return None
                 self.logger.debug(f'[{self.module_name}] module initialised.')
@@ -68,6 +68,7 @@ class SigModule():
         Updates the module's configuration based on supplied config dictionary.
         """
         self.logger.info(f'Updating [{self.module_name}] module config...')
+        self.main_config = config
         if self.enabled:
             self.module_config = config[self.module_name]
             if self.module_config.get('enabled', False) is False:
@@ -92,6 +93,7 @@ class SigModule():
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
+                    self.active = True
                     self.logger.info(f'[{self.module_name}] process started.')
                 else:
                     self.logger.warning(f'[{self.module_name}] process '
@@ -143,7 +145,7 @@ class SigModule():
                 self.active = True
                 try:
                     self.metrics_q.put(
-                        {f'{self.module_name}_active', 1}, timeout=0.01)
+                        (f'{self.module_name}_active', 1), timeout=0.01)
                 except Full:
                     pass
             if message in ['closed', 'failed']:
@@ -151,6 +153,9 @@ class SigModule():
                 self.active = False
                 try:
                     self.metrics_q.put(
-                        {f'{self.module_name}_active', 0}, timeout=0.01)
+                        (f'{self.module_name}_active', 0), timeout=0.01)
                 except (Full, AttributeError):
                     pass
+
+        if self.enabled and self.active == False:
+            self.initialise()

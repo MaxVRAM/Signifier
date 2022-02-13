@@ -208,10 +208,6 @@ class LedValue():
         self.updated = True
 
 
-    def __str__(self) -> str:
-        return f'"{self.name}"'
-
-
     def set_value(self, **kwargs):
         """
         Updates the LED parameter and prepares a serial packet to send.

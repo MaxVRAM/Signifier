@@ -21,6 +21,10 @@ import schedule
 
 from threading import Thread
 
+# Allows PyGame to run without a screen
+os.environ['SDL_VIDEODRIVER'] = 'dummy'
+# Refers PyGame's audio mixer to use the DSP/OSS audio drivers
+os.environ['SDL_AUDIODRIVER'] = 'dsp'
 # Silence PyGame greeting mesage
 stdout = sys.__stdout__
 stderr = sys.__stderr__
@@ -34,7 +38,6 @@ from src.utils import plural
 from src.utils import validate_library
 from src.clipUtils import *
 from src.clip import Clip
-from src.pusher import MetricsPusher
 from src.sigmodule import SigModule
 from src.sigprocess import ModuleProcess
 
@@ -101,8 +104,6 @@ class CompositionProcess(ModuleProcess, Thread):
         Initialises PyGame audio mixer.
         """
         self.logger.info('Initialising audio mixer...')
-        os.environ['SDL_VIDEODRIVER'] = 'dummy'
-        os.environ['SDL_AUDIODRIVER'] = 'alsa'
         pg.mixer.pre_init(
             frequency=self.config['sample_rate'],
             size=self.config['bit_size'],
@@ -389,13 +390,16 @@ class CompositionProcess(ModuleProcess, Thread):
         self.stop_job(ignore='collection')
         self.stop_all_clips()
         self.wait_for_silence()
-        while self.select_collection(
+        if self.select_collection(
                 name=kwargs.get('collection'),
                 pool_size=pool_size) is None:
-            self.logger.warning('Trying another collection in 2 seconds.')
-            time.sleep(2)
-            self.select_collection(pool_size=pool_size)
-        self.start_job()
+            self.logger.warning(f'Selecting collection with [{kwargs}] '
+                                f'returned no results. Attempting '
+                                f'random selection...')
+            if self.select_collection(pool_size=pool_size) is None:
+                self.failed(f'Could not source audio clip collection.')
+                return None
+        self.start_jobs()
         self.clip_selection_job(start_num=start_clips)
 
 
@@ -433,7 +437,7 @@ class CompositionProcess(ModuleProcess, Thread):
         self.modulate_volumes(speed=speed, weight=weight)
 
 
-    def start_job(self, *args):
+    def start_jobs(self, *args):
         """
         Start jobs matching names provided as string arguments.\n
         Jobs will only start if it is registered in the jobs dict,\

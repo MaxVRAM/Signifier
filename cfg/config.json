@@ -17,46 +17,7 @@
         "enabled": true,
         "debug": true,
         "start_delay": 0,
-        "rules": [
-            {
-                "source": {
-                    "module": "analysis",
-                    "name": "analysis_peak",
-                    "range": [
-                        0,
-                        1
-                    ]
-                },
-                "destination": {
-                    "module": "leds",
-                    "name": "leds_brightness",
-                    "range": [
-                        0,
-                        1
-                    ],
-                    "duration": 100
-                }
-            },
-            {
-                "source": {
-                    "module": "bluetooth",
-                    "name": "bluetooth_signal_max",
-                    "range": [
-                        0.2,
-                        0.5
-                    ]
-                },
-                "destination": {
-                    "module": "leds",
-                    "name": "leds_saturation",
-                    "range": [
-                        1,
-                        0
-                    ],
-                    "duration": 1000
-                }
-            }
-        ]
+        "period_ms": 10
     },
     "leds": {
         "enabled": true,
@@ -65,7 +26,7 @@
         "backup_port": "/dev/ttyACM1",
         "baud": 38400,
         "start_delay": 0,
-        "update_ms": 30,
+        "update_ms": 20,
         "duration_multiplier": 5,
         "sources": {
             "leds_arduino_state": {
@@ -178,7 +139,7 @@
         "input_device": "default",
         "sample_rate": 48000,
         "dtype": "int16",
-        "buffer": 1024,
+        "buffer": 2048,
         "gain": 1.0,
         "sources": {
             "analysis_peak": {
