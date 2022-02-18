@@ -140,7 +140,7 @@
         "sample_rate": 48000,
         "dtype": "int16",
         "buffer": 2048,
-        "gain": 1.0,
+        "gain": 10.0,
         "sources": {
             "analysis_peak": {
                 "type": "gauge",
@@ -158,7 +158,7 @@
         "destinations": {}
     },
     "composition": {
-        "enabled": true,
+        "enabled": false,
         "debug": false,
         "start_delay": 0,
         "output_device": "default",

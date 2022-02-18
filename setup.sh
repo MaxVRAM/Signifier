@@ -109,6 +109,7 @@ echo
 echo Setting up audio environment...
 cp $SIG_PATH/sys/.asoundrc ~/
 sudo modprobe snd-aloop
+sudo modprobe snd_pcm_oss
 sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo $SIG_PATH/sys/disable_hdmi_audio.dts
 
 FILE=/boot/config.txt
@@ -124,6 +125,8 @@ if [ -f "$FILE" ]; then
 fi
 LINE="snd_aloop"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
+LINE="snd_pcm_oss"
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 
 FILE=/etc/modprobe.d/alsa-base.conf
 if [ -f "$FILE" ]; then
@@ -132,6 +135,8 @@ fi
 LINE="options snd_bcm2835 index=0"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 LINE="options snd_aloop index=1"
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
+LINE="options snd_pcm_oss index=2"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 echo
 

@@ -1,0 +1,26 @@
+pcm.sigmix {
+    type dmix
+    ipc_key 1524 # must be unique!
+#   ipc_key_add_uid false   # let multiple users share
+#   ipc_perm 0666           # IPC permissions for multi-user sharing (octal, default 0600)
+    slave {
+        pcm "hw:0,0"
+        period_time 0
+        period_size 1024
+        buffer_size 8192
+        format "S16_LE"
+        periods 4
+        rate 48000
+    }
+    bindings {
+        0 0 # from 0 => to 0
+    }
+}
+pcm.sigdsp {
+    type plug
+    slave.pcm "sigmix"
+}
+ctl.sigoutctl {
+    type hw
+    card "Headphones"
+}

@@ -55,3 +55,77 @@ We can control when this PCM interrupt is generated, by setting a period size, w
 > >  - buffer_size = period_size * periods
 > >  - period_bytes = period_size * bytes_per_frame
 > >  - bytes_per_frame = channels * bytes_per_sample 
+
+
+
+
+
+
+
+
+
+# Jack (qjackctl)
+
+- Running the desktop remotely via LightDM releases the limits provided to the `audio` user to provide realtime processing:
+
+    ```
+    # /etc/security/limits.d/audio.conf
+    @audio - rtprio 95
+    @audio - memlock unlimited
+    ```
+
+    This can be checked by running `ulimit -l` and `ulimit -r` in the terminal via remote desktop, and logged in via SSH, returning different results.
+
+    Remote desktop:
+    ```bash
+    ❯ ulimit -l
+    64
+    ❯ ulimit -r
+    0
+    ```
+
+    SSH:
+    ```bash
+    ❯ ulimit -l
+    unlimited
+    ❯ ulimit -r
+    95
+    ```
+
+    Apparently this can be solved by adding `session required pam_limits.so` to `/etc/pam.d/lightdm`. However, this already existed in my lightdm file, so I may have to revert to local screen/keyboard interaction for development.
+
+    > More information: <https://github.com/void-linux/void-packages/issues/20051>
+
+
+- A workaround is to enter the terminal during a remote graphical session and log back in to the same user using `su pi`. For some reason this resolves the session limit issue, and `qjackctl` can now be run from the terminal to open a working instance with real-time permissions enabled.
+
+    > More information: <https://bugs.launchpad.net/ubuntu/+source/lightdm/+bug/1627769>
+
+    Since upgraded to 16.10 Yakkety, modifications in /etc/security/limits.conf are not taken into consideration when logging in the graphical interface.
+
+    /etc/security/limits.conf:
+    @audio - rtprio 99
+    @audio - memlock unlimited
+
+    I tried the same settings in /etc/security/limits.d/audio.conf, to the same results.
+
+    After logging in Unity, opening a console, the limits are not set:
+    blablack@ideaon:~$ ulimit -l -r
+    max locked memory (kbytes, -l) 64
+    real-time priority (-r) 0
+
+    Reloging to my user via bash DOES apply the limits:
+    blablack@ideaon:~$ ulimit -l -r
+    max locked memory (kbytes, -l) 64
+    real-time priority (-r) 0
+    blablack@ideaon:~$ su blablack
+    Password:
+    blablack@ideaon:~$ ulimit -l -r
+    max locked memory (kbytes, -l) unlimited
+    real-time priority (-r) 95
+
+
+
+- Unfortunately, Jack would not accept combinations of devices that included the ALSA loopback device. After further reading, apparently using Jack with ALSA loopback is nothing but trouble anyway.
+
+- Will have to return to pure-ALSA and try to solve under-runs... or at least work out a way to restart the audio services after it fails.

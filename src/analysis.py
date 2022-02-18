@@ -16,6 +16,7 @@ import logging
 
 import alsaaudio
 import numpy as np
+from threading import Thread
 import multiprocessing as mp
 
 from src.utils import lerp
@@ -57,6 +58,7 @@ class AnalysisProcess(ModuleProcess, mp.Process):
         self.dtype = parent.module_config.get("dtype", "int16")
         self.buffer_size = parent.module_config.get("buffer", 2048)
         self.output_volume = parent.main_config["composition"].get("volume", 1)
+        self.gain = parent.module_config.get("gain", 3)
         # Mapping and metrics
         self.source_values = {f"{self.module_name}_peak": 0}
         if self.parent_pipe.writable:
@@ -116,7 +118,7 @@ class AnalysisProcess(ModuleProcess, mp.Process):
 
             if buffer is not None and len(buffer) != 0:
                 peak = np.amax(np.abs(buffer))
-                peak = max(0.0, min(1.0, (1 / self.output_volume) * (peak / 16400)))
+                peak = max(0.0, min(1.0, (1 / self.output_volume) * (peak / 16400) * self.gain ))
                 if peak != self.source_values[f"{self.module_name}_peak"]:
                     self.source_values[f"{self.module_name}_peak"] = peak
                     self.metrics_pusher.update(f"{self.module_name}_peak", peak)
