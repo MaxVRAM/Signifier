@@ -965,6 +965,41 @@ Early in the project, I was attempting to keep all audio systems within native A
 
 
 
+- Done! Running 3 hours no issues. It's all about the combination of buffer sizes between the playback and analysis modules.
+
+    - Final `.asoundrc`:
+
+        ```ruby
+        pcm.shared {
+            type multi
+            slaves.a.pcm "hw:Headphones,0"
+            slaves.a.channels 1
+            slaves.b.pcm "hw:Loopback,0"
+            slaves.b.channels 1
+            bindings.0 { slave a; channel 0; }
+            bindings.1 { slave b; channel 0; }
+        }
+        pcm.out2both {
+            type route
+            slave.pcm "shared"
+            ttable.0.0 1
+            ttable.1.1 1
+        }
+        pcm.!default {
+            type asym
+            playback.pcm "plug:out2both"
+            capture.pcm "hw:Loopback,1"
+        }
+        ```
+
+    - Analysis buffer: `1024`
+
+    - Playback/composition buffer: `8192`
+
+    - This combination must ensure the analysis buffer always has bytes to read, since the composition buffer fills up larger chunks than can be caught up to.
+
+
+
 
 
 ### Raw notes

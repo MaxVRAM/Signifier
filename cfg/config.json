@@ -140,7 +140,7 @@
         "sample_rate": 48000,
         "dtype": "int16",
         "buffer": 1024,
-        "gain": 3.0,
+        "gain": 1.0,
         "sources": {
             "analysis_peak": {
                 "type": "gauge",
