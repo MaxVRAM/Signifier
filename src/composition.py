@@ -101,7 +101,7 @@ class CompositionProcess(ModuleProcess, Thread):
         """
         Initialises PyGame audio mixer.
         """
-        self.logger.info("Initialising audio mixer...")
+        self.logger.debug("Initialising audio mixer...")
         pg.mixer.pre_init(
             frequency=self.config["sample_rate"],
             size=self.config["bit_size"],
@@ -110,7 +110,7 @@ class CompositionProcess(ModuleProcess, Thread):
         )
         pg.mixer.init()
         pg.init()
-        logger.debug(f"Audio mixer parameters: {pg.mixer.get_init()}")
+        logger.info(f"Audio mixer properties: {pg.mixer.get_init()}")
 
     def init_library(self):
         """
@@ -180,7 +180,7 @@ class CompositionProcess(ModuleProcess, Thread):
         if name is None:
             name = random.choice(list(self.collections.keys()))
         path, names = (self.collections[name]["path"], self.collections[name]["names"])
-        self.logger.info(
+        self.logger.debug(
             f'Collection "{name}" selected with ({len(names)}) '
             f"audio file{plural(names)}"
         )

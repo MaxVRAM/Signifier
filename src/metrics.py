@@ -126,7 +126,7 @@ class MetricsProcess(ModuleProcess, mp.Process):
         """
         Construct a list of Prometheus metric objects for the push gateway
         """
-        for module, config in self.parent.main_config.items():
+        for module, config in self.values_config.items():
             metrics = config.get("sources", {})
             metrics.update(config.get("destinations", {}))
             if metrics is not None and metrics != {}:

@@ -13,28 +13,29 @@ from __future__ import annotations
 
 import time
 import multiprocessing as mp
+
 from src.pusher import MetricsPusher
 from src.sigmodule import SigModule
+from src.utils import FunctionHandler
 
 
 class ModuleProcess:
     """
     Generic Signifier Process object.
     """
-
     def __init__(self, parent: SigModule) -> None:
         # Module elements
         super().__init__()
         self.is_valid = True
         self.parent = parent
         self.module_name = parent.module_name
+        self.values_config = parent.values_config
         self.config = parent.module_config
         self.logger = parent.logger
         # Process management
-        self.event = mp.Event()
-        self.prev_process_time = time.time()
         self.parent_pipe = parent.parent_pipe
-        self.control_functions = {"close": self.shutdown}
+        self.prev_process_time = time.time()
+        self.event = mp.Event()
         self.start_delay = self.config.get("start_delay", 0)
         self.loop_sleep = parent.main_config.get("process_loop_sleep", 0.001)
         # Mapping and metrics
@@ -43,6 +44,11 @@ class ModuleProcess:
         self.source_values = {}
         self.destinations = {}
         self.dest_values = {}
+        # Remote function calls
+        self.remote_functions = {"close": self.shutdown}
+        self.function_handler = FunctionHandler(
+            self.module_name, self.remote_functions)
+
 
     def run(self):
         """
@@ -70,11 +76,13 @@ class ModuleProcess:
         if self.parent_pipe.writable:
             self.parent_pipe.send("closed")
 
+
     def pre_run(self) -> bool:
         """
         Module-specific Process run preparation to ensure module is ready.
         """
         True
+
 
     def mid_run(self):
         """
@@ -82,6 +90,7 @@ class ModuleProcess:
         computation occurs.
         """
         pass
+
 
     def poll_control(self, block_for=0):
         """
@@ -96,28 +105,7 @@ class ModuleProcess:
 
         while self.parent_pipe.poll():
             message = self.parent_pipe.recv()
-            if isinstance(message, str):
-                command = message
-            else:
-                try:
-                    command = message[0]
-                    args = list(message[1:])
-                except TypeError:
-                    self.logger.warning(
-                        f"[{self.module_name}] received "
-                        f"Malformed command: {message}"
-                    )
-                    return None
-            if (func := self.control_functions.get(message)) is not None:
-                self.logger.debug(
-                    f"[{self.module_name}] received command "
-                    f'"{command}", executing...'
-                )
-                func(*args)
-            else:
-                self.logger.warning(
-                    f"[{self.module_name}] does not recognise " f"{command} command."
-                )
+            self.function_handler.call(message)
 
         if block_for > 0:
             while time.time() < start_time + block_for and not self.event.is_set():
@@ -125,11 +113,13 @@ class ModuleProcess:
                 self.poll_control()
         return None
 
+
     def pre_shutdown(self):
         """
         Module-specific Process shutdown preparation.
         """
         pass
+
 
     def shutdown(self, *args):
         """
@@ -140,6 +130,7 @@ class ModuleProcess:
             self.parent_pipe.send("closing")
         self.pre_shutdown()
 
+
     def failed(self, exception=None):
         """
         Generic function to notify system Process has failed from
@@ -148,7 +139,7 @@ class ModuleProcess:
         """
         self.is_valid = False
         self.logger.critical(
-            f"[{self.module_name}] encountered critical " f"error: {exception}"
+            f"[{self.module_name}] encountered critical error: {exception}"
         )
         if self.parent_pipe.writable:
             self.parent_pipe.send("failed")

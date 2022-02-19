@@ -83,6 +83,10 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 LINE=$"export SIGNIFIER=\"$SIG_PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+LINE=$"export FLASK_APP=\"$SIG_PATH/signifier.py\""
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+LINE=$"export FLASK_ENV=\"development\""
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 LINE=$"source $HOME/.aliases"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"

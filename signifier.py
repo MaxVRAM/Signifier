@@ -28,8 +28,8 @@ import signal
 import multiprocessing as mp
 import logging
 
-LOG_DT = "%d-%m-%y %H:%M:%S"
-LOG_MSG = "%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(message)s"
+LOG_DT = '%d-%m-%y %H:%M:%S'
+LOG_MSG = '%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(message)s'
 logging.basicConfig(level=logging.INFO, format=LOG_MSG, datefmt=LOG_DT)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -42,8 +42,9 @@ from src.bluetooth import Bluetooth
 from src.composition import Composition
 
 HOST_NAME = socket.gethostname()
-CONFIG_FILE = "cfg/config.json"
-RULES_FILE = "cfg/rules.json"
+CONFIG_FILE = 'cfg/config.json'
+VALUES_FILE = 'cfg/values.json'
+RULES_FILE = 'cfg/rules.json'
 config = None
 
 modules = {}
@@ -102,34 +103,42 @@ class ExitHandler:
 #  \____|__  (____  /__|___|  /
 #          \/     \/        \/
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
 
     with open(CONFIG_FILE) as c:
         config = json.load(c)
-    if config["general"]["hostname"] != HOST_NAME:
-        config["general"]["hostname"] = HOST_NAME
-    with open(CONFIG_FILE, "w", encoding="utf8") as c:
+    if config['general']['hostname'] != HOST_NAME:
+        config['general']['hostname'] = HOST_NAME
+    with open(CONFIG_FILE, 'w', encoding='utf8') as c:
         json.dump(config, c, ensure_ascii=False, indent=4)
-    with open(RULES_FILE) as c:
-        rules = json.load(c)
+    with open(VALUES_FILE) as v:
+        values = json.load(v)
+    with open(RULES_FILE) as r:
+        rules = json.load(r)
 
     print()
     logger.info(f'Starting Signifier on [{config["general"]["hostname"]}]')
     print()
 
     modules = {
-        "leds": Leds("leds", config, metrics=metrics_q),
-        "mapper": Mapper("mapper", config, metrics=metrics_q, rules=rules),
-        "metrics": Metrics("metrics", config, metrics=metrics_q),
-        "analysis": Analysis("analysis", config, metrics=metrics_q),
-        "bluetooth": Bluetooth("bluetooth", config, metrics=metrics_q),
-        "composition": Composition("composition", config, metrics=metrics_q),
+        'leds': Leds('leds', config, metrics=metrics_q,
+                     values=values['leds']),
+        'mapper': Mapper('mapper', config, metrics=metrics_q,
+                         values=values, rules=rules),
+        'metrics': Metrics('metrics', config, metrics=metrics_q,
+                           values=values),
+        'analysis': Analysis('analysis', config, metrics=metrics_q,
+                             values=values['analysis']),
+        'bluetooth': Bluetooth('bluetooth', config, metrics=metrics_q,
+                               values=values['bluetooth']),
+        'composition': Composition('composition', config, metrics=metrics_q,
+                                   values=values['composition']),
     }
 
     pipes = {k: v.module_pipe for k, v in modules.items()}
-    modules["mapper"].set_pipes(pipes)
+    modules['mapper'].set_pipes(pipes)
 
     for m in modules.values():
         m.initialise()
