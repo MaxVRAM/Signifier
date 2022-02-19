@@ -11,6 +11,7 @@ A generic module class for creating independent Signifier modules.
 
 from __future__ import annotations
 
+import time
 import logging
 from queue import Full
 import multiprocessing as mp
@@ -39,6 +40,8 @@ class SigModule:
         self.metrics_q = kwargs.get("metrics", None)
         self.parent_pipe, self.child_pipe = mp.Pipe()
         self.mapping_pipe, self.module_pipe = mp.Pipe()
+        self.module_start_time = time.time()
+        self.module_stop_time = time.time()
         # Remote function calls
         self.remote_functions = {
             "initialise": self.initialise,
@@ -109,6 +112,7 @@ class SigModule:
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
+                    self.module_start_time = time.time()
                     self.active = True
                     self.logger.info(f"[{self.module_name}] process started.")
                 else:
@@ -129,6 +133,7 @@ class SigModule:
         """
         if self.process_call('close'):
                 self.request_join()
+        self.module_stop_time = time.time()
         self.active = False
 
 
@@ -162,6 +167,7 @@ class SigModule:
                     pass
             if message in ["closed", "failed"]:
                 self.request_join()
+                self.module_stop_time = time.time()
                 self.active = False
                 try:
                     self.metrics_q.put((f"{self.module_name}_active", 0), timeout=0.01)
@@ -169,7 +175,9 @@ class SigModule:
                     pass
 
         if self.enabled and self.active == False:
-            self.initialise()
+            if time.time() > self.module_stop_time + self.main_config.get(
+                    'module_fail_restart_secs', 5):
+                self.initialise()
 
 
     def module_call(self, *args):

@@ -1,7 +1,8 @@
 {
     "general": {
         "hostname": "mmwSigB",
-        "process_loop_sleep": 0.001
+        "process_loop_sleep": 0.001,
+        "module_fail_restart_secs": 5
     },
     "server": {
         "enabled": true,

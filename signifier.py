@@ -25,6 +25,7 @@ import time
 import socket
 import signal
 
+import threading
 import multiprocessing as mp
 import logging
 
@@ -96,6 +97,17 @@ class ExitHandler:
             return None
 
 
+
+def monitor_loop(*args):
+    """
+    Simple threaded job to perform constant module monitoring.
+    """
+    while True:
+        for m in args:
+            m.monitor()
+        time.sleep(0.01)
+
+
 #     _____         .__
 #    /     \ _____  |__| ____
 #   /  \ /  \\__  \ |  |/    \
@@ -142,15 +154,14 @@ if __name__ == '__main__':
 
     for m in modules.values():
         m.initialise()
-
     time.sleep(1)
-
     for m in modules.values():
         m.start()
-
-    time.sleep(1)
+    time.sleep(0.5)
+    
+    monitor_thread = threading.Thread(
+        target=monitor_loop, args=modules.values(), daemon=True)
+    monitor_thread.start()
 
     while True:
-        for m in modules.values():
-            m.monitor()
         time.sleep(0.01)
