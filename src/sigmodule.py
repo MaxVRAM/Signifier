@@ -26,9 +26,9 @@ class SigModule:
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         # Signifier configuration
         self.module_name = name
-        self.main_config = config.copy()
-        self.module_config = config[self.module_name].copy()
-        self.values_config = kwargs.get("values", {}).copy()
+        self.main_config = config
+        self.module_config = config[self.module_name]
+        self.values_config = kwargs.get("values", {})
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(
             logging.DEBUG if self.module_config.get("debug", True) else logging.INFO
@@ -82,15 +82,19 @@ class SigModule:
                 )
 
 
-    def update_config(self, config: dict):
+    def update_config(self, config: dict, **kwargs):
         """
         Updates the module's configuration based on supplied config dictionary.
         """
         self.logger.info(f"Updating [{self.module_name}] module config...")
         self.main_config = config
+        self.values_config = kwargs.get("values", {})
+        self.rules = kwargs.get("rules", {})
+
         if self.enabled:
             self.module_config = config[self.module_name]
-            if self.module_config.get("enabled", False) is False:
+            self.enabled = self.module_config.get('enabled', False)
+            if self.enabled is False:
                 self.stop()
             else:
                 self.stop()
@@ -98,8 +102,8 @@ class SigModule:
                 self.start()
         else:
             self.module_config = config[self.module_name]
-            if self.module_config.get("enabled", False) is True:
-                self.enabled = True
+            self.enabled = self.module_config.get('enabled', False)
+            if self.enabled is True:
                 self.initialise('force')
                 self.start()
             else:
@@ -179,7 +183,7 @@ class SigModule:
         if self.enabled and self.active == False:
             if time.time() > self.module_stop_time + self.main_config.get(
                     'module_fail_restart_secs', 5):
-                self.initialise()
+                self.initialise('force')
 
 
     def module_call(self, *args):

@@ -58,9 +58,6 @@ modules = {}
 config = {}
 values = {}
 rules = {}
-config_backup = {}
-values_backup = {}
-rules_backup = {}
 
 
 def load_config_files() -> tuple:
@@ -74,7 +71,7 @@ def load_config_files() -> tuple:
 
 
 def check_config_update():
-    global prev_config_update, modules
+    global prev_config_update, modules, config, values, rules
 
     updated_modules = set()
 
@@ -85,30 +82,15 @@ def check_config_update():
         for k, v in new_config.items():
             if k in config.keys():
                 diff = list(dict_diff(config[k], new_config[k]))
-                if len(diff):
-                    for d in diff:
-                        for a in d:
-                            print(f'CONFIG Difference: {a}')
+                if len(diff) > 0:
+                    logger.info(f'Detected change in config: {diff}')
                     updated_modules.add(k)
 
         for k, v in new_values.items():
-            if k in values_backup.keys():
-                # print()
-                # print(values_backup[k])
-                # print()
-                # print(new_values[k])
-                # print()
-                diff = list(dict_diff(values_backup[k], new_values[k]))
-                if len(diff):
-                    for d in diff:
-                        for a in d:
-                            if isinstance(a, list):
-                                for item in a:
-                                    print(f'VALUES Difference: {item}')
-                                
-                                print(f'VALUES Current: {new_values[k]["sources"]}')
-                            else:
-                                print(f'VALUES Difference: {a}')
+            if k in values.keys():
+                diff = list(dict_diff(values[k], new_values[k]))
+                if len(diff) > 0:
+                    logger.info(f'Detected change in config: {diff}')
                     updated_modules.add(k)
 
         if set(new_rules) ^ set(rules):
@@ -117,7 +99,16 @@ def check_config_update():
             updated_modules.add('metrics')
 
         if updated_modules is not None and len(updated_modules) > 0:
-            print(updated_modules)
+            config = new_config
+            values = new_values
+            rules = new_rules
+            logger.info(f'Updating modules: {updated_modules}')
+            for m in updated_modules:
+                if m in values:
+                    new_value_config = values.get(m)
+                else:
+                    new_value_config = values
+                modules[m].update_config(config, values=new_value_config, rules=rules)
 
 
 
@@ -179,9 +170,6 @@ if __name__ == '__main__':
     exit_handler = ExitHandler()
 
     config, values, rules = load_config_files()
-    config_backup = config.copy()
-    values_backup = values.copy()
-    rules_backup = rules.copy()
 
     if config['general']['hostname'] != HOSTNAME:
         config['general']['hostname'] = HOSTNAME
