@@ -16,10 +16,8 @@ import logging
 
 import alsaaudio
 import numpy as np
-from threading import Thread
 import multiprocessing as mp
 
-from src.utils import lerp
 from src.sigmodule import SigModule
 from src.sigprocess import ModuleProcess
 

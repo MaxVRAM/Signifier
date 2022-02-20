@@ -4,11 +4,18 @@
         "process_loop_sleep": 0.001,
         "module_fail_restart_secs": 5
     },
+    "server": {
+        "enabled": true,
+        "debug": true,
+        "port": 5000,
+        "processes": 4
+    },
     "metrics": {
         "enabled": true,
         "debug": true,
         "start_delay": 0,
         "target_gateway": "localhost:9091",
+        "server_port": 9092,
         "job_name": "signifier",
         "push_period": 1,
         "timeout": 0.1

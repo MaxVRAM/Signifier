@@ -126,11 +126,15 @@ class MetricsProcess(ModuleProcess, mp.Process):
         """
         Construct a list of Prometheus metric objects for the push gateway
         """
-        for module, config in self.values_config.items():
-            metrics = config.get("sources", {})
-            metrics.update(config.get("destinations", {}))
-            if metrics is not None and metrics != {}:
-                for name, metric in metrics.items():
+        vals = self.values_config.copy()
+        for module, config in vals.items():
+            source_metrics = config.get("sources", {})
+            dest_metrics = config.get("destinations", {})
+            if source_metrics != {}:
+                for name, metric in source_metrics.items():
+                    self.metrics_dict[name] = self.create_metric(name, metric)
+            if dest_metrics != {}:
+                for name, metric in dest_metrics.items():
                     self.metrics_dict[name] = self.create_metric(name, metric)
 
     def create_metric(self, name: str, metric: dict) -> dict:
@@ -170,20 +174,20 @@ class MetricsProcess(ModuleProcess, mp.Process):
             self.push_period = 30
 
 
-class ArrayMetric:
-    """
-    Object class to handle arrays of Prometheus metrics.
-    """
+# class ArrayMetric:
+#     """
+#     Object class to handle arrays of Prometheus metrics.
+#     """
 
-    def __init__(self, name: str, description: str, metric_type) -> None:
-        self.name = name
-        self.description = description
-        self.metric_type = metric_type
-        self.values = []
+#     def __init__(self, name: str, description: str, metric_type) -> None:
+#         self.name = name
+#         self.description = description
+#         self.metric_type = metric_type
+#         self.values = []
 
-        def update_value(self, index: int, value):
-            try:
-                self.values[index] = value
-            except IndexError:
-                for i in range(len(self.values) - 1, index - 1):
-                    self.values[i] = value if i == index else None
+#         def update_value(self, index: int, value):
+#             try:
+#                 self.values[index] = value
+#             except IndexError:
+#                 for i in range(len(self.values) - 1, index - 1):
+#                     self.values[i] = value if i == index else None

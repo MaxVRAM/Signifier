@@ -1,9 +1,10 @@
 pygame
 pySerialTransfer
 pyalsaaudio
+numpy
 bleson
 schedule
 prometheus-client
 flask
 Flask-Sockets
-numpy
+dictdiffer

@@ -1,33 +1,5 @@
 {
-    "general": {
-        "hostname": "mmwSigB",
-        "process_loop_sleep": 0.001
-    },
-    "metrics": {
-        "enabled": true,
-        "debug": true,
-        "start_delay": 0,
-        "target_gateway": "localhost:9091",
-        "server_port": 9092,
-        "job_name": "signifier",
-        "push_period": 1,
-        "timeout": 0.1
-    },
-    "mapper": {
-        "enabled": true,
-        "debug": true,
-        "start_delay": 0,
-        "period_ms": 10
-    },
     "leds": {
-        "enabled": true,
-        "debug": true,
-        "port": "/dev/ttyACM0",
-        "backup_port": "/dev/ttyACM1",
-        "baud": 38400,
-        "start_delay": 0,
-        "update_ms": 20,
-        "duration_multiplier": 5,
         "sources": {
             "leds_arduino_state": {
                 "type": "info",
@@ -86,12 +58,6 @@
         }
     },
     "bluetooth": {
-        "enabled": true,
-        "debug": true,
-        "start_delay": 0,
-        "scan_dur": 3,
-        "signal_threshold": 0.002,
-        "remove_after": 15,
         "sources": {
             "bluetooth_num_devices": {
                 "type": "gauge",
@@ -133,14 +99,6 @@
         "destinations": {}
     },
     "analysis": {
-        "enabled": true,
-        "debug": true,
-        "start_delay": 0,
-        "input_device": "default",
-        "sample_rate": 48000,
-        "dtype": "int16",
-        "buffer": 1024,
-        "gain": 1.0,
         "sources": {
             "analysis_peak": {
                 "type": "gauge",
@@ -158,54 +116,6 @@
         "destinations": {}
     },
     "composition": {
-        "enabled": true,
-        "debug": false,
-        "start_delay": 0,
-        "output_device": "default",
-        "sample_rate": 48000,
-        "bit_size": -16,
-        "buffer": 8192,
-        "base_path": "/home/pi/Signifier/media/audio/",
-        "force_collection": null,
-        "valid_extensions": [
-            "wav"
-        ],
-        "strict_distribution": false,
-        "volume": 0.7,
-        "fade_in_ms": 1000,
-        "fade_out_ms": 2000,
-        "max_playtime": 60,
-        "default_pool_size": 12,
-        "destinations": {
-            "composition_volume_main": {
-                "type": "gauge",
-                "min": 0.1,
-                "max": 1.0,
-                "default": 0.7,
-                "description": "Overall volume of the audio output."
-            },
-            "composition_volume_speed": {
-                "type": "gauge",
-                "min": 0,
-                "max": 10,
-                "default": 5,
-                "description": "Volume job's rate of modulation."
-            },
-            "composition_volume_weight": {
-                "type": "gauge",
-                "min": -1.0,
-                "max": 1.0,
-                "default": 0,
-                "description": "Volume job's weighting: negative/positive = softer/louder."
-            },
-            "composition_target_level": {
-                "type": "gauge",
-                "min": 1,
-                "max": 8,
-                "default": 3,
-                "description": "Target number of concurrent audio clips."
-            }
-        },
         "sources": {
             "composition_collection": {
                 "type": "info",
@@ -237,69 +147,34 @@
                 "description": "Duration clip has played for current activation."
             }
         },
-        "categories": {
-            "oneshot": {
-                "threshold": 0,
-                "is_loop": false,
-                "loop_range": [
-                    4,
-                    8
-                ]
+        "destinations": {
+            "composition_volume_main": {
+                "type": "gauge",
+                "min": 0.1,
+                "max": 1.0,
+                "default": 0.7,
+                "description": "Overall volume of the audio output."
             },
-            "short": {
-                "threshold": 5,
-                "is_loop": false,
-                "loop_range": [
-                    2,
-                    4
-                ]
+            "composition_volume_speed": {
+                "type": "gauge",
+                "min": 0,
+                "max": 10,
+                "default": 5,
+                "description": "Volume job's rate of modulation."
             },
-            "medium": {
-                "threshold": 10,
-                "is_loop": false,
-                "loop_range": [
-                    2,
-                    4
-                ]
+            "composition_volume_weight": {
+                "type": "gauge",
+                "min": -1.0,
+                "max": 1.0,
+                "default": 0,
+                "description": "Volume job's weighting: negative/positive = softer/louder."
             },
-            "loop": {
-                "threshold": 30,
-                "is_loop": false,
-                "loop_range": [
-                    0,
-                    2
-                ]
-            }
-        },
-        "jobs": {
-            "collection": {
-                "enabled": true,
-                "timer": 128,
-                "fail_retry_delay": 5,
-                "parameters": {
-                    "pool_size": 12,
-                    "start_clips": 1,
-                    "collections": []
-                },
-                "description": "Schedule to change the active collection."
-            },
-            "clip_selection": {
-                "enabled": true,
-                "timer": 16,
-                "parameters": {
-                    "quiet_level": 3,
-                    "busy_level": 8
-                },
-                "description": "Schedule add/subtract active clips based on target 'level'."
-            },
-            "volume": {
-                "enabled": true,
-                "timer": 1,
-                "parameters": {
-                    "speed": 5,
-                    "weight": 0
-                },
-                "description": "Schedule to random modulate volume levels of active clips."
+            "composition_target_level": {
+                "type": "gauge",
+                "min": 1,
+                "max": 8,
+                "default": 3,
+                "description": "Target number of concurrent audio clips."
             }
         }
     }

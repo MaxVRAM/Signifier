@@ -29,8 +29,6 @@ from threading import Thread
 
 # Allows PyGame to run without a screen
 os.environ["SDL_VIDEODRIVER"] = "dummy"
-# Refers PyGame's audio mixer to use the DSP/OSS audio drivers
-# os.environ['SDL_AUDIODRIVER'] = 'dsp'
 # Silence PyGame greeting mesage
 stdout = sys.__stdout__
 stderr = sys.__stderr__

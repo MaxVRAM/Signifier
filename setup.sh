@@ -81,6 +81,8 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="export PATH=\"\$HOME/Arduino:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
+LINE=$"export HOST=\"$HOSTNAME\""
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE=$"export SIGNIFIER=\"$SIG_PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE=$"export FLASK_APP=\"$SIG_PATH/signifier.py\""

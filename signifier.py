@@ -18,17 +18,15 @@ https://github.com/MaxVRAM/Signifier
 Copyright (c) 2022 Chris Vik - MIT License
 """
 
-
+import os
 import sys
 import json
 import time
-import socket
 import signal
-
-import threading
+from dictdiffer import diff as dict_diff
 import multiprocessing as mp
-import logging
 
+import logging
 LOG_DT = '%d-%m-%y %H:%M:%S'
 LOG_MSG = '%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(message)s'
 logging.basicConfig(level=logging.INFO, format=LOG_MSG, datefmt=LOG_DT)
@@ -42,14 +40,86 @@ from src.analysis import Analysis
 from src.bluetooth import Bluetooth
 from src.composition import Composition
 
-HOST_NAME = socket.gethostname()
-CONFIG_FILE = 'cfg/config.json'
-VALUES_FILE = 'cfg/values.json'
-RULES_FILE = 'cfg/rules.json'
-config = None
+HOSTNAME = os.getenv('HOST')
+SIG_PATH = os.getenv('SIGNIFIER')
+SITE_PATH = os.path.join(SIG_PATH, 'site')
+CFG_PATH = os.path.join(SIG_PATH, 'cfg')
+DEFAULTS_PATH = os.path.join(CFG_PATH, 'defaults')
+CONFIG_FILE = 'config.json'
+VALUES_FILE = 'values.json'
+RULES_FILE = 'rules.json'
+CONFIG_UPDATE_SECS = 5
+
+prev_config_update = time.time()
+
+metrics_q = mp.Queue(maxsize=500)
 
 modules = {}
-metrics_q = mp.Queue(maxsize=500)
+config = {}
+values = {}
+rules = {}
+config_backup = {}
+values_backup = {}
+rules_backup = {}
+
+
+def load_config_files() -> tuple:
+    with open(os.path.join(CFG_PATH, CONFIG_FILE)) as c:
+        new_config = json.load(c)
+    with open(os.path.join(CFG_PATH, VALUES_FILE)) as v:
+        new_values = json.load(v)
+    with open(os.path.join(CFG_PATH, RULES_FILE)) as r:
+        new_rules = json.load(r)
+    return new_config, new_values, new_rules
+
+
+def check_config_update():
+    global prev_config_update, modules
+
+    updated_modules = set()
+
+    if time.time() > prev_config_update + CONFIG_UPDATE_SECS:
+        prev_config_update = time.time()
+        new_config, new_values, new_rules = load_config_files()
+
+        for k, v in new_config.items():
+            if k in config.keys():
+                diff = list(dict_diff(config[k], new_config[k]))
+                if len(diff):
+                    for d in diff:
+                        for a in d:
+                            print(f'CONFIG Difference: {a}')
+                    updated_modules.add(k)
+
+        for k, v in new_values.items():
+            if k in values_backup.keys():
+                # print()
+                # print(values_backup[k])
+                # print()
+                # print(new_values[k])
+                # print()
+                diff = list(dict_diff(values_backup[k], new_values[k]))
+                if len(diff):
+                    for d in diff:
+                        for a in d:
+                            if isinstance(a, list):
+                                for item in a:
+                                    print(f'VALUES Difference: {item}')
+                                
+                                print(f'VALUES Current: {new_values[k]["sources"]}')
+                            else:
+                                print(f'VALUES Difference: {a}')
+                    updated_modules.add(k)
+
+        if set(new_rules) ^ set(rules):
+            updated_modules.add('mapper')
+        if set(new_values) ^ set(values):
+            updated_modules.add('metrics')
+
+        if updated_modules is not None and len(updated_modules) > 0:
+            print(updated_modules)
+
+
 
 #    _________.__            __      .___
 #   /   _____/|  |__  __ ___/  |_  __| _/______  _  ______
@@ -78,7 +148,7 @@ class ExitHandler:
         This is either called via signal callbacks, or explicitly via
         standard function calls.
         """
-        if mp.current_process() is main_thread:
+        if mp.current_process() is main_thread and mp.parent_process() is None:
             if not self.exiting:
                 self.exiting = True
                 print()
@@ -97,17 +167,6 @@ class ExitHandler:
             return None
 
 
-
-def monitor_loop(*args):
-    """
-    Simple threaded job to perform constant module monitoring.
-    """
-    while True:
-        for m in args:
-            m.monitor()
-        time.sleep(0.01)
-
-
 #     _____         .__
 #    /     \ _____  |__| ____
 #   /  \ /  \\__  \ |  |/    \
@@ -119,20 +178,20 @@ if __name__ == '__main__':
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
 
-    with open(CONFIG_FILE) as c:
-        config = json.load(c)
-    if config['general']['hostname'] != HOST_NAME:
-        config['general']['hostname'] = HOST_NAME
-    with open(CONFIG_FILE, 'w', encoding='utf8') as c:
-        json.dump(config, c, ensure_ascii=False, indent=4)
-    with open(VALUES_FILE) as v:
-        values = json.load(v)
-    with open(RULES_FILE) as r:
-        rules = json.load(r)
+    config, values, rules = load_config_files()
+    config_backup = config.copy()
+    values_backup = values.copy()
+    rules_backup = rules.copy()
+
+    if config['general']['hostname'] != HOSTNAME:
+        config['general']['hostname'] = HOSTNAME
+        with open(CONFIG_FILE, 'w', encoding='utf8') as c:
+            json.dump(config, c, ensure_ascii=False, indent=4)
 
     print()
     logger.info(f'Starting Signifier on [{config["general"]["hostname"]}]')
     print()
+    
 
     modules = {
         'leds': Leds('leds', config, metrics=metrics_q,
@@ -158,10 +217,9 @@ if __name__ == '__main__':
     for m in modules.values():
         m.start()
     time.sleep(0.5)
-    
-    monitor_thread = threading.Thread(
-        target=monitor_loop, args=modules.values(), daemon=True)
-    monitor_thread.start()
 
     while True:
+        for m in modules.values():
+            m.monitor()
+        check_config_update()
         time.sleep(0.01)

@@ -26,9 +26,9 @@ class SigModule:
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         # Signifier configuration
         self.module_name = name
-        self.main_config = config
-        self.module_config = config[self.module_name]
-        self.values_config = kwargs.get("values", {})
+        self.main_config = config.copy()
+        self.module_config = config[self.module_name].copy()
+        self.values_config = kwargs.get("values", {}).copy()
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(
             logging.DEBUG if self.module_config.get("debug", True) else logging.INFO
@@ -62,12 +62,12 @@ class SigModule:
         pass
 
 
-    def initialise(self):
+    def initialise(self, *args):
         """
         (re)Creates the given Signifier module's Process.
         """
         if self.enabled:
-            if self.process is None:
+            if self.process is None or 'force' in args:
                 self.process = self.create_process()
                 if self.process is None:
                     self.logger.error(
@@ -94,11 +94,13 @@ class SigModule:
                 self.stop()
             else:
                 self.stop()
-                self.initialise()
+                self.initialise('force')
                 self.start()
         else:
             self.module_config = config[self.module_name]
             if self.module_config.get("enabled", False) is True:
+                self.enabled = True
+                self.initialise('force')
                 self.start()
             else:
                 pass
