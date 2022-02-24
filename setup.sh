@@ -59,13 +59,13 @@ if [ -f "$FILE" ]; then
 else
     touch $FILE
 fi
-LINE='# SIGNIFIER ALIASES'
+LINE=$'\n# SIGNIFIER ALIASES'
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="alias amonitor=\"arduino-cli monitor -p /dev/ttyACM0 -b arduino:megaavr:nona4809 -c baudrate=38400\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE="alias acompile=\"arduino-cli compile --fqbn arduino:megaavr:nona4809\""
+LINE="alias acompile=\"arduino-cli compile -b arduino:megaavr:nona4809\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE="alias aupload=\"arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:megaavr:nona4809\""
+LINE="alias aupload=\"arduino-cli upload -p /dev/ttyACM0 -b arduino:megaavr:nona4809\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 FILE=$HOME/.profile

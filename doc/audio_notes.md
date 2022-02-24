@@ -952,7 +952,7 @@ Early in the project, I was attempting to keep all audio systems within native A
             slave.periods 8
             slave.buffer_size 8192
             ttable.0.0 1
-            ttable.1.1 1
+            ttable.0.1 1
         }
         pcm.!default {
             type asym
@@ -961,7 +961,7 @@ Early in the project, I was attempting to keep all audio systems within native A
         }
         ```
 
-    - Nope, it seemed to work for longer, but still crashed with underrun.
+    - Nope, it seemed to work for longer, but still crashed with underrun. Also, route devices cannot convert audio like that. Ignore this.
 
 
 
@@ -983,7 +983,7 @@ Early in the project, I was attempting to keep all audio systems within native A
             type route
             slave.pcm "shared"
             ttable.0.0 1
-            ttable.1.1 1
+            ttable.0.1 1
         }
         pcm.!default {
             type asym
@@ -992,14 +992,14 @@ Early in the project, I was attempting to keep all audio systems within native A
         }
         ```
 
-    - Analysis buffer: `1024`
-
-    - Playback/composition buffer: `8192`
+    - Then from within the Python applications using these devices, make them use:
+        - Analysis buffer: `1024`
+        - Playback/composition buffer: `8192`
 
     - This combination must ensure the analysis buffer always has bytes to read, since the composition buffer fills up larger chunks than can be caught up to.
 
 
-
+- Excellent ALSA troubleshooting listing: <https://askubuntu.com/questions/1358262/how-to-disable-the-internal-or-builtin-speaker-using-alsa>
 
 
 ### Raw notes

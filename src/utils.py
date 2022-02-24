@@ -85,7 +85,7 @@ def validate_library(config_file: dict) -> bool:
             logger.info(f"Ensure audio library exists or check path in config.")
             return False
         else:
-            logger.info(
+            logger.debug(
                 f"Found {len(collections)} audio clip "
                 f"collection{plural(collections)}."
             )
@@ -100,7 +100,7 @@ def validate_library(config_file: dict) -> bool:
                     f'{config_file["valid_extensions"]}.'
                 )
                 return False
-            logger.info(f"[{len(clips)}] clip{plural(clips)} found in library.")
+            logger.debug(f"[{len(clips)}] clip{plural(clips)} found in library.")
             return True
 
 

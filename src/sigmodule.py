@@ -13,10 +13,21 @@ from __future__ import annotations
 
 import time
 import logging
+from enum import Enum
 from queue import Full
 import multiprocessing as mp
 
 from src.utils import FunctionHandler
+
+
+class ProcessStatus(Enum):
+    disabled = 1
+    idle = 2
+    initialised = 3
+    starting = 4
+    running = 5
+    closed = 6
+    failed = 7
 
 
 class SigModule:
@@ -34,14 +45,14 @@ class SigModule:
             logging.DEBUG if self.module_config.get("debug", True) else logging.INFO
         )
         self.enabled = self.module_config.get("enabled", False)
-        self.active = False
+        self.status = ProcessStatus.idle if self.enabled else ProcessStatus.disabled
         # Process management
         self.process = None
         self.metrics_q = kwargs.get("metrics", None)
         self.parent_pipe, self.child_pipe = mp.Pipe()
         self.mapping_pipe, self.module_pipe = mp.Pipe()
         self.module_start_time = time.time()
-        self.module_stop_time = time.time()
+        self.module_end_time = time.time()
         # Remote function calls
         self.remote_functions = {
             "initialise": self.initialise,
@@ -55,7 +66,7 @@ class SigModule:
             self.module_name, self.remote_functions)
 
 
-    def create_process(self) -> any:
+    def create_process(self):
         """
         Module-specific Process class return for initialisation function.
         """
@@ -68,14 +79,19 @@ class SigModule:
         """
         if self.enabled:
             if self.process is None or 'force' in args:
-                self.process = self.create_process()
-                if self.process is None:
+                if self.process is not None:
+                    self.process.__init__(self)
+                else:
+                    self.create_process()
+                if self.process is None and self.status is not ProcessStatus.failed:
                     self.logger.error(
-                        f"[{self.module_name}] process object " f"could not be created!"
+                        f"[{self.module_name}] process object could not be created!"
                     )
-                    self.enabled = False
+                    #self.enabled = False
                     return None
-                self.logger.debug(f"[{self.module_name}] module initialised.")
+                else:
+                    self.status = ProcessStatus.initialised
+                    self.logger.debug(f"[{self.module_name}] module initialised.")
             else:
                 self.logger.warning(
                     f"[{self.module_name}] process " f"already initialised!"
@@ -86,40 +102,40 @@ class SigModule:
         """
         Updates the module's configuration based on supplied config dictionary.
         """
-        self.logger.info(f"Updating [{self.module_name}] module config...")
-        self.main_config = config
-        self.values_config = kwargs.get("values", {})
-        self.rules = kwargs.get("rules", {})
+        self.logger.debug(f"Updating [{self.module_name}] module config...")
 
         if self.enabled:
-            self.module_config = config[self.module_name]
-            self.enabled = self.module_config.get('enabled', False)
-            if self.enabled is False:
-                self.stop()
-            else:
-                self.stop()
-                self.initialise('force')
-                self.start()
-        else:
-            self.module_config = config[self.module_name]
-            self.enabled = self.module_config.get('enabled', False)
-            if self.enabled is True:
-                self.initialise('force')
-                self.start()
-            else:
-                pass
+            self.stop()
+
+        self.main_config = config
+        self.module_config = config[self.module_name]
+        self.values_config = kwargs.get("values", {})
+        self.rules_config = kwargs.get("rules", {})
+        self.enabled = self.module_config.get('enabled', False)
+       
+        # if self.enabled:
+        #     self.initialise('force')
+
+        # else:
+        #     self.module_config = config[self.module_name]
+        #     self.enabled = self.module_config.get('enabled', False)
+        #     if self.enabled is True:
+        #         self.initialise('force')
+        #         self.start()
+        #     else:
+        #         pass
 
 
     def start(self):
         """
         Start the module's Process run function.
         """
-        if self.enabled:
+        if self.enabled and self.status != ProcessStatus.running:
             if self.process is not None:
                 if not self.process.is_alive():
                     self.process.start()
+                    self.status = ProcessStatus.starting
                     self.module_start_time = time.time()
-                    self.active = True
                     self.logger.info(f"[{self.module_name}] process started.")
                 else:
                     self.logger.warning(
@@ -137,10 +153,7 @@ class SigModule:
         """
         Shutdown the module's Process object and deactivate module.
         """
-        if self.process_call('close'):
-                self.request_join()
-        self.module_stop_time = time.time()
-        self.active = False
+        self.process_call('close')
 
 
     def request_join(self):
@@ -149,10 +162,13 @@ class SigModule:
                 timeout /= 300
             else:
                 timeout = 2
-            self.process.join(timeout=timeout)
-            self.logger.info(
-                f"[{self.module_name}] process stopped " f"and joined main thread."
-            )
+            try:
+                self.process.join(timeout=timeout)
+                self.logger.info(
+                    f"[{self.module_name}] process stopped and joined main thread."
+                )
+            except RuntimeError as exception:
+                self.logger.info(exception)
 
 
     def monitor(self):
@@ -161,28 +177,35 @@ class SigModule:
         """
         if self.child_pipe.poll():
             message = self.child_pipe.recv()
-            self.logger.debug(
+            self.logger.info(
                 f"[{self.module_name}] module received "
                 f'"{message}" from child process.'
             )
-            if message == "started":
-                self.active = True
+            if message == "running":
+                self.status = ProcessStatus.running
                 try:
                     self.metrics_q.put((f"{self.module_name}_active", 1), timeout=0.01)
                 except Full:
                     pass
-            if message in ["closed", "failed"]:
+            elif message in ['closed', 'failed']:
+                self.status = ProcessStatus[message]
+                print(f'After closed or failed message, {self.module_name} module status is {self.status}')
+                self.module_end_time = time.time()
                 self.request_join()
-                self.module_stop_time = time.time()
-                self.active = False
                 try:
                     self.metrics_q.put((f"{self.module_name}_active", 0), timeout=0.01)
                 except (Full, AttributeError):
                     pass
 
-        if self.enabled and self.active == False:
-            if time.time() > self.module_stop_time + self.main_config.get(
+        if self.enabled and self.status == ProcessStatus.initialised:
+            print(f'--- {self.module_name} is enabled and initialised, attempting to start...')
+            self.start()
+        elif self.enabled and (self.status in [ProcessStatus.failed,
+                                             ProcessStatus.idle,
+                                             ProcessStatus.closed]):
+            if time.time() > self.module_end_time + self.main_config.get(
                     'module_fail_restart_secs', 5):
+                self.module_end_time = time.time()
                 self.initialise('force')
 
 
@@ -208,7 +231,7 @@ class SigModule:
         """
         if self.process is not None:
             if self.process.is_alive():
-                self.logger.debug(f'[{self.module_name}] sending function call '
+                self.logger.info(f'[{self.module_name}] sending function call '
                                   f'"{args}" to process...')
                 if self.child_pipe.writable:
                     self.child_pipe.send(args)

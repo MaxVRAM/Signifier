@@ -34,12 +34,12 @@ class Analysis(SigModule):
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
 
-    def create_process(self) -> ModuleProcess:
+    def create_process(self):
         """
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        return AnalysisProcess(self)
+        self.process = AnalysisProcess(self)
 
 
 class AnalysisProcess(ModuleProcess, mp.Process):
@@ -54,9 +54,9 @@ class AnalysisProcess(ModuleProcess, mp.Process):
         self.input_device = parent.module_config.get("input_device", "default")
         self.sample_rate = parent.module_config.get("sample_rate", 48000)
         self.dtype = parent.module_config.get("dtype", "int16")
-        self.buffer_size = parent.module_config.get("buffer", 2048)
+        self.buffer_size = parent.module_config.get("buffer", 1024)
         self.output_volume = parent.main_config["composition"].get("volume", 1)
-        self.gain = parent.module_config.get("gain", 3)
+        self.gain = parent.module_config.get("gain", 2)
         # Mapping and metrics
         self.source_values = {f"{self.module_name}_peak": 0}
         if self.parent_pipe.writable:

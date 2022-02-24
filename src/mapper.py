@@ -34,15 +34,15 @@ class Mapper(SigModule):
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
         self.pipes = kwargs.get("pipes")
-        self.rules = kwargs.get("rules", [])
+        self.rules_config = kwargs.get("rules", [])
         self.period = kwargs.get("period", 10) / 1000
 
-    def create_process(self) -> ModuleProcess:
+    def create_process(self):
         """
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        return MapperProcess(self)
+        self.process =  MapperProcess(self)
 
     def set_pipes(self, pipes: dict):
         """
@@ -61,7 +61,7 @@ class MapperProcess(ModuleProcess, mp.Process):
         # Mapping
         self.sources = {}
         self.pipes = parent.pipes
-        self.rules = parent.rules.get("rules")
+        self.rules = parent.rules_config.get("rules")
         self.period = parent.period
         self.last_output_time = 0
         if self.parent_pipe.writable:

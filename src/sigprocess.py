@@ -26,7 +26,6 @@ class ModuleProcess:
     def __init__(self, parent: SigModule) -> None:
         # Module elements
         super().__init__()
-        self.is_valid = True
         self.parent = parent
         self.module_name = parent.module_name
         self.values_config = parent.values_config
@@ -58,7 +57,7 @@ class ModuleProcess:
         if self.pre_run():
             time.sleep(self.start_delay)
             if self.parent_pipe.writable:
-                self.parent_pipe.send("started")
+                self.parent_pipe.send("running")
             while not self.event.is_set():
                 self.poll_control()
                 if self.event.is_set():
@@ -73,8 +72,6 @@ class ModuleProcess:
                         self.metrics_pusher.update_dict(self.source_values)
                 self.metrics_pusher.queue()
                 time.sleep(self.loop_sleep)
-        if self.parent_pipe.writable:
-            self.parent_pipe.send("closed")
 
 
     def pre_run(self) -> bool:
@@ -125,10 +122,13 @@ class ModuleProcess:
         """
         Generic shutdown function to prepare Process for joining main thread.
         """
+        self.logger.debug(f'[{self.module_name}] process shutting down...')
         self.event.set()
         if self.parent_pipe.writable:
             self.parent_pipe.send("closing")
         self.pre_shutdown()
+        if self.parent_pipe.writable:
+            self.parent_pipe.send("closed")
 
 
     def failed(self, exception=None):
@@ -137,10 +137,12 @@ class ModuleProcess:
         a critical error and module should be deactivated.
         A supplied exception in arguments will be logged as a critical.
         """
-        self.is_valid = False
         self.logger.critical(
-            f"[{self.module_name}] encountered critical error: {exception}"
+            f"[{self.module_name}] error: {exception}"
         )
         if self.parent_pipe.writable:
             self.parent_pipe.send("failed")
+        else:
+            self.logger.warning(f'[{self.module_name}] process unable to send '
+                                f'"failed" command!')
         self.shutdown()

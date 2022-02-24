@@ -62,11 +62,20 @@ rules = {}
 
 def load_config_files() -> tuple:
     with open(os.path.join(CFG_PATH, CONFIG_FILE)) as c:
-        new_config = json.load(c)
+        try:
+            new_config = json.load(c)
+        except json.decoder.JSONDecodeError:
+            new_config = None
     with open(os.path.join(CFG_PATH, VALUES_FILE)) as v:
-        new_values = json.load(v)
+        try:
+            new_values = json.load(v)
+        except json.decoder.JSONDecodeError:
+            new_values = None
     with open(os.path.join(CFG_PATH, RULES_FILE)) as r:
-        new_rules = json.load(r)
+        try:
+            new_rules = json.load(r)
+        except json.decoder.JSONDecodeError:
+            new_rules = None
     return new_config, new_values, new_rules
 
 
@@ -79,24 +88,30 @@ def check_config_update():
         prev_config_update = time.time()
         new_config, new_values, new_rules = load_config_files()
 
-        for k, v in new_config.items():
-            if k in config.keys():
-                diff = list(dict_diff(config[k], new_config[k]))
-                if len(diff) > 0:
-                    logger.info(f'Detected change in config: {diff}')
-                    updated_modules.add(k)
+        if new_config is not None:
+            for k, v in new_config.items():
+                if k in config.keys():
+                    diff = list(dict_diff(config[k], new_config[k]))
+                    if len(diff) > 0:
+                        print()
+                        logger.info(f'Detected change in config: {diff}')
+                        updated_modules.add(k)
 
-        for k, v in new_values.items():
-            if k in values.keys():
-                diff = list(dict_diff(values[k], new_values[k]))
-                if len(diff) > 0:
-                    logger.info(f'Detected change in config: {diff}')
-                    updated_modules.add(k)
+        if new_values is not None:
+            for k, v in new_values.items():
+                if k in values.keys():
+                    diff = list(dict_diff(values[k], new_values[k]))
+                    if len(diff) > 0:
+                        print()
+                        logger.info(f'Detected change in config: {diff}')
+                        updated_modules.add(k)
 
-        if set(new_rules) ^ set(rules):
-            updated_modules.add('mapper')
-        if set(new_values) ^ set(values):
-            updated_modules.add('metrics')
+        if new_rules is not None:
+            if set(new_rules) ^ set(rules):
+                updated_modules.add('mapper')
+        if new_values is not None:
+            if set(new_values) ^ set(values):
+                updated_modules.add('metrics')
 
         if updated_modules is not None and len(updated_modules) > 0:
             config = new_config
@@ -144,12 +159,11 @@ class ExitHandler:
                 self.exiting = True
                 print()
                 logger.info("Shutdown sequence started...")
-
+                # Ignore open metrics queue points for open threads 
                 metrics_q.cancel_join_thread()
-
+                # Ask each module to close gracefully
                 for m in modules.values():
                     m.stop()
-
                 logger.info("Signifier shutdown complete!")
                 self.exiting = False
                 print()
@@ -173,7 +187,7 @@ if __name__ == '__main__':
 
     if config['general']['hostname'] != HOSTNAME:
         config['general']['hostname'] = HOSTNAME
-        with open(CONFIG_FILE, 'w', encoding='utf8') as c:
+        with open(os.path.join(CFG_PATH, CONFIG_FILE), 'w', encoding='utf8') as c:
             json.dump(config, c, ensure_ascii=False, indent=4)
 
     print()
@@ -210,4 +224,4 @@ if __name__ == '__main__':
         for m in modules.values():
             m.monitor()
         check_config_update()
-        time.sleep(0.01)
+        time.sleep(0.001)

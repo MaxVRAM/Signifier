@@ -12,6 +12,7 @@ Gathers Signifier metrics and exports to Prometheus push gateway.
 from __future__ import annotations
 
 import time
+import socket
 import logging
 from queue import Empty
 from urllib.error import URLError
@@ -35,12 +36,12 @@ class Metrics(SigModule):
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
 
-    def create_process(self) -> ModuleProcess:
+    def create_process(self):
         """
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        return MetricsProcess(self)
+        self.process = MetricsProcess(self)
 
 
 class MetricsProcess(ModuleProcess, mp.Process):
@@ -82,26 +83,27 @@ class MetricsProcess(ModuleProcess, mp.Process):
         while time.time() < loop_time + 0.1:
             try:
                 input_metric = self.metrics_q.get_nowait()
-                if (metric := self.metrics_dict.get(input_metric[0])) is not None:
-                    if "gauge" in metric.keys():
-                        metric["gauge"].labels(self.hostname).set(input_metric[1])
-                        continue
-                    if "info" in metric.keys():
-                        metric["info"].info(
-                            {"instance": self.hostname, "value": input_metric[1]}
-                        )
-                        continue
-                else:
-                    name = input_metric[0]
-                    self.metrics_dict[name] = self.create_metric(
-                        name, {"type": "gauge"}
-                    )
-                    self.metrics_dict[name]["gauge"].labels(self.hostname).set(
-                        input_metric[1]
-                    )
-                # TODO Add array metrics
             except Empty:
                 break
+
+            if (metric := self.metrics_dict.get(input_metric[0])) is not None:
+                if "gauge" in metric.keys():
+                    metric["gauge"].labels(self.hostname).set(input_metric[1])
+                    continue
+                if "info" in metric.keys():
+                    metric["info"].info(
+                        {"instance": self.hostname, "value": input_metric[1]}
+                    )
+                    continue
+            else:
+                name = input_metric[0]
+                self.metrics_dict[name] = self.create_metric(
+                    name, {"type": "gauge"}
+                )
+                self.metrics_dict[name]["gauge"].labels(self.hostname).set(
+                    input_metric[1]
+                )
+            # TODO Add array metrics
         # Push current registry values if enough time has lapsed
         if time.time() > self.prev_push + self.push_period:
             try:
@@ -111,16 +113,16 @@ class MetricsProcess(ModuleProcess, mp.Process):
                     self.registry,
                     timeout=self.config["timeout"],
                 )
-                self.push_period = self.config["push_period"]
-            except (ConnectionResetError, ConnectionRefusedError, URLError):
+            except (ConnectionResetError, ConnectionRefusedError, URLError, socket.error) as exception:
+                print(exception)
                 self.increase_push_time()
                 logger.warning(
-                    f"Prometheus gateway "
-                    f'[{self.config["target_gateway"]}] '
-                    f"cannot be reached. Retry in "
-                    f"{self.push_period}s."
+                    f"Prometheus gateway [{self.config['target_gateway']}] "
+                    f"cannot be reached. Retry in {self.push_period}s."
                 )
                 self.prev_push = time.time()
+                return None
+        self.push_period = self.config["push_period"]
 
     def build_metrics(self):
         """

@@ -33,16 +33,12 @@ class Leds(SigModule):
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
 
-    def create_process(self) -> ModuleProcess:
+    def create_process(self):
         """
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        new_process = LedsProcess(self)
-        if new_process.is_valid:
-            return new_process
-        else:
-            return None
+        self.process = LedsProcess(self)
 
 
 class LedsProcess(ModuleProcess, mp.Process):
