@@ -13,6 +13,13 @@ sudo systemctl stop signifier
 sudo systemctl disable signifier
 echo
 
+read -p "Get a VPN certificate from the SigNet server? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    scp -P 14444 signifier@192.168.30.10:~/ovpns/${HOSTNAME}.ovpn ~/
+fi
+
 echo "Updating system..."
 sudo apt update
 sudo apt upgrade -y

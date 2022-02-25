@@ -107,10 +107,12 @@ def check_config_update():
                         updated_modules.add(k)
 
         if new_rules is not None:
-            if set(new_rules) ^ set(rules):
+            diff = list(dict_diff(rules, new_rules))
+            if len(diff) > 0:
                 updated_modules.add('mapper')
         if new_values is not None:
-            if set(new_values) ^ set(values):
+            diff = list(dict_diff(values, new_values))
+            if len(diff) > 0:
                 updated_modules.add('metrics')
 
         if updated_modules is not None and len(updated_modules) > 0:
@@ -119,11 +121,7 @@ def check_config_update():
             rules = new_rules
             logger.info(f'Updating modules: {updated_modules}')
             for m in updated_modules:
-                if m in values:
-                    new_value_config = values.get(m)
-                else:
-                    new_value_config = values
-                modules[m].update_config(config, values=new_value_config, rules=rules)
+                modules[m].update_config(config, values=values, rules=rules)
 
 
 
@@ -197,28 +195,28 @@ if __name__ == '__main__':
 
     modules = {
         'leds': Leds('leds', config, metrics=metrics_q,
-                     values=values['leds']),
+                     values=values),
         'mapper': Mapper('mapper', config, metrics=metrics_q,
                          values=values, rules=rules),
         'metrics': Metrics('metrics', config, metrics=metrics_q,
                            values=values),
         'analysis': Analysis('analysis', config, metrics=metrics_q,
-                             values=values['analysis']),
+                             values=values),
         'bluetooth': Bluetooth('bluetooth', config, metrics=metrics_q,
-                               values=values['bluetooth']),
+                               values=values),
         'composition': Composition('composition', config, metrics=metrics_q,
-                                   values=values['composition']),
+                                   values=values),
     }
 
     pipes = {k: v.module_pipe for k, v in modules.items()}
     modules['mapper'].set_pipes(pipes)
 
-    for m in modules.values():
-        m.initialise()
-    time.sleep(1)
-    for m in modules.values():
-        m.start()
-    time.sleep(0.5)
+    # for m in modules.values():
+    #     m.initialise()
+    # time.sleep(1)
+    # for m in modules.values():
+    #     m.start()
+    #time.sleep(0.5)
 
     while True:
         for m in modules.values():

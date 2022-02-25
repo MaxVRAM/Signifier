@@ -11,7 +11,7 @@
         "target_gateway": "localhost:9091",
         "job_name": "signifier",
         "push_period": 1,
-        "timeout": 0.01
+        "timeout": 1
     },
     "mapper": {
         "enabled": true,
@@ -38,14 +38,14 @@
         "remove_after": 15
     },
     "analysis": {
-        "enabled": false,
+        "enabled": true,
         "debug": true,
         "start_delay": 0,
         "input_device": "default",
         "sample_rate": 48000,
         "dtype": "int16",
         "buffer": 1024,
-        "gain": 1.0
+        "gain": 2.0
     },
     "composition": {
         "enabled": true,
@@ -61,7 +61,7 @@
             "wav"
         ],
         "strict_distribution": false,
-        "mix_volume": 0.1,
+        "mix_volume": 0.2,
         "fade_in_ms": 1000,
         "fade_out_ms": 2000,
         "max_playtime": 60,

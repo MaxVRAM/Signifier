@@ -114,11 +114,10 @@ class MetricsProcess(ModuleProcess, mp.Process):
                     timeout=self.config["timeout"],
                 )
             except (ConnectionResetError, ConnectionRefusedError, URLError, socket.error) as exception:
-                print(exception)
                 self.increase_push_time()
                 logger.warning(
-                    f"Prometheus gateway [{self.config['target_gateway']}] "
-                    f"cannot be reached. Retry in {self.push_period}s."
+                    f"[{self.config['target_gateway']}]: "
+                    f"{exception}. Retry in {self.push_period}s."
                 )
                 self.prev_push = time.time()
                 return None
@@ -128,8 +127,8 @@ class MetricsProcess(ModuleProcess, mp.Process):
         """
         Construct a list of Prometheus metric objects for the push gateway
         """
-        vals = self.values_config.copy()
-        for module, config in vals.items():
+        value = self.main_values.copy()
+        for module, config in value.items():
             source_metrics = config.get("sources", {})
             dest_metrics = config.get("destinations", {})
             if source_metrics != {}:

@@ -67,7 +67,7 @@ class LedsProcess(ModuleProcess, mp.Process):
                     f"Unable to open serial port. " f"Terminating [{self.module_name}]."
                 )
         else:
-            for k, v in self.values_config["destinations"].items():
+            for k, v in self.module_values["destinations"].items():
                 self.destinations[k] = LedValue(k, v, self)
             if self.parent_pipe.writable:
                 self.parent_pipe.send("initialised")

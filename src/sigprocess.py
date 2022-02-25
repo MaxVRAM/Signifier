@@ -28,7 +28,8 @@ class ModuleProcess:
         super().__init__()
         self.parent = parent
         self.module_name = parent.module_name
-        self.values_config = parent.values_config
+        self.main_values = parent.main_values
+        self.module_values = parent.module_values
         self.config = parent.module_config
         self.logger = parent.logger
         # Process management
@@ -140,9 +141,6 @@ class ModuleProcess:
         self.logger.critical(
             f"[{self.module_name}] error: {exception}"
         )
+        self.shutdown()
         if self.parent_pipe.writable:
             self.parent_pipe.send("failed")
-        else:
-            self.logger.warning(f'[{self.module_name}] process unable to send '
-                                f'"failed" command!')
-        self.shutdown()

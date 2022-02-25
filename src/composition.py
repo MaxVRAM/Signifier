@@ -80,16 +80,12 @@ class CompositionProcess(ModuleProcess, Thread):
             "clip_selection": self.clip_selection_job,
             "volume": self.volume_job,
         }
-        if not validate_library(self.config):
-            self.failed("Specified audio library path is invalid.")
-        else:
-            if self.init_mixer():
-                self.init_library()
-                schedule.logger.setLevel(
-                    logging.DEBUG if self.config.get("debug", True) else logging.INFO
-                )
-                if self.parent_pipe.writable:
-                    self.parent_pipe.send("initialised")
+        if self.init_mixer() and self.init_library():
+            schedule.logger.setLevel(
+                logging.DEBUG if self.config.get("debug", True) else logging.INFO
+            )
+            if self.parent_pipe.writable:
+                self.parent_pipe.send("initialised")
 
     def init_mixer(self) -> bool:
         """
@@ -113,11 +109,14 @@ class CompositionProcess(ModuleProcess, Thread):
                     f"@ {mix[0]} Hz over {mix[2]} channel{plural(mix[2])}.")
         return True
 
-    def init_library(self):
+    def init_library(self) -> bool:
         """
         Initialises the Clip Manager with a library of Clips.
         """
         self.logger.debug(f"Library path: {self.base_path}...")
+        if not validate_library(self.config):
+            self.failed("Specified audio library path is invalid.")
+            return False
         titles = [
             d
             for d in os.listdir(self.base_path)
@@ -136,6 +135,7 @@ class CompositionProcess(ModuleProcess, Thread):
             f"({len(self.collections)}) "
             f"collection{plural(self.collections)}."
         )
+        return True
 
     def pre_run(self) -> bool:
         """
