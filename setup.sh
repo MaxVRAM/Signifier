@@ -25,7 +25,7 @@ read -p "Download audio files from server? [y/N] " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
-    scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds $MEDIA_DIR
+    scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds/* $MEDIA_DIR
 fi
 
 echo "Updating system..."
@@ -124,7 +124,7 @@ arduino-cli core download arduino:megaavr
 arduino-cli core install arduino:megaavr
 arduino-cli lib install FastLED
 arduino-cli lib install SerialTransfer
-acompile ~/$SIG_PATH/src/sig_led && aupload ~/$SIG_PATH/src/sig_led -v
+acompile $SIG_PATH/src/sig_led && aupload $SIG_PATH/src/sig_led -v
 echo
 
 echo Setting up audio environment...
@@ -185,9 +185,6 @@ then
     curl -fsSL https://get.docker.com -o $SIG_PATH/get-docker.sh
     chmod +x $SIG_PATH/get-docker.sh
     sudo $SIG_PATH/get-docker.sh sh
-    if [ -d "$SIG_PATH/get-docker.sh" ]; then
-        rm $SIG_PATH/get-docker.sh
-    fi
     sudo usermod -aG docker $USER
 else
     echo "Docker already installed, skipping."
@@ -209,6 +206,12 @@ echo
 docker compose -f "$SIG_PATH/docker/portainer/docker-compose.yaml" up -d
 docker compose -f "$SIG_PATH/docker/metrics/docker-compose.yaml" up -d
 echo
+
+FILE=$SIG_PATH/get-docker.sh
+if [ -f "$FILE" ]; then
+    rm $FILE
+fi
+
 
 echo Enabling Signifier startup service...
 SERVICE_TEMP=$HOME/signifier.service

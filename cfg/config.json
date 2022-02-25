@@ -1,6 +1,6 @@
 {
     "general": {
-        "hostname": "mmwSigB",
+        "hostname": "mmwSigDev",
         "process_loop_sleep": 0.001,
         "module_fail_restart_secs": 2
     },
