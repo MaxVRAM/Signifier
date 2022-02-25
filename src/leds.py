@@ -33,16 +33,12 @@ class Leds(SigModule):
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
 
-    def create_process(self) -> ModuleProcess:
+    def create_process(self):
         """
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        new_process = LedsProcess(self)
-        if new_process.is_valid:
-            return new_process
-        else:
-            return None
+        self.process = LedsProcess(self)
 
 
 class LedsProcess(ModuleProcess, mp.Process):
@@ -71,7 +67,7 @@ class LedsProcess(ModuleProcess, mp.Process):
                     f"Unable to open serial port. " f"Terminating [{self.module_name}]."
                 )
         else:
-            for k, v in self.config["destinations"].items():
+            for k, v in self.module_values["destinations"].items():
                 self.destinations[k] = LedValue(k, v, self)
             if self.parent_pipe.writable:
                 self.parent_pipe.send("initialised")

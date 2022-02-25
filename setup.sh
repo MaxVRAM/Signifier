@@ -13,6 +13,13 @@ sudo systemctl stop signifier
 sudo systemctl disable signifier
 echo
 
+read -p "Get a VPN certificate from the SigNet server? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    scp -P 14444 signifier@192.168.30.10:~/ovpns/${HOSTNAME}.ovpn ~/
+fi
+
 echo "Updating system..."
 sudo apt update
 sudo apt upgrade -y
@@ -59,13 +66,13 @@ if [ -f "$FILE" ]; then
 else
     touch $FILE
 fi
-LINE='# SIGNIFIER ALIASES'
+LINE=$'\n# SIGNIFIER ALIASES'
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="alias amonitor=\"arduino-cli monitor -p /dev/ttyACM0 -b arduino:megaavr:nona4809 -c baudrate=38400\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE="alias acompile=\"arduino-cli compile --fqbn arduino:megaavr:nona4809\""
+LINE="alias acompile=\"arduino-cli compile -b arduino:megaavr:nona4809\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE="alias aupload=\"arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:megaavr:nona4809\""
+LINE="alias aupload=\"arduino-cli upload -p /dev/ttyACM0 -b arduino:megaavr:nona4809\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 FILE=$HOME/.profile
@@ -81,7 +88,13 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="export PATH=\"\$HOME/Arduino:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
+LINE=$"export HOST=\"$HOSTNAME\""
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE=$"export SIGNIFIER=\"$SIG_PATH\""
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+LINE=$"export FLASK_APP=\"$SIG_PATH/signifier.py\""
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+LINE=$"export FLASK_ENV=\"development\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 LINE=$"source $HOME/.aliases"

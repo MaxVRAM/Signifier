@@ -85,7 +85,7 @@ def validate_library(config_file: dict) -> bool:
             logger.info(f"Ensure audio library exists or check path in config.")
             return False
         else:
-            logger.info(
+            logger.debug(
                 f"Found {len(collections)} audio clip "
                 f"collection{plural(collections)}."
             )
@@ -100,8 +100,51 @@ def validate_library(config_file: dict) -> bool:
                     f'{config_file["valid_extensions"]}.'
                 )
                 return False
-            logger.info(f"[{len(clips)}] clip{plural(clips)} found in library.")
+            logger.debug(f"[{len(clips)}] clip{plural(clips)} found in library.")
             return True
+
+
+class FunctionHandler:
+    """
+    Object that handles incoming function call requests. Must be supplied
+    its parent's module name and a dictionary containing parent object's
+    instance variables available to be called.
+    """
+    def __init__(self, module_name, function_dict) -> None:
+        self.module_name = module_name
+        self.function_dict = function_dict
+
+
+    def call(self, message):
+        """
+        Will perform a function call from the provided function name (with
+        or without arguments) if a matching function name was supplied on
+        instantiation of the FunctionHandler object.
+        """
+        if isinstance(message, str):
+            command = message
+        else:
+            try:
+                command = message[0]
+                args = list(message[1:])
+            except TypeError:
+                logger.warning(
+                    f'[{self.module_name}] received '
+                    f'Malformed command: {message}'
+                )
+                return None
+        if (func := self.function_dict.get(command)) is not None:
+            logger.debug(
+                f'[{self.module_name}] received command '
+                f'"{command}", executing...'
+            )
+            func(*args)
+        else:
+            logger.warning(
+                f'[{self.module_name}] does not recognise '
+                f'"{command}" command.'
+            )
+
 
 
 class SmoothedValue:

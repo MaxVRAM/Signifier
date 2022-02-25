@@ -29,8 +29,6 @@ from threading import Thread
 
 # Allows PyGame to run without a screen
 os.environ["SDL_VIDEODRIVER"] = "dummy"
-# Refers PyGame's audio mixer to use the DSP/OSS audio drivers
-# os.environ['SDL_AUDIODRIVER'] = 'dsp'
 # Silence PyGame greeting mesage
 stdout = sys.__stdout__
 stderr = sys.__stderr__
@@ -49,16 +47,12 @@ class Composition(SigModule):
         super().__init__(name, config, *args, **kwargs)
         self.clip_event = pg.USEREVENT + 1
 
-    def create_process(self) -> CompositionProcess:
+    def create_process(self):
         """
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        new_process = CompositionProcess(self)
-        if new_process.is_valid:
-            return new_process
-        else:
-            return None
+        self.process = CompositionProcess(self)
 
 
 class CompositionProcess(ModuleProcess, Thread):
@@ -69,7 +63,6 @@ class CompositionProcess(ModuleProcess, Thread):
     def __init__(self, parent: Composition) -> None:
         super().__init__(parent)
         # Composition assets
-        self.mixer = pg.mixer
         self.clip_event = parent.clip_event
         self.channels = None
         self.collections = {}
@@ -77,6 +70,7 @@ class CompositionProcess(ModuleProcess, Thread):
         self.base_path = self.config.get("base_path")
         self.fade_in = self.config.get("fade_in_ms", 1000)
         self.fade_out = self.config.get("fade_out_ms", 2000)
+        self.mix_volume = self.config.get('mix_volume', 0.5)
         self.inactive_pool = set()
         self.active_pool = set()
         self.active_jobs = {}
@@ -86,37 +80,43 @@ class CompositionProcess(ModuleProcess, Thread):
             "clip_selection": self.clip_selection_job,
             "volume": self.volume_job,
         }
-        if not validate_library(self.config):
-            self.failed("Specified audio library path is invalid.")
-        else:
-            self.init_mixer()
-            self.init_library()
+        if self.init_mixer() and self.init_library():
             schedule.logger.setLevel(
                 logging.DEBUG if self.config.get("debug", True) else logging.INFO
             )
             if self.parent_pipe.writable:
                 self.parent_pipe.send("initialised")
 
-    def init_mixer(self):
+    def init_mixer(self) -> bool:
         """
         Initialises PyGame audio mixer.
         """
-        self.logger.info("Initialising audio mixer...")
+        self.logger.debug("Initialising audio mixer...")
         pg.mixer.pre_init(
             frequency=self.config["sample_rate"],
             size=self.config["bit_size"],
             channels=1,
             buffer=self.config["buffer"],
         )
-        pg.mixer.init()
+        try:
+            pg.mixer.init()
+        except pg.error as exception:
+            self.failed(f'[init_mixer] {exception}')
+            return False
         pg.init()
-        logger.debug(f"Audio mixer parameters: {pg.mixer.get_init()}")
+        mix = pg.mixer.get_init()
+        logger.info(f"Audio mixer initialised with {mix[1]}-bit samples "
+                    f"@ {mix[0]} Hz over {mix[2]} channel{plural(mix[2])}.")
+        return True
 
-    def init_library(self):
+    def init_library(self) -> bool:
         """
         Initialises the Clip Manager with a library of Clips.
         """
         self.logger.debug(f"Library path: {self.base_path}...")
+        if not validate_library(self.config):
+            self.failed("Specified audio library path is invalid.")
+            return False
         titles = [
             d
             for d in os.listdir(self.base_path)
@@ -135,6 +135,7 @@ class CompositionProcess(ModuleProcess, Thread):
             f"({len(self.collections)}) "
             f"collection{plural(self.collections)}."
         )
+        return True
 
     def pre_run(self) -> bool:
         """
@@ -148,17 +149,29 @@ class CompositionProcess(ModuleProcess, Thread):
         Module-specific Process run commands. Where the bulk of the module's
         computation occurs.
         """
+        try:
+            pg.mixer.get_init()
+        except pg.error as exception:
+            self.failed(exception)
         schedule.run_pending()
         self.manage_audio_events()
+
 
     def pre_shutdown(self):
         """
         Module-specific shutdown preparation.
         """
         schedule.clear()
-        self.stop_all_clips()
-        self.wait_for_silence()
+        try:
+            pg.mixer.get_init()
+            self.stop_all_clips()
+            self.wait_for_silence()
+        except pg.error:
+            pass
+        pg.mixer.quit()
         pg.quit()
+        if pg.mixer.get_init() is None:
+            self.logger.info(f'[{self.module_name}] audio mixer released.')
 
     def select_collection(self, **kwargs):
         """
@@ -178,6 +191,7 @@ class CompositionProcess(ModuleProcess, Thread):
             )
             name = None
         if name is None:
+            print(f'Collection "keys": {self.collections.keys()}')
             name = random.choice(list(self.collections.keys()))
         path, names = (self.collections[name]["path"], self.collections[name]["names"])
         self.logger.info(
@@ -215,15 +229,16 @@ class CompositionProcess(ModuleProcess, Thread):
         Updates the mixer if there aren't enough channels
         """
         channels = {}
-        num_chans = self.mixer.get_num_channels()
+        num_chans = pg.mixer.get_num_channels()
         num_wanted = len(clip_set)
         # Update the audio mixer channel count if required
         if num_chans != num_wanted:
-            self.mixer.set_num_channels(num_wanted)
-            num_chans = self.mixer.get_num_channels()
+            pg.mixer.set_num_channels(num_wanted)
+            num_chans = pg.mixer.get_num_channels()
             self.logger.debug(f"Mixer now has {num_chans} channels.")
         for i in range(num_chans):
-            channels[i] = self.mixer.Channel(i)
+            channels[i] = pg.mixer.Channel(i)
+            channels[i].set_volume(self.mix_volume)
         return channels
 
     # ----------------
@@ -248,7 +263,7 @@ class CompositionProcess(ModuleProcess, Thread):
         fade = kwargs.get("fade_time", self.fade_out)
         if pg.mixer.get_init():
             if pg.mixer.get_busy():
-                self.logger.info(f"Stopping audio clips: {fade}ms fade...")
+                self.logger.debug(f"Stopping audio clips: {fade}ms fade...")
                 if kwargs.get("disable_events", False) is True:
                     self.clear_events()
                 pg.mixer.fadeout(fade)

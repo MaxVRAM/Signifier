@@ -2,16 +2,23 @@
     "general": {
         "hostname": "mmwSigB",
         "process_loop_sleep": 0.001,
-        "module_fail_restart_secs": 2
+        "module_fail_restart_secs": 5
+    },
+    "server": {
+        "enabled": true,
+        "debug": true,
+        "port": 5000,
+        "processes": 4
     },
     "metrics": {
         "enabled": true,
         "debug": true,
         "start_delay": 0,
         "target_gateway": "localhost:9091",
+        "server_port": 9092,
         "job_name": "signifier",
         "push_period": 1,
-        "timeout": 1
+        "timeout": 0.1
     },
     "mapper": {
         "enabled": true,
@@ -33,7 +40,7 @@
         "enabled": true,
         "debug": true,
         "start_delay": 0,
-        "scan_dur": 2,
+        "scan_dur": 3,
         "signal_threshold": 0.002,
         "remove_after": 15
     },
@@ -45,7 +52,7 @@
         "sample_rate": 48000,
         "dtype": "int16",
         "buffer": 1024,
-        "gain": 2.0
+        "gain": 1.0
     },
     "composition": {
         "enabled": true,
@@ -61,7 +68,7 @@
             "wav"
         ],
         "strict_distribution": false,
-        "mix_volume": 0.2,
+        "volume": 0.7,
         "fade_in_ms": 1000,
         "fade_out_ms": 2000,
         "max_playtime": 60,

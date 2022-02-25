@@ -35,12 +35,12 @@ class Bluetooth(SigModule):
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
 
-    def create_process(self) -> ModuleProcess:
+    def create_process(self):
         """
         Called by the module's `initialise()` method to return a
         module-specific object.
         """
-        return BluetoothProcess(self)
+        self.process = BluetoothProcess(self)
 
 
 class BluetoothProcess(ModuleProcess, mp.Process):
