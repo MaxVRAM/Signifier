@@ -6,6 +6,7 @@ echo            Starting Signifier installation
 echo -------------------------------------------------------
 export HOSTNAME
 SIG_PATH="$PWD"
+MEDIA_DIR=$SIG_PATH/media/audio
 echo Installing Signifier from [$SIG_PATH] on [$HOSTNAME]...
 echo
 
@@ -18,6 +19,13 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
     scp -P 14444 signifier@192.168.30.10:~/ovpns/${HOSTNAME}.ovpn ~/
+fi
+
+read -p "Download audio files from server? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds $MEDIA_DIR
 fi
 
 echo "Updating system..."
@@ -215,8 +223,6 @@ rm $SERVICE_TEMP
 sudo systemctl enable signifier
 echo
 
-MEDIA_DIR=$SIG_PATH/media/audio
-
 if [ ! -d "$MEDIA_DIR" ]; then
     echo "Audio directory not found! Add audio assets into $MEDIA_DIR after installation."
     mkdir -p $MEDIA_DIR
@@ -239,6 +245,15 @@ else
     fi
 fi
 echo
+
+
+read -p "Push latest Arduino code? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    source update-arduino.sh
+fi
+
 
 echo -------------------------------------------------------
 echo Done! Please reboot to complete Signifier installation.
