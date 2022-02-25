@@ -12,59 +12,9 @@ echo
 
 sudo systemctl stop signifier
 sudo systemctl disable signifier
-echo
-
-read -p "Get a VPN certificate from the SigNet server? [y/N] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    scp -P 14444 signifier@192.168.30.10:~/ovpns/${HOSTNAME}.ovpn ~/
-fi
-
-read -p "Download audio files from server? [y/N] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds/* $MEDIA_DIR
-fi
-
-echo "Updating system..."
-sudo apt update
-sudo apt upgrade -y
-echo
-
-if ! command -v openvpn &> /dev/null
-then
-    echo "Installing OpenVPN client..."
-    sudo apt install openvpn -y
-    mkdir -p /etc/openvpn/client
-    chown root:root /etc/openvpn/client
-    chmod 700 /etc/openvpn/client
-else
-    echo "OpenVPN already installed, skipping."
-fi
-
-VPN_FILE=$(find $HOME -name "$HOSTNAME.ovpn" | sed -n 1p)
-if [ -f "$VPN_FILE" ]; then
-    echo "Found VPN credentials: $VPN_FILE. Adding to OpenVPN..."
-    sudo cp $VPN_FILE $HOME/client.ovpn
-    VPN_FILE=$HOME/client.ovpn
-    sudo chown root:root $VPN_FILE
-    sudo chmod 700 $VPN_FILE
-    sudo mv $VPN_FILE /etc/openvpn/client
-    sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
-    sudo cp /etc/openvpn/client/client.ovpn /etc/openvpn/client.conf
-    sudo systemctl enable openvpn@client.service
-    sudo systemctl start openvpn@client.service
-else
-    if [ -f /etc/openvpn/client/client.ovpn ]; then
-        sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
-        sudo systemctl enable openvpn@client.service
-        sudo systemctl start openvpn@client.service
-    else
-        echo "VPN credentials not found! Obtain from VPN server and add manually after installation."
-    fi
-fi
+sudo systemctl stop bluetooth
+sudo systemctl disable bluetooth
+sudo setcap cap_net_raw,cap_net_admin+eip $(eval readlink -f `which python`)
 echo
 
 echo Applying environment variables...
@@ -111,6 +61,100 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 source $HOME/.profile
 echo
 
+
+echo Updating Signifier startup service...
+SERVICE_TEMP=$HOME/signifier.service
+cp "$SIG_PATH/sys/signifier.service" $SERVICE_TEMP
+PYTHON_EXEC="ExecStart=/usr/bin/python $SIG_PATH/signifier.py"
+sed -i "/ExecStart=/c\\$PYTHON_EXEC" $SERVICE_TEMP
+sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
+sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
+sudo cp $SERVICE_TEMP /etc/systemd/system/signifier.service
+rm $SERVICE_TEMP
+
+
+read -p "Should the Signifier auto-start service be enabled? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    sudo systemctl enable signifier
+    echo
+fi
+
+read -p "Download updated WiFi config from SigNet server? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    scp -P 14444 signifier@192.168.30.10:~/sig-config/wpa_supplicant.conf ~/
+    sudo cp ~/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
+    rm ~/wpa_supplicant.conf
+fi
+
+read -p "Download VPN certificate from SigNet server? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    scp -P 14444 signifier@192.168.30.10:~/sig-config/${HOSTNAME}.ovpn ~/
+fi
+
+read -p "Download audio files from SigNet server? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds/* $MEDIA_DIR
+fi
+
+echo Updating system...
+sudo apt update
+sudo apt upgrade -y
+echo
+
+echo Installing system packages...
+sudo apt install -y ufw python3-pip alsa-utils libasound2-dev
+echo
+
+echo Configuring firewall...
+sudo ufw allow 22,80,443,9001,9090,9091,9092,9100,5000,3000/tcp
+sudo ufw --force enable
+echo
+
+echo Installing Python modules...
+python -m pip install -U --no-input -r requirements.txt
+echo
+
+if ! command -v openvpn &> /dev/null
+then
+    echo "Installing OpenVPN client..."
+    sudo apt install openvpn -y
+    sudo mkdir -p /etc/openvpn/client
+    sudo chown root:root /etc/openvpn/client
+    sudo chmod 700 /etc/openvpn/client
+else
+    echo "OpenVPN already installed, skipping."
+fi
+
+VPN_FILE=$(find $HOME -name "$HOSTNAME.ovpn" | sed -n 1p)
+if [ -f "$VPN_FILE" ]; then
+    echo "Found VPN credentials: $VPN_FILE. Adding to OpenVPN..."
+    sudo chmod 700 $VPN_FILE
+    sudo cp $VPN_FILE /etc/openvpn/client/client.ovpn
+    sudo rm $VPN_FILE
+    sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
+    sudo cp /etc/openvpn/client/client.ovpn /etc/openvpn/client.conf
+    sudo systemctl enable openvpn@client.service
+    sudo systemctl start openvpn@client.service
+else
+    if [ -f /etc/openvpn/client/client.ovpn ]; then
+        sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
+        sudo systemctl enable openvpn@client.service
+        sudo systemctl start openvpn@client.service
+    else
+        echo "VPN credentials not found! Obtain from VPN server and add manually after installation."
+    fi
+fi
+echo
+
+
 if ! command -v arduino-cli &> /dev/null
 then
     echo "Installing Arduino-CLI in ${ARDUINO_PATH}..."
@@ -124,13 +168,19 @@ arduino-cli core download arduino:megaavr
 arduino-cli core install arduino:megaavr
 arduino-cli lib install FastLED
 arduino-cli lib install SerialTransfer
-acompile $SIG_PATH/src/sig_led && aupload $SIG_PATH/src/sig_led -v
+
+read -p "Push latest code to Arduino? (make sure it's connected!) [y/N] " -n 1 -r
 echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    source update-arduino.sh
+fi
+echo
+
 
 echo Setting up audio environment...
 cp $SIG_PATH/sys/.asoundrc ~/
 sudo modprobe snd-aloop
-sudo modprobe snd_pcm_oss
 sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo $SIG_PATH/sys/disable_hdmi_audio.dts
 
 FILE=/boot/config.txt
@@ -146,8 +196,6 @@ if [ -f "$FILE" ]; then
 fi
 LINE="snd_aloop"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
-LINE="snd_pcm_oss"
-grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 
 FILE=/etc/modprobe.d/alsa-base.conf
 if [ -f "$FILE" ]; then
@@ -157,27 +205,8 @@ LINE="options snd_bcm2835 index=0"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 LINE="options snd_aloop index=1"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
-LINE="options snd_pcm_oss index=2"
-grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 echo
 
-sudo systemctl stop bluetooth
-sudo systemctl disable bluetooth
-sudo setcap cap_net_raw,cap_net_admin+eip $(eval readlink -f `which python`)
-echo
-
-echo Installing system packages...
-sudo apt install -y ufw python3-pip alsa-utils libasound2-dev
-echo
-
-echo Configuring firewall...
-sudo ufw allow 22,80,443,9001,9090,9091,9092,9100,5000,3000/tcp
-sudo ufw --force enable
-echo
-
-echo Installing Python modules...
-python -m pip install -U --no-input -r requirements.txt
-echo
 
 if ! command -v docker &> /dev/null
 then
@@ -202,29 +231,13 @@ else
 fi
 echo
 
-echo
-docker compose -f "$SIG_PATH/docker/portainer/docker-compose.yaml" up -d
-docker compose -f "$SIG_PATH/docker/metrics/docker-compose.yaml" up -d
-echo
+source docker-up.sh
+
 
 FILE=$SIG_PATH/get-docker.sh
 if [ -f "$FILE" ]; then
     rm $FILE
 fi
-
-
-echo Enabling Signifier startup service...
-SERVICE_TEMP=$HOME/signifier.service
-cp "$SIG_PATH/sys/signifier.service" $SERVICE_TEMP
-PYTHON_EXEC="ExecStart=/usr/bin/python $SIG_PATH/signifier.py"
-sed -i "/ExecStart=/c\\$PYTHON_EXEC" $SERVICE_TEMP
-sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
-sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
-sudo cp $SERVICE_TEMP /etc/systemd/system/signifier.service
-rm $SERVICE_TEMP
-
-sudo systemctl enable signifier
-echo
 
 if [ ! -d "$MEDIA_DIR" ]; then
     echo "Audio directory not found! Add audio assets into $MEDIA_DIR after installation."
@@ -248,14 +261,6 @@ else
     fi
 fi
 echo
-
-
-read -p "Push latest Arduino code? [y/N] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    source update-arduino.sh
-fi
 
 
 echo -------------------------------------------------------

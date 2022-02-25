@@ -33,6 +33,7 @@ logging.basicConfig(level=logging.INFO, format=LOG_MSG, datefmt=LOG_DT)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+# Imports appear unused, but are dynamically loaded by module dictionary
 from src.leds import Leds
 from src.mapper import Mapper
 from src.metrics import Metrics
@@ -162,6 +163,10 @@ class ExitHandler:
                 # Ask each module to close gracefully
                 for m in modules.values():
                     m.stop()
+                    while m.status.name in ['running', 'closing']:
+                        m.monitor()
+                        time.sleep(0.001)
+
                 logger.info("Signifier shutdown complete!")
                 self.exiting = False
                 print()
@@ -189,34 +194,18 @@ if __name__ == '__main__':
             json.dump(config, c, ensure_ascii=False, indent=4)
 
     print()
-    logger.info(f'Starting Signifier on [{config["general"]["hostname"]}]')
+    logger.info(f'Starting Signifier on [{HOSTNAME}]')
     print()
-    
 
-    modules = {
-        'leds': Leds('leds', config, metrics=metrics_q,
-                     values=values),
-        'mapper': Mapper('mapper', config, metrics=metrics_q,
-                         values=values, rules=rules),
-        'metrics': Metrics('metrics', config, metrics=metrics_q,
-                           values=values),
-        'analysis': Analysis('analysis', config, metrics=metrics_q,
-                             values=values),
-        'bluetooth': Bluetooth('bluetooth', config, metrics=metrics_q,
-                               values=values),
-        'composition': Composition('composition', config, metrics=metrics_q,
-                                   values=values),
-    }
+    # Define and load modules
+    module_names = ['leds', 'mapper', 'metrics', 'analysis', 'bluetooth', 'composition']
+    for name in module_names:
+        module_class = globals()[name.capitalize()]
+        modules[name] = module_class(
+            name, config, metrics=metrics_q, values=values, rules=rules)
 
     pipes = {k: v.module_pipe for k, v in modules.items()}
     modules['mapper'].set_pipes(pipes)
-
-    # for m in modules.values():
-    #     m.initialise()
-    # time.sleep(1)
-    # for m in modules.values():
-    #     m.start()
-    #time.sleep(0.5)
 
     while True:
         for m in modules.values():

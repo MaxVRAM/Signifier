@@ -1,4 +1,4 @@
-#arm_freq=800
+# arm_freq=800
 
 dtparam=audio=on
 max_framebuffers=2
@@ -13,10 +13,10 @@ arm_boost=1
 [all]
 dtoverlay=disable_hdmi_audio
 
-# For Waveshare LCD display
-max_usb_current=1
-hdmi_force_hotplug=1
-config_hdmi_boost=7
-hdmi_group=2
-hdmi_mode=87
-hdmi_cvt 1024 600 60 6 0 0 0 
+# Uncomment for Waveshare LCD display
+# max_usb_current=1
+# hdmi_force_hotplug=1
+# config_hdmi_boost=7
+# hdmi_group=2
+# hdmi_mode=87
+# hdmi_cvt 1024 600 60 6 0 0 0 

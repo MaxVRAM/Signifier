@@ -191,11 +191,10 @@ class CompositionProcess(ModuleProcess, Thread):
             )
             name = None
         if name is None:
-            print(f'Collection "keys": {self.collections.keys()}')
             name = random.choice(list(self.collections.keys()))
         path, names = (self.collections[name]["path"], self.collections[name]["names"])
         self.logger.info(
-            f'Collection "{name}" selected with ({len(names)}) '
+            f'[{self.module_name}] selected collection "{name}" with ({len(names)}) '
             f"audio file{plural(names)}"
         )
         self.current_collection = {"title": name, "path": path, "names": names}
@@ -272,7 +271,8 @@ class CompositionProcess(ModuleProcess, Thread):
         """
         Stops the main thread until all channels have faded out.
         """
-        self.logger.debug("Waiting for audio mixer to release all channels...")
+        self.logger.debug(f'[{self.module_name}] Waiting for audio mixer '
+                          f'to release all channels...')
         if pg.mixer.get_init():
             start_time = time.time()
             while (

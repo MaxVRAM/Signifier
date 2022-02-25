@@ -131,7 +131,7 @@ class SigModule:
         if self.status == ProcessStatus.initialised:
             if self.process is not None:
                 if not self.process.is_alive():
-                    self.logger.info(f"[{self.module_name}] process starting.")
+                    self.logger.debug(f"[{self.module_name}] process starting.")
                     self.status = ProcessStatus.starting
                     self.module_start_time = time.time()
                     self.process.start()
@@ -164,20 +164,21 @@ class SigModule:
                 timeout = 2
             try:
                 self.process.join(timeout=timeout)
-                self.logger.info(
+                self.logger.debug(
                     f"[{self.module_name}] process stopped and joined main thread."
                 )
             except RuntimeError as exception:
-                self.logger.info(f'[{self.module_name}] {exception}')
+                self.logger.warning(f'[{self.module_name}] {exception}')
 
 
     def monitor(self):
         """
         Generic monitoring tick call for module to check process statues.
         """
+        previous_status = self.status
         if self.child_pipe.poll():
             message = self.child_pipe.recv()
-            self.logger.info(
+            self.logger.debug(
                 f"[{self.module_name}] module received "
                 f'"{message}" from child process.'
             )
@@ -191,7 +192,7 @@ class SigModule:
                 self.status = ProcessStatus.initialised
             elif message in ['initialised', 'closing', 'closed', 'failed']:
                 self.status = ProcessStatus[message]
-                if self.status != ProcessStatus.initialised:
+                if self.status not in [ProcessStatus.initialised, ProcessStatus.closing]:
                     self.module_end_time = time.time()
                     self.request_join()
                     try:
@@ -219,6 +220,9 @@ class SigModule:
             elif self.status not in [ProcessStatus.starting, ProcessStatus.closing]:
                 self.status = ProcessStatus.disabled
 
+        if previous_status != self.status:
+            self.logger.info(f'[{self.module_name}] status changed to "{self.status.name}"')
+
 
 
     def module_call(self, *args):
@@ -243,8 +247,8 @@ class SigModule:
         """
         if self.process is not None:
             if self.process.is_alive():
-                self.logger.info(f'[{self.module_name}] sending function call '
-                                  f'"{args}" to process...')
+                self.logger.debug(f'[{self.module_name}] sending '
+                                  f'{args} to process...')
                 if self.child_pipe.writable:
                     self.child_pipe.send(args)
                 else:
