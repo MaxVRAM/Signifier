@@ -2,7 +2,8 @@
     "general": {
         "hostname": "mmwSigDev",
         "process_loop_sleep": 0.001,
-        "module_fail_restart_secs": 2
+        "module_fail_restart_secs": 2,
+        "config_update_secs": 2
     },
     "metrics": {
         "enabled": true,
@@ -45,7 +46,7 @@
         "sample_rate": 48000,
         "dtype": "int16",
         "buffer": 1024,
-        "gain": 2.0
+        "gain": 4.0
     },
     "composition": {
         "enabled": true,

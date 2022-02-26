@@ -176,6 +176,7 @@ class SigModule:
         Generic monitoring tick call for module to check process statues.
         """
         previous_status = self.status
+        # Retrieve and parse any pending messages from the child process
         if self.child_pipe.poll():
             message = self.child_pipe.recv()
             self.logger.debug(
@@ -200,6 +201,7 @@ class SigModule:
                     except (Full, AttributeError):
                         pass
 
+        # Adjust module status' if necessary
         if self.enabled:
             if self.status in [ProcessStatus.running, ProcessStatus.starting, ProcessStatus.closing]:
                 pass

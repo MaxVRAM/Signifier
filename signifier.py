@@ -41,20 +41,20 @@ from src.analysis import Analysis
 from src.bluetooth import Bluetooth
 from src.composition import Composition
 
+
 HOSTNAME = os.getenv('HOST')
 SIG_PATH = os.getenv('SIGNIFIER')
 SITE_PATH = os.path.join(SIG_PATH, 'site')
 CFG_PATH = os.path.join(SIG_PATH, 'cfg')
-DEFAULTS_PATH = os.path.join(CFG_PATH, 'defaults')
+DEFAULTS_PATH = os.path.join(SIG_PATH, 'sys', 'default_configs')
 CONFIG_FILE = 'config.json'
 VALUES_FILE = 'values.json'
 RULES_FILE = 'rules.json'
-CONFIG_UPDATE_SECS = 5
+CONFIG_UPDATE_SECS = 2
 
 prev_config_update = time.time()
-
 metrics_q = mp.Queue(maxsize=500)
-
+module_names = ['leds', 'mapper', 'metrics', 'analysis', 'bluetooth', 'composition']
 modules = {}
 config = {}
 values = {}
@@ -62,6 +62,7 @@ rules = {}
 
 
 def load_config_files() -> tuple:
+    global CONFIG_UPDATE_SECS
     with open(os.path.join(CFG_PATH, CONFIG_FILE)) as c:
         try:
             new_config = json.load(c)
@@ -77,6 +78,12 @@ def load_config_files() -> tuple:
             new_rules = json.load(r)
         except json.decoder.JSONDecodeError:
             new_rules = None
+    if (config_update_secs := new_config.get('general',{}).get('config_update_secs', 2)) is not None:
+        try:
+            float(config_update_secs)
+            CONFIG_UPDATE_SECS = config_update_secs
+        except ValueError:
+            pass
     return new_config, new_values, new_rules
 
 
@@ -122,7 +129,8 @@ def check_config_update():
             rules = new_rules
             logger.info(f'Updating modules: {updated_modules}')
             for m in updated_modules:
-                modules[m].update_config(config, values=values, rules=rules)
+                if m in module_names:
+                    modules[m].update_config(config, values=values, rules=rules)
 
 
 
@@ -198,7 +206,6 @@ if __name__ == '__main__':
     print()
 
     # Define and load modules
-    module_names = ['leds', 'mapper', 'metrics', 'analysis', 'bluetooth', 'composition']
     for name in module_names:
         module_class = globals()[name.capitalize()]
         modules[name] = module_class(

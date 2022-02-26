@@ -71,18 +71,21 @@ if [ ! -d "$CONFIG_PATH" ]; then
 fi
 FILE="config.json"
 if [ ! -f "$CONFIG_PATH/$FILE" ]; then
+    echo "Creating default $FILE"
     cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
 fi
 FILE="values.json"
 if [ ! -f "$CONFIG_PATH/$FILE" ]; then
+    echo "Creating default $FILE"
     cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
 fi
 FILE="rules.json"
 if [ ! -f "$CONFIG_PATH/$FILE" ]; then
+    echo "Creating default $FILE"
     cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
 fi
 
-
+echo
 echo Updating Signifier startup service...
 SERVICE_TEMP=$HOME/signifier.service
 cp "$SIG_PATH/sys/signifier.service" $SERVICE_TEMP

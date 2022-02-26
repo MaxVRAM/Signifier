@@ -10,7 +10,8 @@ HOSTNAME = os.getenv('HOST')
 SIG_PATH = os.getenv('SIGNIFIER')
 SITE_PATH = os.path.join(SIG_PATH, 'site')
 CFG_PATH = os.path.join(SIG_PATH, 'cfg')
-DEFAULTS_PATH = os.path.join(CFG_PATH, 'defaults')
+print(f'{SIG_PATH}')
+DEFAULTS_PATH = os.path.join(SIG_PATH, 'sys', 'default_configs')
 CONFIG_FILES = {'config':'config.json',
                 'values':'values.json',
                 'rules':'rules.json'}
