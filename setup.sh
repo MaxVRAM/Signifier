@@ -39,6 +39,7 @@ if [ -f "$FILE" ]; then
 else
     touch $FILE
 fi
+
 LINE='# SIGNIFIER ENVIRONMENT VARIABLES'
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="export PATH=\"\$HOME/.local/bin:\$PATH\""
@@ -60,6 +61,26 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 source $HOME/.profile
 echo
+
+
+
+CONFIG_PATH=$SIG_PATH/cfg
+DEFAULTS_PATH=$SIG_PATH/sys/config_defaults
+if [ ! -d "$CONFIG_PATH" ]; then
+    mkdir -p $CONFIG_PATH
+fi
+FILE="config.json"
+if [ ! -f "$CONFIG_PATH/$FILE" ]; then
+    cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
+fi
+FILE="values.json"
+if [ ! -f "$CONFIG_PATH/$FILE" ]; then
+    cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
+fi
+FILE="rules.json"
+if [ ! -f "$CONFIG_PATH/$FILE" ]; then
+    cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
+fi
 
 
 echo Updating Signifier startup service...
@@ -126,26 +147,31 @@ if ! command -v openvpn &> /dev/null
 then
     echo "Installing OpenVPN client..."
     sudo apt install openvpn -y
-    sudo mkdir -p /etc/openvpn/client
-    sudo chown root:root /etc/openvpn/client
-    sudo chmod 700 /etc/openvpn/client
 else
     echo "OpenVPN already installed, skipping."
 fi
+
+VPN_PATH=/etc/openvpn
+if [ ! -d "$VPN_PATH" ]; then
+    sudo mkdir -p $VPN_PATH
+    sudo chown root:root $VPN_PATH
+    sudo chmod 700 $VPN_PATH
+fi
+
 
 VPN_FILE=$(find $HOME -name "$HOSTNAME.ovpn" | sed -n 1p)
 if [ -f "$VPN_FILE" ]; then
     echo "Found VPN credentials: $VPN_FILE. Adding to OpenVPN..."
     sudo chmod 700 $VPN_FILE
-    sudo cp $VPN_FILE /etc/openvpn/client/client.ovpn
+    sudo cp $VPN_FILE $VPN_PATH/client.conf
     sudo rm $VPN_FILE
-    sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
-    sudo cp /etc/openvpn/client/client.ovpn /etc/openvpn/client.conf
+    # sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
+    # sudo cp /etc/openvpn/client/client.ovpn /etc/openvpn/client.conf
 else
-    if [ -f /etc/openvpn/client/client.ovpn ]; then
-        sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
-    else
-        echo "VPN credentials not found! Obtain from VPN server and add manually after installation."
+    if [ ! -f $VPN_PATH/client.conf ]; then
+        echo "VPN credentials not found! Add manually after installation and run setup script again."
+    # else
+        # sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
     fi
 fi
 echo
@@ -259,14 +285,14 @@ fi
 echo
 
 
-read -p "Do you want to enable the VPN connection now? (warning, may disrupt connection) [y/N] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    sudo systemctl enable openvpn@client.service
-    sudo systemctl start openvpn@client.service
-    echo
-fi
+#read -p "Do you want to enable the VPN connection now? (warning, may disrupt connection) [y/N] " -n 1 -r
+#echo
+#if [[ $REPLY =~ ^[Yy]$ ]]
+#then
+#    sudo systemctl enable openvpn@client.service
+#    sudo systemctl start openvpn@client.service
+#    echo
+#fi
 
 
 
