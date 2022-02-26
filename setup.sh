@@ -175,7 +175,7 @@ echo
 
 
 echo Setting up audio environment...
-cp $SIG_PATH/sys/.asoundrc ~/
+sudo cp $SIG_PATH/sys/.asoundrc ~/
 sudo modprobe snd-aloop
 sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo $SIG_PATH/sys/disable_hdmi_audio.dts
 
