@@ -141,13 +141,9 @@ if [ -f "$VPN_FILE" ]; then
     sudo rm $VPN_FILE
     sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
     sudo cp /etc/openvpn/client/client.ovpn /etc/openvpn/client.conf
-    sudo systemctl enable openvpn@client.service
-    sudo systemctl start openvpn@client.service
 else
     if [ -f /etc/openvpn/client/client.ovpn ]; then
         sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
-        sudo systemctl enable openvpn@client.service
-        sudo systemctl start openvpn@client.service
     else
         echo "VPN credentials not found! Obtain from VPN server and add manually after installation."
     fi
@@ -261,6 +257,17 @@ else
     fi
 fi
 echo
+
+
+read -p "Do you want to enable the VPN connection now? (warning, may disrupt connection) [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    sudo systemctl enable openvpn@client.service
+    sudo systemctl start openvpn@client.service
+    echo
+fi
+
 
 
 echo -------------------------------------------------------
