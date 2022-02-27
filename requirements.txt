@@ -6,5 +6,5 @@ bleson
 schedule
 prometheus-client
 flask
-Flask-Sockets
 dictdiffer
+wtforms
