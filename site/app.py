@@ -27,7 +27,6 @@ def index():
     current_config = get_config('config')
     default_config = get_config('config', 'default')
     label_types(default_config)
-    print(json.dumps(default_config))
     return render_template('index.html',
                            current_config=current_config,
                            default_config=default_config)
@@ -57,10 +56,14 @@ def get_config(file:str, *args):
 def label_types(input:dict):
     for key, val in input.items():
         if key != 'param_type':
-            if isinstance(val, dict):
+            if isinstance(val, (dict, list)):
+                val_type = 'iterable'
+                input[key] = {'value':val, 'param_type':f'{val_type}'}
                 label_types(val)
             else:
                 val_type = type(val).__name__
                 if val_type in ['int', 'float']:
                     val_type = 'number'
+                elif val_type in ['dict', 'list']:
+                    val_type = 'iterable'
                 input[key] = {'value':val, 'param_type':f'{val_type}'}

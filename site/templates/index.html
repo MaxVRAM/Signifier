@@ -14,32 +14,25 @@
 {% endblock %}
 
 {% block content %}
-    <ul class="sitemap">
-        {%- for item in sitemap recursive %}
-            <li>
-                <a href="{{ item.href|e }}">{{ item.title }}</a>
-                {%- if item.children -%}
-                    <ul class="submenu">{{ loop(item.children) }}</ul>
-                {%- endif %}
-            </li>
-        {%- endfor %}
-    </ul>
-
-
-    {% comment %} <div class="accordion" id="modules">
-        {% for module in config.keys() %}
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="{{ 'module-' + module }}">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="{{ '#panel-' + module }}" aria-expanded="false" aria-controls="{{ 'panel-' + module }}">
-                        {{ sentence_case(module) }}
-                    </button>
-                </h2>
-                <div id="{{ 'panel-' + module }}" class="accordion-collapse collapse hide" aria-labelledby="{{ 'module-' + module }}">
-                    <div class="accordion-body">
-                        {{ config[module].keys() }}
+    <div class="accordion" id="modules">
+        {% for module, value in default_config.items() recursive %}
+            {% if 'param_type' not in value %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="{{ 'module-' + module }}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="{{ '#panel-' + module }}" aria-expanded="false" aria-controls="{{ 'panel-' + module }}">
+                            {{ sentence_case(module) }}
+                        </button>
+                    </h2>
+                    <div id="{{ 'panel-' + module }}" class="accordion-collapse collapse hide" aria-labelledby="{{ 'module-' + module }}">
+                        <div class="accordion-body">
+                                {{ loop(value) }}
+                        </div>
                     </div>
                 </div>
-            </div>
+
+            {% else %}
+                poop
+            {% endif %}
         {% endfor %}
-    </div> {% endcomment %}
+    </div>
 {% endblock %}
