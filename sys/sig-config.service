@@ -1,0 +1,14 @@
+[Unit]
+Description=Sig-Config Interface
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=
+User=
+WorkingDirectory=
+StartLimitInterval=10
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

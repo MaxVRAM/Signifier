@@ -95,6 +95,17 @@ sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
 sudo cp $SERVICE_TEMP /etc/systemd/system/signifier.service
 rm $SERVICE_TEMP
 
+echo
+echo Updating Sig-Config Interface service...
+SERVICE_TEMP=$HOME/sig-config.service
+cp "$SIG_PATH/sys/sig-config.service" $SERVICE_TEMP
+EXEC_COMMAND="ExecStart=flask run"
+sed -i "/ExecStart=/c\\$PYTHON_EXEC" $SERVICE_TEMP
+sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
+sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
+sudo cp $SERVICE_TEMP /etc/systemd/system/sig-config.service
+rm $SERVICE_TEMP
+
 
 read -p "Should the Signifier auto-start service be enabled? [y/N] " -n 1 -r
 echo
@@ -103,6 +114,15 @@ then
     sudo systemctl enable signifier
     echo
 fi
+
+read -p "Should the Sig-Config Interface service be enabled? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    sudo systemctl enable sig-config
+    echo
+fi
+
 
 read -p "Download updated WiFi config from SigNet server? [y/N] " -n 1 -r
 echo
