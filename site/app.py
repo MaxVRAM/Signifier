@@ -51,38 +51,14 @@ def get_config(file:str, *args):
             except json.decoder.JSONDecodeError:
                 return {}
 
+
 def label_types(input:dict):
     for key, val in input.items():
-        try:
-            if val.lower() in ['true, false']:
-                input[key] = {'value':val, 'type':'bool'}
-                print('bool!')
+        if key != 'param_type':
+            if isinstance(val, dict):
+                label_types(val)
             else:
-                raise AttributeError
-        except AttributeError:
-            try:
-                float(val)
-                print('number!')
-                input[key] = {'value':val, 'type':'number'}
-            except (ValueError, TypeError):
-                if isinstance(val, str):
-                    print('string!')
-                    input[key] = {'value':val, 'type':'string'}
-                elif isinstance(val, dict):
-                    print(f'is dict:    {val}')
-                    label_types(val)
-                else:
-                    print('what?')
-
-        print(f'key: {key}    value: {val}')
-        print()
-
-        # except (ValueError, TypeError):
-        #     if isinstance(val, str):
-
-        #     else:
-
-        #         print('iterable')
-        #     #     input[key].update({'value':input[val], 'type':'interable'})
-        #         label_types(input[key])
-        # #print(f'key: {key}    value: {val}')
+                val_type = type(val).__name__
+                if val_type in ['int', 'float']:
+                    val_type = 'number'
+                input[key] = {'value':val, 'param_type':f'{val_type}'}

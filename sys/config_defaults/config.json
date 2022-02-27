@@ -120,7 +120,7 @@
                     "quiet_level": 3,
                     "busy_level": 8
                 },
-                "description": "Schedule add/subtract active clips based on target 'level'."
+                "description": "Schedule add/subtract active clips based on target level."
             },
             "volume": {
                 "enabled": true,

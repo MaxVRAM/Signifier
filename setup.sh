@@ -46,12 +46,11 @@ LINE="export PATH=\"\$HOME/.local/bin:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="export PATH=\"\$HOME/Arduino:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-
 LINE=$"export HOST=\"$HOSTNAME\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE=$"export SIGNIFIER=\"$SIG_PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE=$"export FLASK_APP=\"$SIG_PATH/signifier.py\""
+LINE=$"export FLASK_APP=\"$SIG_PATH/site/app.py\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE=$"export FLASK_ENV=\"development\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
@@ -59,7 +58,7 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE=$"source $HOME/.aliases"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
-source $HOME/.profile
+source ~/.profile
 echo
 
 
