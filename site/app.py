@@ -1,5 +1,4 @@
 
-from inspect import istraceback
 import os
 import json
 
@@ -25,10 +24,13 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-
     current_config = get_config('config')
     default_config = get_config('config', 'default')
     label_types(default_config)
+    print(json.dumps(default_config))
+    return render_template('index.html',
+                           current_config=current_config,
+                           default_config=default_config)
 
 
 @app.route('/upload', methods=['GET', 'POST'])
