@@ -62,6 +62,14 @@ source ~/.profile
 echo
 
 
+FILE=/etc/sudoers
+if [ -f "$FILE" ]; then
+    sudo tail -c1 $FILE | read -r _ || echo >> $FILE
+fi
+LINE="$USER ALL=NOPASSWD: /sbin/halt, /sbin/reboot, /sbin/poweroff"
+sudo grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
+
+
 
 CONFIG_PATH=$SIG_PATH/cfg
 DEFAULTS_PATH=$SIG_PATH/sys/config_defaults
