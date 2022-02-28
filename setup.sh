@@ -66,7 +66,7 @@ FILE=/etc/sudoers
 if [ -f "$FILE" ]; then
     sudo tail -c1 $FILE | read -r _ || echo >> $FILE
 fi
-LINE="$USER ALL=NOPASSWD: /sbin/halt, /sbin/reboot, /sbin/poweroff"
+LINE="$USER ALL=NOPASSWD: /sbin/reboot"
 sudo grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 
 
@@ -115,42 +115,42 @@ sudo cp $SERVICE_TEMP /etc/systemd/system/sig-config.service
 rm $SERVICE_TEMP
 
 
-read -p "Should the Signifier auto-start service be enabled? [y/N] " -n 1 -r
+read -p "Should the Signifier auto-start service be enabled? [Y/n] " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]
+if [[ ! $REPLY =~ ^[Yy]$ ]]
 then
     sudo systemctl enable signifier
     echo
 fi
 
-read -p "Should the Sig-Config Interface service be enabled? [y/N] " -n 1 -r
+read -p "Should the Sig-Config Interface service be enabled? [Y/n] " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]
+if [[ ! $REPLY =~ ^[Yy]$ ]]
 then
     sudo systemctl enable sig-config
     echo
 fi
 
 
-read -p "Download updated WiFi config from SigNet server? [y/N] " -n 1 -r
+read -p "Download updated WiFi config from SigNet server? [Y/n] " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]
+if [[ ! $REPLY =~ ^[Yy]$ ]]
 then
     scp -P 14444 signifier@192.168.30.10:~/sig-config/wpa_supplicant.conf ~/
     sudo cp ~/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
     rm ~/wpa_supplicant.conf
 fi
 
-read -p "Download VPN certificate from SigNet server? [y/N] " -n 1 -r
+read -p "Download VPN certificate from SigNet server? [Y/n] " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]
+if [[ ! $REPLY =~ ^[Yy]$ ]]
 then
     scp -P 14444 signifier@192.168.30.10:~/sig-config/${HOSTNAME}.ovpn ~/
 fi
 
-read -p "Download audio files from SigNet server? [y/N] " -n 1 -r
+read -p "Download audio files from SigNet server? [Y/n] " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]
+if [[ ! $REPLY =~ ^[Yy]$ ]]
 then
     scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds/* $MEDIA_DIR
 fi
@@ -221,9 +221,9 @@ arduino-cli core install arduino:megaavr
 arduino-cli lib install FastLED
 arduino-cli lib install SerialTransfer
 
-read -p "Push latest code to Arduino? (make sure it's connected!) [y/N] " -n 1 -r
+read -p "Push latest code to Arduino? (make sure it's connected!) [Y/n] " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]
+if [[ ! $REPLY =~ ^[Yy]$ ]]
 then
     source update-arduino.sh
 fi
@@ -315,14 +315,13 @@ fi
 echo
 
 
-#read -p "Do you want to enable the VPN connection now? (warning, may disrupt connection) [y/N] " -n 1 -r
-#echo
-#if [[ $REPLY =~ ^[Yy]$ ]]
-#then
-#    sudo systemctl enable openvpn@client.service
-#    sudo systemctl start openvpn@client.service
-#    echo
-#fi
+read -p "Do you want to enable the VPN connection on reboot? [Y/n] " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Nn]$ ]]
+then
+   sudo systemctl enable openvpn@client.service
+   echo
+fi
 
 
 

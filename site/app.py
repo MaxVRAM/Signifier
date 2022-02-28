@@ -1,6 +1,9 @@
 
 import os
+import sys
 import time
+
+import subprocess
 
 from flask import Flask
 from flask import request
@@ -78,6 +81,7 @@ def download_default(filename):
 def restart_signifier():
     print('Remote user requested reboot of this machine. Restarting in 5 seconds...')
     time.sleep(5)
-    os.system("reboot")
+    subprocess.call(['sudo', '/sbin/reboot'])
+    #os.system("reboot")
     return render_template('index.html', hostname=HOSTNAME)
 
