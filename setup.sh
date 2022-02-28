@@ -10,6 +10,66 @@ MEDIA_DIR=$SIG_PATH/media/audio
 echo Installing Signifier from [$SIG_PATH] on [$HOSTNAME]...
 echo
 
+OPTION_SIG_SERVICE=true
+OPTION_WEB_SERVICE=true
+OPTION_DL_VPN_CRED=true
+OPTION_DL_WIFI_CFG=true
+OPTION_DL_AUDIO=true
+OPTION_UPDATE_ARDUINO=true
+OPTION_ENABLE_VPN=true
+OPTION_REBOOT=true
+
+read -p "Enable Signifier auto-start on boot? [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    OPTION_SIG_SERVICE=false
+fi
+read -p "Enable Signifier configuration web-app auto-start on boot? [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    OPTION_WEB_SERVICE=false
+fi
+read -p "Download new VPN credentials from server? (requires password) [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    OPTION_DL_VPN_CRED=false
+fi
+read -p "Download new WiFi credentials from server? (requires password) [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    OPTION_DL_WIFI_CFG=false
+fi
+read -p "Download latest audio library from server? (requires password) [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    OPTION_DL_AUDIO=false
+fi
+read -p "Compile and push latest LED code to Arduino (Arduino must be connected)? [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    OPTION_UPDATE_ARDUINO=false
+fi
+read -p "Enable VPN connection auto-start on boot? [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    OPTION_ENABLE_VPN=false
+fi
+read -p "The Signifier must reboot before running. Should it reboot immediately after setup? [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    OPTION_REBOOT=false
+fi
+
+
+
 sudo systemctl stop signifier
 sudo systemctl disable signifier
 sudo systemctl stop bluetooth
@@ -115,45 +175,24 @@ sudo cp $SERVICE_TEMP /etc/systemd/system/sig-config.service
 rm $SERVICE_TEMP
 
 
-read -p "Should the Signifier auto-start service be enabled? [Y/n] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
+if [[ $OPTION_SIG_SERVICE = "true" ]]; then
     sudo systemctl enable signifier
-    echo
 fi
-
-read -p "Should the Sig-Config Interface service be enabled? [Y/n] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
-    sudo systemctl enable sig-config
-    echo
+if [[ $OPTION_WEB_SERVICE = "true" ]]; then
+    sudo systemctl enable signifier
 fi
-
-
-read -p "Download updated WiFi config from SigNet server? [Y/n] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
+if [[ $OPTION_DL_VPN_CRED = "true" ]]; then
+    scp -P 14444 signifier@192.168.30.10:~/sig-config/${HOSTNAME}.ovpn ~/
+fi
+if [[ $OPTION_DL_WIFI_CFG = "true" ]]; then
     scp -P 14444 signifier@192.168.30.10:~/sig-config/wpa_supplicant.conf ~/
     sudo cp ~/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
     rm ~/wpa_supplicant.conf
 fi
-
-read -p "Download VPN certificate from SigNet server? [Y/n] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
-    scp -P 14444 signifier@192.168.30.10:~/sig-config/${HOSTNAME}.ovpn ~/
-fi
-
-read -p "Download audio files from SigNet server? [Y/n] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
+if [[ $OPTION_DL_AUDIO = "true" ]]; then
     scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds/* $MEDIA_DIR
 fi
+
 
 echo Updating system...
 sudo apt update
@@ -221,14 +260,10 @@ arduino-cli core install arduino:megaavr
 arduino-cli lib install FastLED
 arduino-cli lib install SerialTransfer
 
-read -p "Push latest code to Arduino? (make sure it's connected!) [Y/n] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
+
+if [[ $OPTION_WEB_SERVICE = "true" ]]; then
     source update-arduino.sh
 fi
-echo
-
 
 echo Setting up audio environment...
 sudo cp $SIG_PATH/sys/.asoundrc ~/
@@ -314,16 +349,17 @@ else
 fi
 echo
 
-
-read -p "Do you want to enable the VPN connection on reboot? [Y/n] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Nn]$ ]]
-then
+if [[ $OPTION_ENABLE_VPN = "true" ]]; then
    sudo systemctl enable openvpn@client.service
-   echo
 fi
 
 
+
+if [[ $OPTION_REBOOT = "true" ]]; then
+    echo "Done! Rebooting in 5 seconds..."
+    sleep 5
+   sudo reboot
+fi
 
 echo -------------------------------------------------------
 echo Done! Please reboot to complete Signifier installation.
