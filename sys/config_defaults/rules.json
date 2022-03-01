@@ -1,5 +1,5 @@
 {
-    "rules": [
+    "mapper": [
         {
             "source": {
                 "module": "analysis",

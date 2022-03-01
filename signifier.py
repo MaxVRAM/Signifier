@@ -41,97 +41,77 @@ from src.analysis import Analysis
 from src.bluetooth import Bluetooth
 from src.composition import Composition
 
+from src.utils import load_config_files
+
 
 HOSTNAME = os.getenv('HOST')
 SIG_PATH = os.getenv('SIGNIFIER')
 SITE_PATH = os.path.join(SIG_PATH, 'site')
 CFG_PATH = os.path.join(SIG_PATH, 'cfg')
 DEFAULTS_PATH = os.path.join(SIG_PATH, 'sys', 'default_configs')
-CONFIG_FILE = 'config.json'
-VALUES_FILE = 'values.json'
-RULES_FILE = 'rules.json'
 CONFIG_UPDATE_SECS = 2
+CONFIG_FILES = {'config':'config.json',
+                'values':'values.json',
+                'rules': 'rules.json'}
+
+configs = {name:{'file':file, 'modules':None}\
+    for (name, file) in CONFIG_FILES.items()}
 
 prev_config_update = time.time()
 metrics_q = mp.Queue(maxsize=500)
+
+module_types = {'leds':Leds, 
+                'mapper':Mapper,
+                'metrics':Metrics,
+                'analysis':Analysis,
+                'bluetooth':Bluetooth,
+                'composition':Composition}
+
 module_names = ['leds', 'mapper', 'metrics', 'analysis', 'bluetooth', 'composition']
-modules = {}
+module_objects = {}
 config = {}
 values = {}
 rules = {}
 
 
-def load_config_files() -> tuple:
-    global CONFIG_UPDATE_SECS
-    with open(os.path.join(CFG_PATH, CONFIG_FILE)) as c:
-        try:
-            new_config = json.load(c)
-        except json.decoder.JSONDecodeError:
-            new_config = None
-    with open(os.path.join(CFG_PATH, VALUES_FILE)) as v:
-        try:
-            new_values = json.load(v)
-        except json.decoder.JSONDecodeError:
-            new_values = None
-    with open(os.path.join(CFG_PATH, RULES_FILE)) as r:
-        try:
-            new_rules = json.load(r)
-        except json.decoder.JSONDecodeError:
-            new_rules = None
-    if (config_update_secs := new_config.get('general',{}).get('config_update_secs', 2)) is not None:
-        try:
-            float(config_update_secs)
-            CONFIG_UPDATE_SECS = config_update_secs
-        except ValueError:
-            pass
-    return new_config, new_values, new_rules
-
-
 def check_config_update():
-    global prev_config_update, modules, config, values, rules
+    """
+    Checks config files from the Signifier config path and updates any modules
+    with updated configuration values.
+    """
+    global prev_config_update, module_objects, configs
 
     updated_modules = set()
-
     if time.time() > prev_config_update + CONFIG_UPDATE_SECS:
         prev_config_update = time.time()
-        new_config, new_values, new_rules = load_config_files()
-
-        if new_config is not None:
-            for k, v in new_config.items():
-                if k in config.keys():
-                    diff = list(dict_diff(config[k], new_config[k]))
-                    if len(diff) > 0:
-                        print()
-                        logger.info(f'Detected change in config: {diff}')
-                        updated_modules.add(k)
-
-        if new_values is not None:
-            for k, v in new_values.items():
-                if k in values.keys():
-                    diff = list(dict_diff(values[k], new_values[k]))
-                    if len(diff) > 0:
-                        print()
-                        logger.info(f'Detected change in config: {diff}')
-                        updated_modules.add(k)
-
-        if new_rules is not None:
-            diff = list(dict_diff(rules, new_rules))
-            if len(diff) > 0:
-                updated_modules.add('mapper')
-        if new_values is not None:
-            diff = list(dict_diff(values, new_values))
-            if len(diff) > 0:
-                updated_modules.add('metrics')
-
+        new_configs = load_config_files(configs, CONFIG_FILES, CFG_PATH)
+        values_config_changed = False
+        # Find differences in current and new config
+        for config, values in configs.items():
+            modules = values['modules']
+            for module, settings in modules.items():
+                diff = list(
+                    dict_diff(settings, new_configs[config]['modules'][module]))
+                if len(diff) > 0:
+                    print()
+                    logger.info(f'Detected config change to [{module}]: {diff}')
+                    updated_modules.add(module)
+                    if config == 'values':
+                        values_config_changed = True
+        # Find and update all metrics modules if values config has changed
+        if values_config_changed:
+            for module in module_objects.values():
+                if type(module).__name__.lower() == module_types['metrics']:
+                    updated_modules.add(module)
+        # Tell modules with updated configs to reload with new settings
         if updated_modules is not None and len(updated_modules) > 0:
-            config = new_config
-            values = new_values
-            rules = new_rules
+            configs = new_configs
             logger.info(f'Updating modules: {updated_modules}')
             for m in updated_modules:
-                if m in module_names:
-                    modules[m].update_config(config, values=values, rules=rules)
-
+                if m in module_objects:
+                    module_objects[m].update_config(configs)
+        CONFIG_UPDATE_SECS = configs['config']['modules']['general'].get(
+                'config_update_secs', 2)
 
 
 #    _________.__            __      .___
@@ -169,7 +149,7 @@ class ExitHandler:
                 # Ignore open metrics queue points for open threads 
                 metrics_q.cancel_join_thread()
                 # Ask each module to close gracefully
-                for m in modules.values():
+                for m in module_objects.values():
                     m.stop()
                     while m.status.name in ['running', 'closing']:
                         m.monitor()
@@ -194,28 +174,34 @@ if __name__ == '__main__':
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
 
-    config, values, rules = load_config_files()
+    configs = load_config_files()
 
-    if config['general']['hostname'] != HOSTNAME:
-        config['general']['hostname'] = HOSTNAME
-        with open(os.path.join(CFG_PATH, CONFIG_FILE), 'w', encoding='utf8') as c:
-            json.dump(config, c, ensure_ascii=False, indent=4)
+    # Write current hostname to config file
+    config_data = configs['config']['modules']
+    if config_data['general']['hostname'] != HOSTNAME:
+        config_data['general']['hostname'] = HOSTNAME
+        with open(os.path.join(CFG_PATH, configs['config']['file']),
+                  'w', encoding='utf8') as c:
+            json.dump(config_data, c, ensure_ascii=False, indent=4)
 
     print()
     logger.info(f'Starting Signifier on [{HOSTNAME}]')
     print()
 
     # Define and load modules
-    for name in module_names:
-        module_class = globals()[name.capitalize()]
-        modules[name] = module_class(
-            name, config, metrics=metrics_q, values=values, rules=rules)
+    for module in configs['config']['modules']:
+        if (module_class := module_types.get(module.get('module_type'), '')) is not None:
+            module_objects[module] = module_class(module, configs, metrics=metrics_q)
+    # Provide any mapper modules the module pipe from each module except its own
+    for mapper_name, mapper_module in module_objects.values():
+        if type(mapper_module).__name__.lower() == module_types['mapper']:
+            mapper_module.pipes = {name: module.module_pipe
+                for name, module in module_objects.items()
+                if mapper_name != name}
 
-    pipes = {k: v.module_pipe for k, v in modules.items()}
-    modules['mapper'].set_pipes(pipes)
-
+    # Tidy little run loop
     while True:
-        for m in modules.values():
+        for m in module_objects.values():
             m.monitor()
         check_config_update()
         time.sleep(0.001)

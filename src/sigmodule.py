@@ -18,6 +18,7 @@ from queue import Full
 import multiprocessing as mp
 
 from src.utils import FunctionHandler
+from signifier import module_types
 
 
 class ProcessStatus(Enum):
@@ -35,20 +36,14 @@ class SigModule:
     """
     A generic module class for creating independent Signifier modules.
     """
-    def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
+    def __init__(self, name: str, configs: dict, *args, **kwargs) -> None:
         # Signifier configuration
         self.module_name = name
-        self.main_config = config
-        self.module_config = config[self.module_name]
-        self.main_values = kwargs.get("values", {})
-        self.module_values = self.main_values.get(self.module_name, {})
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(
-            logging.DEBUG if self.module_config.get("debug", True) else logging.INFO
-        )
-        self.enabled = self.module_config.get("enabled", False)
+        self.apply_new_configs(configs)
         self.status = ProcessStatus.empty if self.enabled else ProcessStatus.disabled
         # Process management
+        self.module_type = None
         self.process = None
         self.metrics_q = kwargs.get("metrics", None)
         self.parent_pipe, self.child_pipe = mp.Pipe()
@@ -68,9 +63,25 @@ class SigModule:
             self.module_name, self.remote_functions)
 
 
+    def apply_new_configs(self, configs):
+        """
+        Generic method to apply new configs to module instance.
+        """
+        self.main_config = configs['config']['modules']
+        self.module_config = self.main_config[self.module_name]
+        self.main_values = configs['values']['modules']
+        self.module_values = self.main_values.get(self.module_name, {})
+        self.rules_config = configs['rules']['modules']
+        self.module_type = module_types[self.module_config['module_type']]
+        self.enabled = self.module_config.get("enabled", False)
+        self.logger.setLevel(
+            logging.DEBUG if self.module_config.get("debug", True) else logging.INFO
+        )
+
+
     def create_process(self):
         """
-        Module-specific Process class return for initialisation function.
+        Generic method to instantiate module-specific Process class.
         """
         pass
 
@@ -83,7 +94,7 @@ class SigModule:
                             ProcessStatus.failed,
                             ProcessStatus.closed]
                             or 'force' in args):
-            self.create_process()
+            self.process(self.module_type(self))
             if self.process is None:
                 self.logger.error(
                     f"[{self.module_name}] process object could not be created!"
@@ -95,33 +106,14 @@ class SigModule:
                 f'{self.status.name}')
 
 
-    def update_config(self, config: dict, **kwargs):
+    def update_config(self, configs: dict, **kwargs):
         """
         Updates the module's configuration based on supplied config dictionary.
         """
         self.logger.debug(f"Updating [{self.module_name}] module config...")
-
         if self.status == ProcessStatus.running:
             self.stop()
-
-        self.main_config = config
-        self.module_config = self.main_config.get(self.module_name)
-        self.main_values = kwargs.get("values", {})
-        self.module_values = self.main_values.get(self.module_name)
-        self.rules_config = kwargs.get("rules", {})
-        self.enabled = self.module_config.get('enabled', False)
-
-        # if self.enabled:
-        #     self.initialise('force')
-
-        # else:
-        #     self.module_config = config[self.module_name]
-        #     self.enabled = self.module_config.get('enabled', False)
-        #     if self.enabled is True:
-        #         self.initialise('force')
-        #         self.start()
-        #     else:
-        #         pass
+        self.apply_new_configs(configs)
 
 
     def start(self):

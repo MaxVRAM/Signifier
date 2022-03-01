@@ -6,6 +6,8 @@
 #          \/   /_____/                                \/
 
 import os
+import json
+import signal
 import logging
 import numpy as np
 
@@ -102,6 +104,54 @@ def validate_library(config_file: dict) -> bool:
                 return False
             logger.debug(f"[{len(clips)}] clip{plural(clips)} found in library.")
             return True
+
+
+def load_dict_from_json(file) -> dict:
+    """
+    Returns a valid dictionary from provided absolute path to JSON file. Returns
+    None otherwise.
+    """
+    try:
+        with open(file) as c:
+            try:
+                return json.load(c)
+            except json.decoder.JSONDecodeError:
+                return None
+    except FileNotFoundError:
+        return None
+
+
+def load_config_files(configs_dict:dict, config_file:dict, config_path:str) -> dict:
+    """
+    Reads configuration JSON files, applying a series of checks to retain current
+    values or apply defaults if configuration files are invalid.
+    """
+    new_configs = {name:{'file':file, 'modules':None}\
+        for (name, file) in config_file.items()}
+    for name, values in configs_dict.items():
+        config_path = os.path.join(config_path, values['file'])
+        default_path = os.path.join(config_file, values['file'])
+        # 1. Try to apply new config file
+        if os.path.isfile(config_path) and (
+                new_config := load_dict_from_json(config_path)) is not None:
+            new_configs[name].update('modules', new_config)
+            continue
+        # 2. Try to keep current settings
+        if os.path.isfile(config_path) and values.get('modules') is not None:
+            logger.warning(f'Config file [{values["file"]}] broken or missing. Keeping current settings.')
+            new_configs[name].update('modules', values['modules'])
+            continue
+        # 3. Try to use default settings from backup file
+        if os.path.isfile(default_path) and (
+                new_config := load_dict_from_json(default_path)) is not None:
+            logger.warning(f'Config file [{values["file"]}] broken or missing. Importing defaults.')
+            new_configs[name].update('modules', new_config)
+            continue
+        # 4. Cannot continue without any settings. Terminate Signifier
+        logger.critical(f'Config file [{values["file"]}] and its default are missing or broken!'
+                        f'Unable to continue. Please run Signifier setup script to fix!')
+        signal.SIGTERM
+    return new_configs
 
 
 class FunctionHandler:
