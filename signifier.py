@@ -47,19 +47,19 @@ from src.utils import load_config_files
 HOSTNAME = os.getenv('HOST')
 SIG_PATH = os.getenv('SIGNIFIER')
 SITE_PATH = os.path.join(SIG_PATH, 'site')
-CFG_PATH = os.path.join(SIG_PATH, 'cfg')
+CONFIG_PATH = os.path.join(SIG_PATH, 'cfg')
 DEFAULTS_PATH = os.path.join(SIG_PATH, 'sys', 'default_configs')
 CONFIG_UPDATE_SECS = 2
 CONFIG_FILES = {'config':'config.json',
                 'values':'values.json',
                 'rules': 'rules.json'}
-
 configs = {name:{'file':file, 'modules':None}\
     for (name, file) in CONFIG_FILES.items()}
 
-prev_config_update = time.time()
+config_update_time = time.time()
 metrics_q = mp.Queue(maxsize=500)
 
+module_objects = {}
 module_types = {'leds':Leds, 
                 'mapper':Mapper,
                 'metrics':Metrics,
@@ -67,24 +67,18 @@ module_types = {'leds':Leds,
                 'bluetooth':Bluetooth,
                 'composition':Composition}
 
-module_names = ['leds', 'mapper', 'metrics', 'analysis', 'bluetooth', 'composition']
-module_objects = {}
-config = {}
-values = {}
-rules = {}
-
 
 def check_config_update():
     """
     Checks config files from the Signifier config path and updates any modules
     with updated configuration values.
     """
-    global prev_config_update, module_objects, configs
+    global CONFIG_UPDATE_SECS, config_update_time, module_objects, configs
 
     updated_modules = set()
-    if time.time() > prev_config_update + CONFIG_UPDATE_SECS:
-        prev_config_update = time.time()
-        new_configs = load_config_files(configs, CONFIG_FILES, CFG_PATH)
+    if time.time() > config_update_time + CONFIG_UPDATE_SECS:
+        config_update_time = time.time()
+        new_configs = load_config_files(configs, CONFIG_FILES, CONFIG_PATH, DEFAULTS_PATH)
         values_config_changed = False
         # Find differences in current and new config
         for config, values in configs.items():
@@ -127,13 +121,14 @@ class ExitHandler:
     Manages signals `SIGTERM` and `SIGINT`, and houses the subsequently called
     `shutdown()` method which exits the Signifier application gracefully.
     """
-
     signals = {signal.SIGINT: "SIGINT", signal.SIGTERM: "SIGTERM"}
+
 
     def __init__(self):
         self.exiting = False
         signal.signal(signal.SIGTERM, self.shutdown)
         signal.signal(signal.SIGINT, self.shutdown)
+
 
     def shutdown(self, *args):
         """
@@ -154,7 +149,7 @@ class ExitHandler:
                     while m.status.name in ['running', 'closing']:
                         m.monitor()
                         time.sleep(0.001)
-
+                print()
                 logger.info("Signifier shutdown complete!")
                 self.exiting = False
                 print()
@@ -174,13 +169,15 @@ if __name__ == '__main__':
     main_thread = mp.current_process()
     exit_handler = ExitHandler()
 
-    configs = load_config_files()
+    configs = load_config_files(configs, CONFIG_FILES, CONFIG_PATH, DEFAULTS_PATH)
+    if configs == None:
+        exit_handler.shutdown()
 
     # Write current hostname to config file
     config_data = configs['config']['modules']
     if config_data['general']['hostname'] != HOSTNAME:
         config_data['general']['hostname'] = HOSTNAME
-        with open(os.path.join(CFG_PATH, configs['config']['file']),
+        with open(os.path.join(CONFIG_PATH, configs['config']['file']),
                   'w', encoding='utf8') as c:
             json.dump(config_data, c, ensure_ascii=False, indent=4)
 
@@ -189,12 +186,12 @@ if __name__ == '__main__':
     print()
 
     # Define and load modules
-    for module in configs['config']['modules']:
-        if (module_class := module_types.get(module.get('module_type'), '')) is not None:
-            module_objects[module] = module_class(module, configs, metrics=metrics_q)
+    for name, settings in configs['config']['modules'].items():
+        if (module_class := module_types.get(settings.get('module_type', ''))) is not None:
+            module_objects[name] = module_class(name, configs, metrics=metrics_q)
     # Provide any mapper modules the module pipe from each module except its own
-    for mapper_name, mapper_module in module_objects.values():
-        if type(mapper_module).__name__.lower() == module_types['mapper']:
+    for mapper_name, mapper_module in module_objects.items():
+        if type(mapper_module).__name__.lower() == 'mapper':
             mapper_module.pipes = {name: module.module_pipe
                 for name, module in module_objects.items()
                 if mapper_name != name}

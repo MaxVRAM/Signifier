@@ -44,10 +44,13 @@
 			"blelogger",
 			"CHSV",
 			"CRGB",
+			"dancy",
+			"dictdiffer",
 			"libasound",
 			"libportaudio",
 			"ndarray",
 			"pyaudio",
+			"scandir",
 			"Signifiers",
 			"sounddevices"
 		],

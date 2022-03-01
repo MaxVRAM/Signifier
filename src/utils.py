@@ -121,35 +121,34 @@ def load_dict_from_json(file) -> dict:
         return None
 
 
-def load_config_files(configs_dict:dict, config_file:dict, config_path:str) -> dict:
+def load_config_files(configs_dict:dict, config_files:dict, config_path:str, default_path:str) -> dict:
     """
     Reads configuration JSON files, applying a series of checks to retain current
     values or apply defaults if configuration files are invalid.
     """
     new_configs = {name:{'file':file, 'modules':None}\
-        for (name, file) in config_file.items()}
+        for (name, file) in config_files.items()}
     for name, values in configs_dict.items():
-        config_path = os.path.join(config_path, values['file'])
-        default_path = os.path.join(config_file, values['file'])
+        config_file = os.path.join(config_path, values['file'])
+        default_file = os.path.join(default_path, values['file'])
         # 1. Try to apply new config file
-        if os.path.isfile(config_path) and (
-                new_config := load_dict_from_json(config_path)) is not None:
-            new_configs[name].update('modules', new_config)
+        if os.path.isfile(config_file) and (
+                new_config := load_dict_from_json(config_file)) is not None:
+            new_configs[name]['modules'] = new_config
             continue
         # 2. Try to keep current settings
-        if os.path.isfile(config_path) and values.get('modules') is not None:
+        if values.get('modules') is not None:
             logger.warning(f'Config file [{values["file"]}] broken or missing. Keeping current settings.')
-            new_configs[name].update('modules', values['modules'])
+            new_configs[name]['modules'] = values['modules']
             continue
         # 3. Try to use default settings from backup file
-        if os.path.isfile(default_path) and (
-                new_config := load_dict_from_json(default_path)) is not None:
+        if os.path.isfile(default_file) and (
+                new_config := load_dict_from_json(default_file)) is not None:
             logger.warning(f'Config file [{values["file"]}] broken or missing. Importing defaults.')
-            new_configs[name].update('modules', new_config)
+            new_configs[name]['modules'] = new_config
             continue
         # 4. Cannot continue without any settings. Terminate Signifier
-        logger.critical(f'Config file [{values["file"]}] and its default are missing or broken!'
-                        f'Unable to continue. Please run Signifier setup script to fix!')
+        logger.critical(f'Config file [{values["file"]}] and its default are missing or broken!')
         signal.SIGTERM
     return new_configs
 

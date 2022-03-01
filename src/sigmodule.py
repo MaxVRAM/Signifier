@@ -18,7 +18,6 @@ from queue import Full
 import multiprocessing as mp
 
 from src.utils import FunctionHandler
-from signifier import module_types
 
 
 class ProcessStatus(Enum):
@@ -43,7 +42,6 @@ class SigModule:
         self.apply_new_configs(configs)
         self.status = ProcessStatus.empty if self.enabled else ProcessStatus.disabled
         # Process management
-        self.module_type = None
         self.process = None
         self.metrics_q = kwargs.get("metrics", None)
         self.parent_pipe, self.child_pipe = mp.Pipe()
@@ -72,11 +70,8 @@ class SigModule:
         self.main_values = configs['values']['modules']
         self.module_values = self.main_values.get(self.module_name, {})
         self.rules_config = configs['rules']['modules']
-        self.module_type = module_types[self.module_config['module_type']]
         self.enabled = self.module_config.get("enabled", False)
-        self.logger.setLevel(
-            logging.DEBUG if self.module_config.get("debug", True) else logging.INFO
-        )
+        self.logger.level = logging.DEBUG if self.module_config.get("debug", False) else logging.INFO
 
 
     def create_process(self):
@@ -94,7 +89,7 @@ class SigModule:
                             ProcessStatus.failed,
                             ProcessStatus.closed]
                             or 'force' in args):
-            self.process(self.module_type(self))
+            self.create_process()
             if self.process is None:
                 self.logger.error(
                     f"[{self.module_name}] process object could not be created!"
