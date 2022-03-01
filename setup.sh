@@ -19,65 +19,55 @@ OPTION_UPDATE_ARDUINO=true
 OPTION_ENABLE_VPN=true
 OPTION_REBOOT=true
 
-
 read -p "Perform complete Signifier setup and reboot once complete? (Interaction is still required to enter the VPN password) [Y/n] " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
+if [[ $REPLY =~ ^[Nn]$ ]]; then
     echo
     echo "Okay. Let's go through the options one-by-one:"
     echo
     read -p "   1. Enable Signifier auto-start on boot? [Y/n] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]
-    then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_SIG_SERVICE=false
     fi
     read -p "   2. Enable Signifier configuration web-app auto-start on boot? [Y/n] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]
-    then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_WEB_SERVICE=false
     fi
     read -p "   3. Download new VPN credentials from server? (requires password) [Y/n] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]
-    then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_DL_VPN_CRED=false
     fi
     read -p "   4. Download new WiFi credentials from server? (requires password) [Y/n] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]
-    then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_DL_WIFI_CFG=false
     fi
     read -p "   5. Download latest audio library from server? (requires password) [Y/n] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]
-    then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_DL_AUDIO=false
     fi
     read -p "   6. Compile and push latest LED code to Arduino (Arduino must be connected)? [Y/n] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]
-    then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_UPDATE_ARDUINO=false
     fi
     read -p "   7. Enable VPN connection auto-start on boot? [Y/n] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]
-    then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_ENABLE_VPN=false
     fi
     read -p "   8. The Signifier must reboot before running. Should it reboot immediately after setup? [Y/n] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]
-    then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_REBOOT=false
     fi
 fi
 
-
+# Clean up existing system services and permissions
 sudo systemctl stop signifier
 sudo systemctl disable signifier
 sudo systemctl stop bluetooth
@@ -86,6 +76,8 @@ sudo setcap cap_net_raw,cap_net_admin+eip $(eval readlink -f `which python`)
 echo
 
 echo Applying environment variables...
+
+# Apply aliases for easy development
 FILE=$HOME/.aliases
 if [ -f "$FILE" ]; then
     tail -c1 $FILE | read -r _ || echo >> $FILE
@@ -101,19 +93,18 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="alias aupload=\"arduino-cli upload -p /dev/ttyACM0 -b arduino:megaavr:nona4809\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
-CUSTOM_ENV=$HOME/.signifier.env
-if [ -f "$CUSTOM_ENV" ]; then
-    tail -c1 $CUSTOM_ENV | read -r _ || echo >> $CUSTOM_ENV
-else
-    touch $CUSTOM_ENV
-fi
 
+# Apply environment variables to user's .profile for interactive sessions
+# Also apply the environment variables to a .signifier.env file for non-interactive sessions
 FILE=$HOME/.profile
 if [ -f "$FILE" ]; then
     tail -c1 $FILE | read -r _ || echo >> $FILE
 else
     touch $FILE
 fi
+
+CUSTOM_ENV=$HOME/.signifier
+rm $CUSTOM_ENV
 
 LINE='# SIGNIFIER ENVIRONMENT VARIABLES'
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
@@ -124,27 +115,28 @@ LINE="export PATH=\"\$HOME/Arduino:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 LINE=$"HOST=\"$HOSTNAME\""
-grep -qF -- "$LINE" "$CUSTOM_ENV" || echo "$LINE" >> "$CUSTOM_ENV"
+echo "$LINE" >> "$CUSTOM_ENV"
 grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
+
 LINE=$"SIGNIFIER=\"$SIG_PATH\""
-grep -qF -- "$LINE" "$CUSTOM_ENV" || echo "$LINE" >> "$CUSTOM_ENV"
+echo "$LINE" >> "$CUSTOM_ENV"
 grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
+
 LINE=$"FLASK_APP=\"$SIG_PATH/site/app.py\""
-grep -qF -- "$LINE" "$CUSTOM_ENV" || echo "$LINE" >> "$CUSTOM_ENV"
+echo "$LINE" >> "$CUSTOM_ENV"
 grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
+
 LINE=$"FLASK_ENV=\"development\""
-grep -qF -- "$LINE" "$CUSTOM_ENV" || echo "$LINE" >> "$CUSTOM_ENV"
+echo "$LINE" >> "$CUSTOM_ENV"
 grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
 
 LINE=$"source $HOME/.aliases"
-grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
 
 source ~/.profile
 echo
 
-
-
-
+# Allow install user to run "sudo reboot" without password
 FILE=/etc/sudoers
 if [ -f "$FILE" ]; then
     sudo tail -c1 $FILE | read -r _ || echo >> $FILE
@@ -153,7 +145,7 @@ LINE="$USER ALL=NOPASSWD: /sbin/reboot"
 sudo grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 
 
-
+# Create Signifier config JSON files from defaults if they don't exist
 CONFIG_PATH=$SIG_PATH/cfg
 DEFAULTS_PATH=$SIG_PATH/sys/config_defaults
 if [ ! -d "$CONFIG_PATH" ]; then
@@ -183,8 +175,8 @@ PYTHON_EXEC="ExecStart=/usr/bin/python $SIG_PATH/signifier.py"
 sed -i "/ExecStart=/c\\$PYTHON_EXEC" $SERVICE_TEMP
 sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
 sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
+sed -i "/EnvironmentFile=/c\\EnvironmentFile=$CUSTOM_ENV" $SERVICE_TEMP
 sudo cp $SERVICE_TEMP /etc/systemd/system/signifier.service
-#rm $SERVICE_TEMP
 
 echo
 echo Updating Sig-Config Interface service...
@@ -194,6 +186,7 @@ EXEC_COMMAND="ExecStart=flask run"
 sed -i "/ExecStart=/c\\$PYTHON_EXEC" $SERVICE_TEMP
 sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
 sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
+sed -i "/EnvironmentFile=/c\\EnvironmentFile=$CUSTOM_ENV" $SERVICE_TEMP
 sudo cp $SERVICE_TEMP /etc/systemd/system/sig-config.service
 rm $SERVICE_TEMP
 
@@ -257,8 +250,6 @@ if [ -f "$VPN_FILE" ]; then
     sudo chmod 700 $VPN_FILE
     sudo cp $VPN_FILE $VPN_PATH/client.conf
     sudo rm $VPN_FILE
-    # sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
-    # sudo cp /etc/openvpn/client/client.ovpn /etc/openvpn/client.conf
 else
     if [ ! -f $VPN_PATH/client.conf ]; then
         echo "VPN credentials not found! Add manually after installation and run setup script again."
