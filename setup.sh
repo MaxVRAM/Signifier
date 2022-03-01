@@ -19,55 +19,63 @@ OPTION_UPDATE_ARDUINO=true
 OPTION_ENABLE_VPN=true
 OPTION_REBOOT=true
 
-read -p "Enable Signifier auto-start on boot? [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-    OPTION_SIG_SERVICE=false
-fi
-read -p "Enable Signifier configuration web-app auto-start on boot? [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-    OPTION_WEB_SERVICE=false
-fi
-read -p "Download new VPN credentials from server? (requires password) [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-    OPTION_DL_VPN_CRED=false
-fi
-read -p "Download new WiFi credentials from server? (requires password) [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-    OPTION_DL_WIFI_CFG=false
-fi
-read -p "Download latest audio library from server? (requires password) [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-    OPTION_DL_AUDIO=false
-fi
-read -p "Compile and push latest LED code to Arduino (Arduino must be connected)? [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-    OPTION_UPDATE_ARDUINO=false
-fi
-read -p "Enable VPN connection auto-start on boot? [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-    OPTION_ENABLE_VPN=false
-fi
-read -p "The Signifier must reboot before running. Should it reboot immediately after setup? [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]
-then
-    OPTION_REBOOT=false
-fi
 
+read -p "Perform complete Signifier setup and reboot once complete? (Interaction is still required to enter the VPN password) [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]
+then
+    echo
+    echo "Okay. Let's go through the options one-by-one:"
+    echo
+    read -p "   1. Enable Signifier auto-start on boot? [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        OPTION_SIG_SERVICE=false
+    fi
+    read -p "   2. Enable Signifier configuration web-app auto-start on boot? [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        OPTION_WEB_SERVICE=false
+    fi
+    read -p "   3. Download new VPN credentials from server? (requires password) [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        OPTION_DL_VPN_CRED=false
+    fi
+    read -p "   4. Download new WiFi credentials from server? (requires password) [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        OPTION_DL_WIFI_CFG=false
+    fi
+    read -p "   5. Download latest audio library from server? (requires password) [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        OPTION_DL_AUDIO=false
+    fi
+    read -p "   6. Compile and push latest LED code to Arduino (Arduino must be connected)? [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        OPTION_UPDATE_ARDUINO=false
+    fi
+    read -p "   7. Enable VPN connection auto-start on boot? [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        OPTION_ENABLE_VPN=false
+    fi
+    read -p "   8. The Signifier must reboot before running. Should it reboot immediately after setup? [Y/n] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        OPTION_REBOOT=false
+    fi
+fi
 
 
 sudo systemctl stop signifier
@@ -93,6 +101,13 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="alias aupload=\"arduino-cli upload -p /dev/ttyACM0 -b arduino:megaavr:nona4809\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
+CUSTOM_ENV=$HOME/.signifier.env
+if [ -f "$CUSTOM_ENV" ]; then
+    tail -c1 $CUSTOM_ENV | read -r _ || echo >> $CUSTOM_ENV
+else
+    touch $CUSTOM_ENV
+fi
+
 FILE=$HOME/.profile
 if [ -f "$FILE" ]; then
     tail -c1 $FILE | read -r _ || echo >> $FILE
@@ -102,24 +117,32 @@ fi
 
 LINE='# SIGNIFIER ENVIRONMENT VARIABLES'
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+
 LINE="export PATH=\"\$HOME/.local/bin:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="export PATH=\"\$HOME/Arduino:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE=$"export HOST=\"$HOSTNAME\""
-grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE=$"export SIGNIFIER=\"$SIG_PATH\""
-grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE=$"export FLASK_APP=\"$SIG_PATH/site/app.py\""
-grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
-LINE=$"export FLASK_ENV=\"development\""
-grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+
+LINE=$"HOST=\"$HOSTNAME\""
+grep -qF -- "$LINE" "$CUSTOM_ENV" || echo "$LINE" >> "$CUSTOM_ENV"
+grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
+LINE=$"SIGNIFIER=\"$SIG_PATH\""
+grep -qF -- "$LINE" "$CUSTOM_ENV" || echo "$LINE" >> "$CUSTOM_ENV"
+grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
+LINE=$"FLASK_APP=\"$SIG_PATH/site/app.py\""
+grep -qF -- "$LINE" "$CUSTOM_ENV" || echo "$LINE" >> "$CUSTOM_ENV"
+grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
+LINE=$"FLASK_ENV=\"development\""
+grep -qF -- "$LINE" "$CUSTOM_ENV" || echo "$LINE" >> "$CUSTOM_ENV"
+grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
 
 LINE=$"source $HOME/.aliases"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 source ~/.profile
 echo
+
+
 
 
 FILE=/etc/sudoers
@@ -161,7 +184,7 @@ sed -i "/ExecStart=/c\\$PYTHON_EXEC" $SERVICE_TEMP
 sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
 sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
 sudo cp $SERVICE_TEMP /etc/systemd/system/signifier.service
-rm $SERVICE_TEMP
+#rm $SERVICE_TEMP
 
 echo
 echo Updating Sig-Config Interface service...
