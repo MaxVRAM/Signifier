@@ -131,7 +131,7 @@ echo "$LINE" >> "$CUSTOM_ENV"
 grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
 
 LINE=$"source $HOME/.aliases"
-grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
+grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 source ~/.profile
 echo
