@@ -6,9 +6,11 @@
 #          \/   /_____/                                \/
 
 import os
+import sys
 import json
 import signal
 import logging
+import logging.handlers
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -68,42 +70,6 @@ def rms_flat(a):
     # https://github.com/SiggiGue/pyfilterbank/issues/17
     rms = np.sqrt(np.mean(np.absolute(a) ** 2))
     return rms
-
-
-def validate_library(config_file: dict) -> bool:
-    """
-    Utility for checking validity of audio clip library.
-    Returns `False` unless paths are valid and audio clips exist.
-    """
-    audio_path = config_file["base_path"]
-    if not os.path.isdir(audio_path):
-        logger.critical(f"Invalid root path for library: {audio_path}.")
-        logger.info(f"Ensure audio library exists or check path in config.")
-        return False
-    else:
-        collections = [f.path for f in os.scandir(audio_path) if f.is_dir()]
-        if len(collections) == 0:
-            logger.critical(f"No collections found in audio library: {audio_path}")
-            logger.info(f"Ensure audio library exists or check path in config.")
-            return False
-        else:
-            logger.debug(
-                f"Found {len(collections)} audio clip "
-                f"collection{plural(collections)}."
-            )
-            clips = []
-            for c in collections:
-                for f in os.listdir(c):
-                    if os.path.splitext(f)[1][1:] in config_file["valid_extensions"]:
-                        clips.append(f)
-            if len(clips) == 0:
-                logger.critical(
-                    f"No valid clips found in library with extention "
-                    f'{config_file["valid_extensions"]}.'
-                )
-                return False
-            logger.debug(f"[{len(clips)}] clip{plural(clips)} found in library.")
-            return True
 
 
 def load_dict_from_json(file) -> dict:
@@ -177,22 +143,13 @@ class FunctionHandler:
                 command = message[0]
                 args = list(message[1:])
             except TypeError:
-                logger.warning(
-                    f'[{self.module_name}] received '
-                    f'Malformed command: {message}'
-                )
+                logger.warning(f'Received malformed command: {message}')
                 return None
         if (func := self.function_dict.get(command)) is not None:
-            logger.debug(
-                f'[{self.module_name}] received command '
-                f'"{command}", executing...'
-            )
+            logger.debug(f'Received command "{command}", executing...')
             func(*args)
         else:
-            logger.warning(
-                f'[{self.module_name}] does not recognise '
-                f'"{command}" command.'
-            )
+            logger.warning(f'Does not recognise "{command}" command.')
 
 
 
@@ -235,3 +192,39 @@ class SmoothedValue:
         else:
             self.value = new_value
         return self.value
+
+
+class SigLog:
+    file = "signifier.log"
+    level = logging.DEBUG
+    format_dt = '%d-%m-%y %H:%M:%S'
+    format_msg = '%(asctime)s %(name)18s - %(levelname)10s - %(message)s'
+    formatter = logging.Formatter(fmt=format_msg, datefmt=format_dt)
+
+
+    def get_console_handler():
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(SigLog.formatter)
+        return console_handler
+
+
+    def get_file_handler():
+        file_handler = logging.FileHandler(SigLog.file)
+        file_handler.setFormatter(SigLog.formatter)
+        return file_handler
+
+
+    def get_logger(logger_name):
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(SigLog.level)
+        logger.addHandler(SigLog.get_console_handler())
+        logger.addHandler(SigLog.get_file_handler())
+        logger.propagate = False
+        return logger
+
+
+    def roll_over():        
+        should_roll_over = os.path.isfile(SigLog.file)
+        handler = logging.handlers.RotatingFileHandler(SigLog.file, mode='w', backupCount=5)
+        if should_roll_over:
+            handler.doRollover()

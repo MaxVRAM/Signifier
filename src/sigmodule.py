@@ -12,11 +12,11 @@ A generic module class for creating independent Signifier modules.
 from __future__ import annotations
 
 import time
-import logging
 from enum import Enum
 from queue import Full
 import multiprocessing as mp
 
+from src.utils import SigLog
 from src.utils import FunctionHandler
 
 
@@ -38,7 +38,7 @@ class SigModule:
     def __init__(self, name: str, configs: dict, *args, **kwargs) -> None:
         # Signifier configuration
         self.module_name = name
-        self.logger = logging.getLogger(__name__)
+        self.logger = SigLog.get_logger(f'Sig.{name.capitalize()}')
         self.apply_new_configs(configs)
         self.status = ProcessStatus.empty if self.enabled else ProcessStatus.disabled
         # Process management
@@ -71,7 +71,8 @@ class SigModule:
         self.module_values = self.main_values.get(self.module_name, {})
         self.rules_config = configs['rules']['modules']
         self.enabled = self.module_config.get("enabled", False)
-        self.logger.level = logging.DEBUG if self.module_config.get("debug", False) else logging.INFO
+        self.logger.level = self.logger.setLevel('DEBUG') if self.module_config.get(
+            'debug', True) else self.logger.setLevel('INFO')
 
 
     def create_process(self):
@@ -92,12 +93,12 @@ class SigModule:
             self.create_process()
             if self.process is None:
                 self.logger.error(
-                    f"[{self.module_name}] process object could not be created!"
+                    f"process object could not be created!"
                 )
                 return None
         else:
             self.logger.warning(
-                f'[{self.module_name}] cannot be initialised with status: '
+                f'cannot be initialised with status: '
                 f'{self.status.name}')
 
 
@@ -105,7 +106,7 @@ class SigModule:
         """
         Updates the module's configuration based on supplied config dictionary.
         """
-        self.logger.debug(f"Updating [{self.module_name}] module config...")
+        self.logger.debug("Updating module config...")
         if self.status == ProcessStatus.running:
             self.stop()
         self.apply_new_configs(configs)
@@ -118,17 +119,15 @@ class SigModule:
         if self.status == ProcessStatus.initialised:
             if self.process is not None:
                 if not self.process.is_alive():
-                    self.logger.debug(f"[{self.module_name}] process starting.")
+                    self.logger.debug(f"process starting.")
                     self.status = ProcessStatus.starting
                     self.module_start_time = time.time()
                     self.process.start()
                 else:
-                    self.logger.warning(
-                        f"[{self.module_name}] already running but status not up to date."
-                    )
+                    self.logger.warning("Already running but status not up to date.")
         else:
             self.logger.warning(
-                f"[{self.module_name}] cannot be started with status: {self.status.name}")
+                f"cannot be started with status: {self.status.name}")
 
 
     def stop(self):
@@ -151,11 +150,9 @@ class SigModule:
                 timeout = 2
             try:
                 self.process.join(timeout=timeout)
-                self.logger.debug(
-                    f"[{self.module_name}] process stopped and joined main thread."
-                )
+                self.logger.debug('Process stopped and joined main thread.')
             except RuntimeError as exception:
-                self.logger.warning(f'[{self.module_name}] {exception}')
+                self.logger.warning(f'{exception}')
 
 
     def monitor(self):
@@ -166,10 +163,7 @@ class SigModule:
         # Retrieve and parse any pending messages from the child process
         if self.child_pipe.poll():
             message = self.child_pipe.recv()
-            self.logger.debug(
-                f"[{self.module_name}] module received "
-                f'"{message}" from child process.'
-            )
+            self.logger.debug(f'Module received {message} from child process.')
             if message == "running":
                 self.status = ProcessStatus.running
                 try:
@@ -210,7 +204,7 @@ class SigModule:
                 self.status = ProcessStatus.disabled
 
         if previous_status != self.status:
-            self.logger.info(f'[{self.module_name}] status changed to "{self.status.name}"')
+            self.logger.info(f'Status changed to "{self.status.name}"')
 
 
 
@@ -236,17 +230,12 @@ class SigModule:
         """
         if self.process is not None:
             if self.process.is_alive():
-                self.logger.debug(f'[{self.module_name}] sending '
-                                  f'{args} to process...')
+                self.logger.debug(f'Sending {args} to child process...')
                 if self.child_pipe.writable:
                     self.child_pipe.send(args)
                 else:
-                    self.logger.warning(
-                        f'[{self.module_name}] control pipe is not writable!'
-                    )
+                    self.logger.warning('Control pipe is not writable!')
                 return True
             else:
-                self.logger.debug(
-                    f"[{self.module_name}] has no process running to send message to."
-                )
+                self.logger.debug('Has no process running to send message to.')
         return False

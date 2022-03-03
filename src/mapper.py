@@ -21,8 +21,6 @@ from src.utils import SmoothedValue
 from src.sigmodule import SigModule
 from src.sigprocess import ModuleProcess
 
-logger = logging.getLogger(__name__)
-
 
 class Mapper(SigModule):
     """# ValueMapper

@@ -12,7 +12,6 @@ Signifier module to process audio streams, sending values to the input pool.
 from __future__ import annotations
 
 import time
-import logging
 
 import alsaaudio
 import numpy as np
@@ -21,7 +20,6 @@ import multiprocessing as mp
 from src.sigmodule import SigModule
 from src.sigprocess import ModuleProcess
 
-logger = logging.getLogger(__name__)
 
 THRESHOLD = 2e-08
 

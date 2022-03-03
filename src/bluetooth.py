@@ -12,7 +12,6 @@ Signifier module to manage Bluetooth scanner system.
 from __future__ import annotations
 
 import time
-import logging
 
 import numpy as np
 import multiprocessing as mp
@@ -24,7 +23,6 @@ from src.sigmodule import SigModule
 from src.sigprocess import ModuleProcess
 
 blelogger.set_level(blelogger.ERROR)
-logger = logging.getLogger(__name__)
 
 
 class Bluetooth(SigModule):

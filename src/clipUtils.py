@@ -12,12 +12,11 @@ Abstracted static functions to help manage audio clip sets.
 from __future__ import annotations
 
 import random
-import logging
 
 from src.utils import plural
+from src.utils import SigLog
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger = SigLog.get_logger('Sig.ClipUtils')
 
 
 def init_sounds(clips: set, channels: dict) -> dict:
@@ -88,8 +87,8 @@ def get_distributed(clips: set, num_clips: int, **kwargs) -> set:
                 else:
                     failed = clips_per_category - len(contents[category])
                     logger.debug(
-                        f"{plural(failed)} will be selected at random. "
-                        f'Set "strict" mode to enforce distribution.'
+                        f"{failed} clip{plural(failed)} will be selected at random. "
+                        f'Enforce distribution with "strict" mode.'
                     )
                     selection.update(
                         random.sample(contents[category], len(contents[category]))

@@ -90,25 +90,30 @@ class ModuleProcess:
         pass
 
 
-    def poll_control(self, block_for=0):
+    def poll_control(self, block_for = 0, abort_event = None):
         """
         Generic Process call to manage incoming control messages.
         Provide `block_for=(float)` to force checking for a period of seconds.
         Useful in scenarios like BLE scanning, where using `time.sleep()` to
         create the scanning period would hold up the Signifier shutdown process.
         """
-        command = None
         args = []
+        command = None
         start_time = time.time()
+        if abort_event is None:
+            abort_event = lambda: self.event.is_set()
 
-        while self.parent_pipe.poll():
-            message = self.parent_pipe.recv()
-            self.function_handler.call(message)
+        def poll():
+            while self.parent_pipe.poll():
+                message = self.parent_pipe.recv()
+                self.logger.debug(f'Got message: {message}')
+                self.function_handler.call(message)
 
+        poll()
         if block_for > 0:
-            while time.time() < start_time + block_for and not self.event.is_set():
+            while time.time() < start_time + block_for and not abort_event():
                 time.sleep(0.01)
-                self.poll_control()
+                poll()
         return None
 
 
@@ -123,7 +128,7 @@ class ModuleProcess:
         """
         Generic shutdown function to prepare Process for joining main thread.
         """
-        self.logger.debug(f'[{self.module_name}] process shutting down...')
+        self.logger.debug('Process shutting down...')
         self.event.set()
         if self.parent_pipe.writable:
             self.parent_pipe.send("closing")
@@ -138,9 +143,7 @@ class ModuleProcess:
         a critical error and module should be deactivated.
         A supplied exception in arguments will be logged as a critical.
         """
-        self.logger.critical(
-            f"[{self.module_name}] error: {exception}"
-        )
+        self.logger.critical("Error: {exception}")
         self.shutdown()
         if self.parent_pipe.writable:
             self.parent_pipe.send("failed")

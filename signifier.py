@@ -26,12 +26,7 @@ import signal
 from dictdiffer import diff as dict_diff
 import multiprocessing as mp
 
-import logging
-LOG_DT = '%d-%m-%y %H:%M:%S'
-LOG_MSG = '%(asctime)s %(levelname)8s - %(module)12s.py:%(lineno)4d - %(message)s'
-logging.basicConfig(level=logging.INFO, format=LOG_MSG, datefmt=LOG_DT)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+
 
 # Imports appear unused, but are dynamically loaded by module dictionary
 from src.leds import Leds
@@ -41,8 +36,12 @@ from src.analysis import Analysis
 from src.bluetooth import Bluetooth
 from src.composition import Composition
 
+from src.utils import SigLog
 from src.utils import load_config_files
 
+
+SigLog.roll_over()
+logger = SigLog.get_logger('Sig')
 
 HOSTNAME = os.getenv('HOST')
 SIG_PATH = os.getenv('SIGNIFIER')
@@ -146,9 +145,9 @@ class ExitHandler:
                 # Ask each module to close gracefully
                 for m in module_objects.values():
                     m.stop()
-                    while m.status.name in ['running', 'closing']:
-                        m.monitor()
-                        time.sleep(0.001)
+                while m.status.name in ['running', 'closing']:
+                    m.monitor()
+                    time.sleep(0.001)
                 print()
                 logger.info("Signifier shutdown complete!")
                 self.exiting = False
@@ -182,7 +181,7 @@ if __name__ == '__main__':
             json.dump(config_data, c, ensure_ascii=False, indent=4)
 
     print()
-    logger.info(f'Starting Signifier on [{HOSTNAME}]')
+    logger.info(f'Starting Signifier on [{HOSTNAME}] as user [{os.getenv("USER")}]')
     print()
 
     # Define and load modules

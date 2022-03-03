@@ -182,8 +182,8 @@ echo
 echo Updating Sig-Config Interface service...
 SERVICE_TEMP=$HOME/sig-config.service
 cp "$SIG_PATH/sys/sig-config.service" $SERVICE_TEMP
-EXEC_COMMAND="ExecStart=flask run"
-sed -i "/ExecStart=/c\\$PYTHON_EXEC" $SERVICE_TEMP
+FLASK_EXEC="ExecStart=flask run"
+sed -i "/ExecStart=/c\\$FLASK_EXEC" $SERVICE_TEMP
 sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
 sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
 sed -i "/EnvironmentFile=/c\\EnvironmentFile=$CUSTOM_ENV" $SERVICE_TEMP

@@ -12,7 +12,6 @@ Signifier module to manage communication with the Arduino LED system.
 from __future__ import annotations
 
 import time
-import logging
 
 import multiprocessing as mp
 from serial import SerialException
@@ -21,8 +20,6 @@ from pySerialTransfer import pySerialTransfer as Arduino
 from src.utils import scale
 from src.sigmodule import SigModule
 from src.sigprocess import ModuleProcess
-
-logger = logging.getLogger(__name__)
 
 
 class Leds(SigModule):
@@ -58,9 +55,8 @@ class LedsProcess(ModuleProcess, mp.Process):
         self.rx_packet = ReceivePacket
 
         if not self.open_connection(self.port):
-            logger.error(
-                f"Port [{self.port}] invalid. Attempting backup "
-                f"port [{self.backup_port}]."
+            self.logger.error(f'Port [{self.port}] invalid. Trying backup '
+                              f'port [{self.backup_port}]...'
             )
             if not self.open_connection(self.backup_port):
                 self.failed(
@@ -103,13 +99,13 @@ class LedsProcess(ModuleProcess, mp.Process):
                 # If not, check for serial link errors
                 if self.link.status < 0:
                     if self.link.status == Arduino.CRC_ERROR:
-                        logger.error("Arduino: CRC_ERROR")
+                        self.logger.error(f'Arduino: CRC_ERROR')
                     elif self.link.status == Arduino.PAYLOAD_ERROR:
-                        logger.error("Arduino: PAYLOAD_ERROR")
+                        self.logger.error(f'Arduino: PAYLOAD_ERROR')
                     elif self.link.status == Arduino.STOP_BYTE_ERROR:
-                        logger.error("Arduino: STOP_BYTE_ERROR")
+                        self.logger.error(f'Arduino: STOP_BYTE_ERROR')
                     else:
-                        logger.error("ERROR: {}".format(self.link.status))
+                        self.logger.error(f'{self.link.status}')
         except SerialException as exception:
             self.failed(exception)
 
@@ -148,7 +144,7 @@ class LedsProcess(ModuleProcess, mp.Process):
         sendSize = self.link.tx_obj(packet.duration, start_pos=sendSize)
         success = self.link.send(sendSize)
         if not success:
-            logger.warning(f"Arduino refused packet: {packet}.")
+            self.logger.warning(f'Arduino refused packet: {packet}.')
             return packet
         return None
 
@@ -169,20 +165,20 @@ class LedsProcess(ModuleProcess, mp.Process):
         """
         Module-specific shutdown preparation.
         """
-        logger.debug(f"Trying to fade out LEDs and close serial port...")
+        self.logger.debug(f"Trying to fade out LEDs and close serial port...")
         timeout_start = time.time()
         while time.time() < timeout_start + 0.5:
             if self.link is not None and self.link.available():
                 if self.send_packet(SendPacket("B", 0, 500)) is None:
-                    logger.debug(f"Arduino received shutdown request.")
+                    self.logger.debug(f"Arduino received shutdown request.")
                     self.link.close()
-                    logger.debug(f"Arduino connection terminated.")
+                    self.logger.debug(f"Arduino connection terminated.")
                     self.event.set()
                     timeout_start = 0
                     return None
                 else:
                     time.sleep(0.001)
-        logger.error(f"LEDs could not be shutdown gracefully.")
+        self.logger.error(f"LEDs could not be shutdown gracefully.")
 
 
 class LedValue:

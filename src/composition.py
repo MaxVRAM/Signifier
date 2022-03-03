@@ -10,22 +10,21 @@ Signifier module to manage the audio clip playback.
 """
 
 from __future__ import annotations
-from src.sigprocess import ModuleProcess
-from src.sigmodule import SigModule
-from src.clip import Clip
-from src.clipUtils import *
-from src.utils import validate_library
-from src.utils import plural
-import pygame as pg
 
 import os
 import sys
 import time
 import random
-import logging
 import schedule
 
 from threading import Thread
+
+from src.sigprocess import ModuleProcess
+from src.sigmodule import SigModule
+from src.clip import Clip
+from src.clipUtils import *
+from src.utils import plural
+
 
 # Allows PyGame to run without a screen
 os.environ["SDL_VIDEODRIVER"] = "dummy"
@@ -34,6 +33,7 @@ stdout = sys.__stdout__
 stderr = sys.__stderr__
 sys.stdout = open(os.devnull, "w")
 sys.stderr = open(os.devnull, "w")
+import pygame as pg
 sys.stdout = stdout
 sys.stderr = stderr
 
@@ -81,9 +81,7 @@ class CompositionProcess(ModuleProcess, Thread):
             "volume": self.volume_job,
         }
         if self.init_mixer() and self.init_library():
-            schedule.logger.setLevel(
-                logging.DEBUG if self.config.get("debug", True) else logging.INFO
-            )
+            schedule.logger.setLevel('INFO')
             if self.parent_pipe.writable:
                 self.parent_pipe.send("initialised")
 
@@ -114,7 +112,7 @@ class CompositionProcess(ModuleProcess, Thread):
         Initialises the Clip Manager with a library of Clips.
         """
         self.logger.debug(f"Library path: {self.base_path}...")
-        if not validate_library(self.config):
+        if not self.validate_library(self.config):
             self.failed("Specified audio library path is invalid.")
             return False
         titles = [
@@ -130,11 +128,8 @@ class CompositionProcess(ModuleProcess, Thread):
                     names.append(f)
             if len(names) != 0:
                 self.collections[title] = {"path": path, "names": names}
-        self.logger.debug(
-            f"[{self.module_name}] initialised with "
-            f"({len(self.collections)}) "
-            f"collection{plural(self.collections)}."
-        )
+        self.logger.debug(f'Initialised with ({len(self.collections)}) '
+                          f'collection{plural(self.collections)}.')
         return True
 
     def pre_run(self) -> bool:
@@ -166,12 +161,12 @@ class CompositionProcess(ModuleProcess, Thread):
             pg.mixer.get_init()
             self.stop_all_clips()
             self.wait_for_silence()
-        except pg.error:
-            pass
+        except pg.error as exception:
+            self.logger.error(f'Could not release mixer: {exception}')
         pg.mixer.quit()
         pg.quit()
         if pg.mixer.get_init() is None:
-            self.logger.info(f'[{self.module_name}] audio mixer released.')
+            self.logger.info(f'Audio mixer released.')
 
     def select_collection(self, **kwargs):
         """
@@ -193,9 +188,8 @@ class CompositionProcess(ModuleProcess, Thread):
         if name is None:
             name = random.choice(list(self.collections.keys()))
         path, names = (self.collections[name]["path"], self.collections[name]["names"])
-        self.logger.info(
-            f'[{self.module_name}] selected collection "{name}" with ({len(names)}) '
-            f"audio file{plural(names)}"
+        self.logger.debug(f'New collection "{name}" with ({len(names)}) '
+                          f'clip{plural(names)} loaded.'
         )
         self.current_collection = {"title": name, "path": path, "names": names}
         # Build clips from collection to populate clip manager
@@ -271,16 +265,14 @@ class CompositionProcess(ModuleProcess, Thread):
         """
         Stops the main thread until all channels have faded out.
         """
-        self.logger.debug(f'[{self.module_name}] Waiting for audio mixer '
+        self.logger.debug(f'Waiting for audio mixer '
                           f'to release all channels...')
         if pg.mixer.get_init():
-            start_time = time.time()
-            while (
-                time.time() < start_time + self.fade_out / 1000 + 0.1
-                and pg.mixer.get_busy()
-            ):
-                time.sleep(0.01)
+            self.poll_control(
+                block_for = self.fade_out / 1000 + 0.1,
+                abort_event = lambda: pg.mixer.get_busy())
         self.logger.debug("Mixer empty.")
+
 
     def manage_audio_events(self):
         """
@@ -289,8 +281,9 @@ class CompositionProcess(ModuleProcess, Thread):
         """
         for event in pg.event.get():
             if event.type == self.clip_event:
-                self.logger.info(f"Clip end event: {event}")
+                self.logger.debug(f"Clip end event: {event}")
                 self.check_finished()
+
 
     def move_to_inactive(self, clips: set):
         """
@@ -299,7 +292,8 @@ class CompositionProcess(ModuleProcess, Thread):
         for clip in clips:
             self.active_pool.remove(clip)
             self.inactive_pool.add(clip)
-            self.logger.debug(f"MOVED: {clip.name} | active >>> INACTIVE.")
+            self.logger.debug(f"{clip.name} | active >>> INACTIVE.")
+
 
     def move_to_active(self, clips: set):
         """
@@ -308,7 +302,8 @@ class CompositionProcess(ModuleProcess, Thread):
         for clip in clips:
             self.inactive_pool.remove(clip)
             self.active_pool.add(clip)
-            self.logger.debug(f"MOVED: {clip.name} | inactive >>> ACTIVE.")
+            self.logger.debug(f"{clip.name} | inactive >>> ACTIVE.")
+
 
     def check_finished(self) -> set:
         """
@@ -323,6 +318,7 @@ class CompositionProcess(ModuleProcess, Thread):
             self.move_to_inactive(finished)
         return finished
 
+
     def play_clip(self, clips=set(), **kwargs) -> set:
         """
         Start playback of Clip(s) from the inactive pool, selected by object, name, category, or at random.
@@ -333,6 +329,7 @@ class CompositionProcess(ModuleProcess, Thread):
         started = set([c for c in clips if c.play(**kwargs) is not None])
         self.move_to_active(started)
         return started
+
 
     def stop_clip(self, clips=set(), *args, **kwargs) -> set:
         """
@@ -351,6 +348,7 @@ class CompositionProcess(ModuleProcess, Thread):
         stopped = set([c for c in clips if c.stop(fade) is not None])
         self.move_to_inactive(stopped)
         return stopped
+
 
     def modulate_volumes(self, **kwargs):
         """
@@ -374,6 +372,7 @@ class CompositionProcess(ModuleProcess, Thread):
         Return number of active clips.
         """
         return len(self.active_pool)
+
 
     def clear_events(self):
         """
@@ -417,6 +416,7 @@ class CompositionProcess(ModuleProcess, Thread):
         self.start_jobs()
         self.clip_selection_job(start_num=start_clips)
 
+
     def clip_selection_job(self, **kwargs):
         """
         Ensure the clip manager is playing an appropriate number of clips,\
@@ -436,6 +436,7 @@ class CompositionProcess(ModuleProcess, Thread):
         elif self.clips_playing() > busy_level:
             self.stop_clip("balance")
 
+
     def volume_job(self, **kwargs):
         """
         Randomly modulate the Channel volumes for all Clip(s) in the\
@@ -448,6 +449,7 @@ class CompositionProcess(ModuleProcess, Thread):
         speed = kwargs.get("speed", job_params["speed"])
         weight = kwargs.get("weight", job_params["weight"])
         self.modulate_volumes(speed=speed, weight=weight)
+
 
     def start_jobs(self, *args):
         """
@@ -471,6 +473,7 @@ class CompositionProcess(ModuleProcess, Thread):
             )
         self.logger.debug(f"({len(self.active_jobs)}) jobs currently scheduled.")
 
+
     def stop_job(self, *args, **kwargs):
         """
         Stop jobs matching names provided as an interable of string arguments.
@@ -488,3 +491,39 @@ class CompositionProcess(ModuleProcess, Thread):
         self.logger.debug(f"Stopping jobs: {jobs}")
         for job in jobs:
             schedule.cancel_job(self.active_jobs.pop(job))
+
+
+    def validate_library(self, config_file: dict) -> bool:
+        """
+        Utility for checking validity of audio clip library.
+        Returns `False` unless paths are valid and audio clips exist.
+        """
+        audio_path = config_file["base_path"]
+        if not os.path.isdir(audio_path):
+            self.logger.critical(f"Invalid root path for library: {audio_path}.")
+            self.logger.info(f"Ensure audio library exists or check path in config.")
+            return False
+        else:
+            collections = [f.path for f in os.scandir(audio_path) if f.is_dir()]
+            if len(collections) == 0:
+                self.logger.critical(f"No collections found in audio library: {audio_path}")
+                self.logger.info(f"Ensure audio library exists or check path in config.")
+                return False
+            else:
+                self.logger.debug(
+                    f"Found {len(collections)} audio clip "
+                    f"collection{plural(collections)}."
+                )
+                clips = []
+                for c in collections:
+                    for f in os.listdir(c):
+                        if os.path.splitext(f)[1][1:] in config_file["valid_extensions"]:
+                            clips.append(f)
+                if len(clips) == 0:
+                    self.logger.critical(
+                        f"No valid clips found in library with extention "
+                        f'{config_file["valid_extensions"]}.'
+                    )
+                    return False
+                self.logger.debug(f"[{len(clips)}] clip{plural(clips)} found in library.")
+                return True

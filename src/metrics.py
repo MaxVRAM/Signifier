@@ -13,18 +13,14 @@ from __future__ import annotations
 
 import time
 import socket
-import logging
 from queue import Empty
 from urllib.error import URLError
-
 import multiprocessing as mp
 
 from prometheus_client import CollectorRegistry, Gauge, Info, push_to_gateway
 
 from src.sigmodule import SigModule
 from src.sigprocess import ModuleProcess
-
-logger = logging.getLogger(__name__)
 
 
 class Metrics(SigModule):
@@ -115,7 +111,7 @@ class MetricsProcess(ModuleProcess, mp.Process):
                 )
             except (ConnectionResetError, ConnectionRefusedError, URLError, socket.error) as exception:
                 self.increase_push_time()
-                logger.warning(
+                self.logger.warning(
                     f"[{self.config['target_gateway']}]: "
                     f"{exception}. Retry in {self.push_period}s."
                 )

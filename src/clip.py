@@ -15,11 +15,10 @@ import os
 import time
 import bisect
 import random
-import logging
 
 from pygame.mixer import Sound, Channel
 
-logger = logging.getLogger(__name__)
+from src.utils import SigLog
 
 
 class Clip:
@@ -31,6 +30,7 @@ class Clip:
     def __init__(self, root: str, name: str, categories: dict) -> None:
         self.root = root
         self.name = name
+        self.logger = SigLog.get_logger(f'Sig.{name}')
         self.path = os.path.join(root, name)
         self.length = Sound(self.path).get_length()
         self.category = None
@@ -57,10 +57,10 @@ class Clip:
         and "event=(int)" to produce an end of clip callback. Returns itself if successful.
         """
         if self.channel is None:
-            logger.warning(f'Cannot play Clip "{self.name}". Not assigned to Channel.')
+            self.logger.warning(f'Cannot play Clip "{self.name}". Not assigned to Channel.')
             return None
         elif self.channel.get_busy():
-            logger.warning(
+            self.logger.warning(
                 f'Cannot play Channel "{self.index}" assigned to "{self.name}". Already playing audio.'
             )
             return None
@@ -75,7 +75,7 @@ class Clip:
             self.started = time.time()
             if (event := kwargs.get("event", None)) is not None:
                 self.channel.set_endevent(event)
-            logger.debug(f'Playing clip "{self.name}" on channel ({self.index}).')
+            self.logger.debug(f'Playing clip "{self.name}" on channel ({self.index}).')
             return self
 
     def stop(self, **kwargs) -> Clip:
@@ -83,23 +83,23 @@ class Clip:
         Stops the sound playing from the Clip immediately, otherwise supply `fade=(int)` time in ms.
         """
         if self.channel is None:
-            logger.warning(f'Cannot stop "{self.name}". Not assigned to Channel.')
+            self.logger.warning(f'Cannot stop "{self.name}". Not assigned to Channel.')
             return None
         elif not self.channel.get_busy():
-            logger.warning(
+            self.logger.warning(
                 f'Cannot stop "{self.name}". Channel ({self.index}) reporting idle state.'
             )
             return None
         else:
             if (fade := kwargs.get("fade", 0)) > 0:
                 self.sound.fadeout(fade)
-                logger.debug(
+                self.logger.debug(
                     f'Clip "{self.name}" playing on Channel ({self.index}) is now fading out over {fade}ms.'
                 )
                 return self
             else:
                 self.sound.stop()
-                logger.debug(
+                self.logger.debug(
                     f'Clip "{self.name}" playing on Channel ({self.index}) has been stopped immediately.'
                 )
                 return self
@@ -109,7 +109,7 @@ class Clip:
         Return the volume of this audio clip object (0-1).
         """
         if self.sound is None:
-            logger.warning(
+            self.logger.warning(
                 f'Cannot get volume of "{self.name}". Not assigned to Sound object.'
             )
         else:
@@ -120,7 +120,7 @@ class Clip:
         Set the volume of this audio clip object (0-1).
         """
         if self.sound is None:
-            logger.warning(
+            self.logger.warning(
                 f'Cannot set volume of "{self.name}". Not assigned to Sound object.'
             )
         else:
@@ -134,8 +134,8 @@ class Clip:
         Binds supplied (index, Channel) tuple to Clip.
         """
         if chan[1].get_sound():
-            logger.warning(
-                f'Channel "{chan[0]}" already assigned to "{chan[1].get_sound()}".'
+            self.logger.warning(
+                f'Channel "{chan[0]}" already assigned to [{chan[1]}]".'
             )
             return None
         self.index = chan[0]
@@ -147,13 +147,13 @@ class Clip:
         Removes Channel and index number from Clip, returning the Channel object.
         """
         if (chan := self.channel) is None:
-            logger.warning(
+            self.logger.warning(
                 f'No Channel object assigned to "{self.name}", cannot remove. Skipping request.'
             )
             return None
         self.index = None
         self.channel = None
-        logger.debug(f'Channel object and index removed from "{self.name}".')
+        self.logger.debug(f'Channel object and index removed from "{self.name}".')
         return chan
 
     def build_sound(self, chan: tuple) -> Clip:
@@ -164,7 +164,7 @@ class Clip:
         self.index = chan[0]
         self.set_channel(chan)
         if not self.sound or not self.channel:
-            logger.warning(f'Could not build "{self.name}"!')
+            self.logger.warning(f'Could not build "{self.name}"!')
             return None
         return self
 
