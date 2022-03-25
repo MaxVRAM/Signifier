@@ -1,6 +1,6 @@
 {
     "general": {
-        "hostname": "mmwSigDev",
+        "hostname": "mmmSig",
         "process_loop_sleep": 0.001,
         "module_fail_restart_secs": 2,
         "config_update_secs": 2
@@ -8,6 +8,7 @@
     "metrics": {
         "enabled": true,
         "debug": true,
+        "module_type": "metrics",
         "start_delay": 0,
         "target_gateway": "localhost:9091",
         "job_name": "signifier",
@@ -17,12 +18,14 @@
     "mapper": {
         "enabled": true,
         "debug": true,
+        "module_type": "mapper",
         "start_delay": 0,
         "period_ms": 10
     },
     "leds": {
         "enabled": true,
         "debug": true,
+        "module_type": "leds",
         "port": "/dev/ttyACM0",
         "backup_port": "/dev/ttyACM1",
         "baud": 38400,
@@ -31,8 +34,9 @@
         "duration_multiplier": 5
     },
     "bluetooth": {
-        "enabled": true,
+        "enabled": false,
         "debug": true,
+        "module_type": "bluetooth",
         "start_delay": 0,
         "scan_dur": 2,
         "signal_threshold": 0.002,
@@ -41,6 +45,7 @@
     "analysis": {
         "enabled": true,
         "debug": true,
+        "module_type": "analysis",
         "start_delay": 0,
         "input_device": "default",
         "sample_rate": 48000,
@@ -51,6 +56,7 @@
     "composition": {
         "enabled": true,
         "debug": false,
+        "module_type": "composition",
         "start_delay": 0,
         "output_device": "default",
         "sample_rate": 48000,

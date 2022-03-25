@@ -143,7 +143,7 @@ class ModuleProcess:
         a critical error and module should be deactivated.
         A supplied exception in arguments will be logged as a critical.
         """
-        self.logger.critical("Error: {exception}")
+        self.logger.critical(f'{exception}')
         self.shutdown()
         if self.parent_pipe.writable:
             self.parent_pipe.send("failed")

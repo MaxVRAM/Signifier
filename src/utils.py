@@ -8,6 +8,7 @@
 import os
 import sys
 import json
+import time
 import signal
 import logging
 import logging.handlers
@@ -228,3 +229,16 @@ class SigLog:
         handler = logging.handlers.RotatingFileHandler(SigLog.file, mode='w', backupCount=5)
         if should_roll_over:
             handler.doRollover()
+
+class TimeOut:
+    """
+    When `check()` is called on object, returns True when duration in seconds has
+    elapsed since its creation.
+    """
+
+    def __init__(self, duration) -> None:
+        self.start_time = time.time()
+        self.duration = duration
+
+    def check(self):
+        return True if time.time() > self.start_time + self.duration else False
