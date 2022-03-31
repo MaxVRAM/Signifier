@@ -98,7 +98,7 @@ class SigModule:
                 return None
         else:
             self.logger.warning(
-                f'cannot be initialised with status: '
+                f'Cannot be initialised with status: '
                 f'{self.status.name}')
 
 
@@ -127,7 +127,7 @@ class SigModule:
                     self.logger.warning("Already running but status not up to date.")
         else:
             self.logger.warning(
-                f"cannot be started with status: {self.status.name}")
+                f"Cannot be started with status: {self.status.name}")
 
 
     def stop(self):
@@ -145,13 +145,13 @@ class SigModule:
     def request_join(self):
         if self.process is not None:
             if (timeout := self.module_config.get("fade_out")) is not None:
-                timeout /= 300
+                timeout = timeout / 300
             else:
                 timeout = 2
             try:
                 self.process.join(timeout=timeout)
                 self.logger.debug('Process stopped and joined main thread.')
-            except RuntimeError as exception:
+            except (RuntimeError, AssertionError) as exception:
                 self.logger.warning(f'{exception}')
 
 
@@ -163,7 +163,7 @@ class SigModule:
         # Retrieve and parse any pending messages from the child process
         if self.child_pipe.poll():
             message = self.child_pipe.recv()
-            self.logger.debug(f'Module received {message} from child process.')
+            self.logger.debug(f'Module received "{message}" from child process.')
             if message == "running":
                 self.status = ProcessStatus.running
                 try:

@@ -138,7 +138,6 @@ class ExitHandler:
         if mp.current_process() is main_thread and mp.parent_process() is None:
             if not self.exiting:
                 self.exiting = True
-                print()
                 logger.info("Shutdown sequence started...")
                 # Ignore open metrics queue points for open threads 
                 metrics_q.cancel_join_thread()
@@ -148,10 +147,8 @@ class ExitHandler:
                 while m.status.name in ['running', 'closing']:
                     m.monitor()
                     time.sleep(0.001)
-                print()
-                logger.info("Signifier shutdown complete!")
+                logger.info("Signifier main thread shutdown complete!")
                 self.exiting = False
-                print()
                 sys.exit()
         else:
             return None
