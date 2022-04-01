@@ -14,6 +14,6 @@ if [ $? -eq 0 ]
 then 
   echo "Docker management and monitoring containers now online!" 
 else 
-  echo "Could not bring up Docker containers. Please restart and run '\$SIGNIFIER/docker-up.sh'."
+  echo "Could not bring up Docker containers. Please restart and run '$SIGNIFIER/update-monitoring.sh'."
 fi
 echo

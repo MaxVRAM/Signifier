@@ -300,6 +300,8 @@ sudo cp $SIG_PATH/sys/.asoundrc ~/
 sudo modprobe snd-aloop
 sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo $SIG_PATH/sys/disable_hdmi_audio.dts
 
+sudo cp $SIG_PATH/sys/config.txt /boot/config.txt
+
 FILE=/boot/config.txt
 if [ -f "$FILE" ]; then
     tail -c1 $FILE | read -r _ || echo >> $FILE
@@ -348,7 +350,7 @@ else
 fi
 echo
 
-source docker-up.sh
+source update-monitoring.sh
 
 
 FILE=$SIG_PATH/get-docker.sh
