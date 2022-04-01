@@ -155,7 +155,6 @@ class ExitHandler:
                                 break
                             time.sleep(0.001)
                         logger.debug(f'[{m.module_name}] status is now "{m.status.name}".')
-                print()
                 logger.info("Signifier shutdown complete!")
                 self.exiting = False
                 sys.exit()

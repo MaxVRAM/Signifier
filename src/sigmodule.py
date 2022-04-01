@@ -38,7 +38,6 @@ class SigModule:
     def __init__(self, name: str, configs: dict, *args, **kwargs) -> None:
         # Signifier configuration
         self.module_name = name
-        self.logger = SigLog.get_logger(f'Sig.{name.capitalize()}')
         self.apply_new_configs(configs)
         self.status = ProcessStatus.empty if self.enabled else ProcessStatus.disabled
         # Process management
@@ -71,9 +70,10 @@ class SigModule:
         self.module_values = self.main_values.get(self.module_name, {})
         self.rules_config = configs['rules']['modules']
         self.enabled = self.module_config.get("enabled", False)
-        print(f'Module [{self.module_name}] debug is set to [{self.module_config.get("debug")}]')
-        self.logger.level = self.logger.setLevel('DEBUG') if self.module_config.get(
-            'debug', True) else self.logger.setLevel('INFO')
+        self.logger = SigLog.get_logger(f'Sig.{self.module_name.capitalize()}', level=self.module_config.get('log_level', 'INFO'))
+        # print(f'Module [{self.module_name}] debug is set to [{self.module_config.get("debug")}]')
+        # self.logger.level = self.logger.setLevel('DEBUG') if self.module_config.get(
+        #     'debug', True) else self.logger.setLevel('INFO')
 
 
     def create_process(self):
@@ -240,7 +240,6 @@ class SigModule:
                     self.child_pipe.send(args)
                 else:
                     self.logger.warning('Control pipe is not writable!')
-                print(f'[{self.module_name}] sent {args} to child process!')
                 return True
             else:
                 self.logger.debug('Has no process running to send message to.')

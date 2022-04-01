@@ -22,7 +22,7 @@ from threading import Thread
 from src.sigprocess import ModuleProcess
 from src.sigmodule import SigModule
 from src.clip import Clip
-from src.clipUtils import *
+import src.clipUtils as clipUtils
 from src.utils import plural
 
 
@@ -46,6 +46,7 @@ class Composition(SigModule):
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
         self.clip_event = pg.USEREVENT + 1
+        clipUtils.logger = self.logger
 
     def create_process(self):
         """
@@ -103,7 +104,7 @@ class CompositionProcess(ModuleProcess, Thread):
             return False
         pg.init()
         mix = pg.mixer.get_init()
-        logger.info(f"Audio mixer initialised with {mix[1]}-bit samples "
+        self.logger.info(f"Audio mixer initialised with {mix[1]}-bit samples "
                     f"@ {mix[0]} Hz over {mix[2]} channel{plural(mix[2])}.")
         return True
 
@@ -194,19 +195,23 @@ class CompositionProcess(ModuleProcess, Thread):
         self.current_collection = {"title": name, "path": path, "names": names}
         # Build clips from collection to populate clip manager
         self.clips = set(
-            [Clip(path, name, self.config["categories"]) for name in names]
+            [Clip(path, name, self.config["categories"], self.logger) for name in names]
         )
         self.active_pool = set()
         if (
-            pool := get_distributed(
+            pool := clipUtils.get_distributed(
                 self.clips,
                 num_clips,
                 strict=self.config.get("strict_distribution", False),
             )
         ) is not None:
             self.inactive_pool = pool
+            if self.channels is not None:
+                for chan in self.channels:
+                    chan.stop
             self.channels = self.get_channels(self.inactive_pool)
-            init_sounds(self.inactive_pool, self.channels)
+            print(f'Pool size: {len(self.inactive_pool)}   Num channels: {len(self.channels)}')
+            clipUtils.init_sounds(self.inactive_pool, self.channels)
             self.metrics_pusher.update(f"{self.module_name}_collection", name)
             return self.current_collection
         else:
@@ -218,7 +223,7 @@ class CompositionProcess(ModuleProcess, Thread):
 
     def get_channels(self, clip_set: set) -> dict:
         """
-        Return dict with Channel indexes keys and Channel objects as values.
+        Return dict of channels, where key=(index) and value=(channel object).
         Updates the mixer if there aren't enough channels
         """
         channels = {}
@@ -325,7 +330,7 @@ class CompositionProcess(ModuleProcess, Thread):
         Clips started are moved to the active pool and are returned as a set.
         """
         if len(clips) == 0:
-            clips = get_clip(self.inactive_pool, **kwargs)
+            clips = clipUtils.get_clip(self.inactive_pool, **kwargs)
         started = set([c for c in clips if c.play(**kwargs) is not None])
         self.move_to_active(started)
         return started
@@ -341,10 +346,10 @@ class CompositionProcess(ModuleProcess, Thread):
         if len(clips) == 0:
             # Finds the category with the greatest number of active clips.
             if "balance" in args:
-                contents = get_contents(self.active_pool)
+                contents = clipUtils.get_contents(self.active_pool)
                 clips = contents[max(contents, key=contents.get)]
                 kwargs.update("category", None)
-            clips = get_clip(self.active_pool, kwargs)
+            clips = clipUtils.get_clip(self.active_pool, kwargs)
         stopped = set([c for c in clips if c.stop(fade) is not None])
         self.move_to_inactive(stopped)
         return stopped
@@ -401,6 +406,7 @@ class CompositionProcess(ModuleProcess, Thread):
         self.stop_job(ignore="collection")
         self.stop_all_clips()
         self.wait_for_silence()
+        self.channels
         if (
             self.select_collection(name=kwargs.get("collection"), pool_size=pool_size)
             is None

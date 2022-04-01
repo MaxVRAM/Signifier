@@ -215,9 +215,9 @@ class SigLog:
         return file_handler
 
 
-    def get_logger(logger_name):
+    def get_logger(logger_name, **kwargs):
         logger = logging.getLogger(logger_name)
-        logger.setLevel(SigLog.level)
+        logger.setLevel(kwargs.get('level', SigLog.level))
         logger.addHandler(SigLog.get_console_handler())
         logger.addHandler(SigLog.get_file_handler())
         logger.propagate = False
@@ -229,6 +229,7 @@ class SigLog:
         handler = logging.handlers.RotatingFileHandler(SigLog.file, mode='w', backupCount=5)
         if should_roll_over:
             handler.doRollover()
+
 
 class TimeOut:
     """

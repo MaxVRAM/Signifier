@@ -14,9 +14,10 @@ from __future__ import annotations
 import random
 
 from src.utils import plural
-from src.utils import SigLog
+#from src.utils import SigLog
 
-logger = SigLog.get_logger('Sig.ClipUtils')
+#logger = SigLog.get_logger('Sig.ClipUtils')
+logger = None
 
 
 def init_sounds(clips: set, channels: dict) -> dict:

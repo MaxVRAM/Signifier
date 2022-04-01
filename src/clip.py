@@ -18,8 +18,8 @@ import random
 
 from pygame.mixer import Sound, Channel
 
-from src.utils import SigLog
-
+#from src.utils import SigLog
+#logger = None
 
 class Clip:
     """
@@ -27,10 +27,11 @@ class Clip:
     and its associated Channel, once playback has been triggerd.
     """
 
-    def __init__(self, root: str, name: str, categories: dict) -> None:
+    def __init__(self, root: str, name: str, categories: dict, logger) -> None:
         self.root = root
         self.name = name
-        self.logger = SigLog.get_logger(f'Sig.{name}')
+        #self.logger = SigLog.get_logger(f'Sig.{name}')
+        self.logger = logger
         self.path = os.path.join(root, name)
         self.length = Sound(self.path).get_length()
         self.category = None
@@ -135,12 +136,27 @@ class Clip:
         """
         if chan[1].get_sound():
             self.logger.warning(
-                f'Channel "{chan[0]}" already assigned to [{chan[1]}]".'
+                f'Channel ({chan[0]}) [{chan[1]}] busy state: {chan[1].get_busy()}".'
             )
             return None
         self.index = chan[0]
         self.channel = chan[1]
         return self.channel
+
+
+    def build_sound(self, chan: tuple) -> Clip:
+        """
+        Loads the Clip's audio file into memory as a new Sound object and assign it a mixer Channel.
+        """
+        self.sound = Sound(self.path)
+        self.index = chan[0]
+        self.set_channel(chan)
+        if not self.sound or not self.channel:
+            self.logger.warning(f'Could not build "{self.name}"!')
+            return None
+        self.logger.debug(f'Sound "{self.path}" added to channel ({self.index}) [{self.channel}]')
+        return self
+
 
     def remove_channel(self) -> Channel:
         """
@@ -156,17 +172,6 @@ class Clip:
         self.logger.debug(f'Channel object and index removed from "{self.name}".')
         return chan
 
-    def build_sound(self, chan: tuple) -> Clip:
-        """
-        Loads the Clip's audio file into memory as a new Sound object and assign it a mixer Channel.
-        """
-        self.sound = Sound(self.path)
-        self.index = chan[0]
-        self.set_channel(chan)
-        if not self.sound or not self.channel:
-            self.logger.warning(f'Could not build "{self.name}"!')
-            return None
-        return self
 
     def determine_category(self, categories: dict):
         """
