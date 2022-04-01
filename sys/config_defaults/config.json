@@ -7,7 +7,7 @@
     },
     "metrics": {
         "enabled": true,
-        "debug": true,
+        "log_level": "INFO",
         "module_type": "metrics",
         "start_delay": 0,
         "target_gateway": "localhost:9091",
@@ -17,14 +17,14 @@
     },
     "mapper": {
         "enabled": true,
-        "debug": true,
+        "log_level": "INFO",
         "module_type": "mapper",
         "start_delay": 0,
         "period_ms": 10
     },
     "leds": {
         "enabled": true,
-        "debug": true,
+        "log_level": "INFO",
         "module_type": "leds",
         "port": "/dev/ttyACM0",
         "backup_port": "/dev/ttyACM1",
@@ -34,8 +34,8 @@
         "duration_multiplier": 5
     },
     "bluetooth": {
-        "enabled": false,
-        "debug": true,
+        "enabled": true,
+        "log_level": "INFO",
         "module_type": "bluetooth",
         "start_delay": 0,
         "scan_dur": 2,
@@ -44,7 +44,7 @@
     },
     "analysis": {
         "enabled": true,
-        "debug": true,
+        "log_level": "INFO",
         "module_type": "analysis",
         "start_delay": 0,
         "input_device": "default",
@@ -55,7 +55,7 @@
     },
     "composition": {
         "enabled": true,
-        "debug": false,
+        "log_level": "INFO",
         "module_type": "composition",
         "start_delay": 0,
         "output_device": "default",

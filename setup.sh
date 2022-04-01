@@ -7,19 +7,37 @@ echo -------------------------------------------------------
 export HOSTNAME
 SIG_PATH="$PWD"
 MEDIA_DIR=$SIG_PATH/media/audio
+BOOT_DIR="/boot/sig-content"
 echo Installing Signifier from [$SIG_PATH] on [$HOSTNAME]...
 echo
 
 OPTION_SIG_SERVICE=true
 OPTION_WEB_SERVICE=true
-OPTION_DL_VPN_CRED=true
-OPTION_DL_WIFI_CFG=true
-OPTION_DL_AUDIO=true
+OPTION_VPN_SERVICE=true
+OPTION_DL_VPN_CRED=false
+OPTION_DL_WIFI_CFG=false
+OPTION_DL_AUDIO=false
 OPTION_UPDATE_ARDUINO=true
-OPTION_ENABLE_VPN=true
 OPTION_REBOOT=true
 
-read -p "Perform complete Signifier setup and reboot once complete? (Interaction is still required to enter the VPN password) [Y/n] " -n 1 -r
+read -p "Is this a fresh install? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo
+    echo "Checking if $BOOT_DIR directory exists..."
+    if [ ! -d "$BOOT_DIR" ]; then
+        echo "Cannot find $BOOT_DIR, make sure to copy the content when you burn the Signifier image!"
+        echo
+    else
+        echo "Grabbing VPN and WiFi config from /boot/sig-content directory..."
+        echo
+        sudo cp -r /boot/sig-content ~/
+        sudo chown -R pi:pi ~/sig-content
+        sudo cp ~/sig-content/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
+    fi
+fi
+
+read -p "Perform complete Signifier update? (interaction is still required to enter the server password) [Y/n] " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Nn]$ ]]; then
     echo
@@ -35,30 +53,30 @@ if [[ $REPLY =~ ^[Nn]$ ]]; then
     if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_WEB_SERVICE=false
     fi
-    read -p "   3. Download new VPN credentials from server? (requires password) [Y/n] " -n 1 -r
+    read -p "   3. Enable VPN connection auto-start on boot? [Y/n] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_DL_VPN_CRED=false
+        OPTION_VPN_SERVICE=false
     fi
-    read -p "   4. Download new WiFi credentials from server? (requires password) [Y/n] " -n 1 -r
+    read -p "   4. Download/update VPN credentials from server? (requires password) [y/N] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_DL_WIFI_CFG=false
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        OPTION_DL_VPN_CRED=true
     fi
-    read -p "   5. Download latest audio library from server? (requires password) [Y/n] " -n 1 -r
+    read -p "   5. Download/update new WiFi credentials from server? (requires password) [y/N] " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_DL_AUDIO=false
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        OPTION_DL_WIFI_CFG=true
     fi
-    read -p "   6. Compile and push latest LED code to Arduino (Arduino must be connected)? [Y/n] " -n 1 -r
+    read -p "   6. Download/update latest audio library from server? (requires password) [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        OPTION_DL_AUDIO=true
+    fi
+    read -p "   7. Compile and push latest LED code to Arduino (Arduino must be connected)? [Y/n] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
         OPTION_UPDATE_ARDUINO=false
-    fi
-    read -p "   7. Enable VPN connection auto-start on boot? [Y/n] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_ENABLE_VPN=false
     fi
     read -p "   8. The Signifier must reboot before running. Should it reboot immediately after setup? [Y/n] " -n 1 -r
     echo
@@ -69,7 +87,6 @@ fi
 
 # Clean up existing system services and permissions
 sudo systemctl stop signifier
-sudo systemctl disable signifier
 sudo systemctl stop bluetooth
 sudo systemctl disable bluetooth
 sudo setcap cap_net_raw,cap_net_admin+eip $(eval readlink -f `which python`)
@@ -243,7 +260,6 @@ if [ ! -d "$VPN_PATH" ]; then
     sudo chmod 700 $VPN_PATH
 fi
 
-
 VPN_FILE=$(find $HOME -name "$HOSTNAME.ovpn" | sed -n 1p)
 if [ -f "$VPN_FILE" ]; then
     echo "Found VPN credentials: $VPN_FILE. Adding to OpenVPN..."
@@ -363,10 +379,14 @@ else
 fi
 echo
 
-if [[ $OPTION_ENABLE_VPN = "true" ]]; then
+if [[ $OPTION_VPN_SERVICE = "true" ]]; then
    sudo systemctl enable openvpn@client.service
 fi
 
+
+if [ ! -d "~/sig-content" ]; then
+    sudo rm -fr ~/sig-content
+fi
 
 
 if [[ $OPTION_REBOOT = "true" ]]; then

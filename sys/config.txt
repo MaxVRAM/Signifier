@@ -1,4 +1,3 @@
-# arm_freq=800
 
 dtparam=audio=on
 max_framebuffers=2
