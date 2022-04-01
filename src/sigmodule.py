@@ -71,6 +71,7 @@ class SigModule:
         self.module_values = self.main_values.get(self.module_name, {})
         self.rules_config = configs['rules']['modules']
         self.enabled = self.module_config.get("enabled", False)
+        print(f'Module [{self.module_name}] debug is set to [{self.module_config.get("debug")}]')
         self.logger.level = self.logger.setLevel('DEBUG') if self.module_config.get(
             'debug', True) else self.logger.setLevel('INFO')
 
@@ -184,7 +185,11 @@ class SigModule:
 
         # Adjust module status' if necessary
         if self.enabled:
-            if self.status in [ProcessStatus.running, ProcessStatus.starting, ProcessStatus.closing]:
+            if self.status in [
+                    ProcessStatus.running,
+                    ProcessStatus.starting,
+                    ProcessStatus.closing,
+                    ProcessStatus.failed]:
                 pass
             elif self.status == ProcessStatus.disabled:
                 self.status = ProcessStatus.empty
@@ -235,6 +240,7 @@ class SigModule:
                     self.child_pipe.send(args)
                 else:
                     self.logger.warning('Control pipe is not writable!')
+                print(f'[{self.module_name}] sent {args} to child process!')
                 return True
             else:
                 self.logger.debug('Has no process running to send message to.')

@@ -37,6 +37,7 @@ from src.bluetooth import Bluetooth
 from src.composition import Composition
 
 from src.utils import SigLog
+from src.utils import TimeOut
 from src.utils import load_config_files
 
 
@@ -143,11 +144,19 @@ class ExitHandler:
                 metrics_q.cancel_join_thread()
                 # Ask each module to close gracefully
                 for m in module_objects.values():
-                    m.stop()
-                while m.status.name in ['running', 'closing']:
-                    m.monitor()
-                    time.sleep(0.001)
-                logger.info("Signifier main thread shutdown complete!")
+                    if m.status.name not in ['disabled', 'empty']:
+                        logger.debug(f'[{m.module_name}] status is status "{m.status.name}"...')
+                        m.stop()
+                        timeout = TimeOut(1)
+                        while m.status.name in ['running', 'closing']:
+                            m.monitor()
+                            if timeout.check():
+                                # TODO kill process
+                                break
+                            time.sleep(0.001)
+                        logger.debug(f'[{m.module_name}] status is now "{m.status.name}".')
+                print()
+                logger.info("Signifier shutdown complete!")
                 self.exiting = False
                 sys.exit()
         else:
@@ -185,6 +194,9 @@ if __name__ == '__main__':
     for name, settings in configs['config']['modules'].items():
         if (module_class := module_types.get(settings.get('module_type', ''))) is not None:
             module_objects[name] = module_class(name, configs, metrics=metrics_q)
+        elif name != 'general':
+            logger.warning(f'[{name}] module has no module_type, so cannot be started. '
+                           f'Check config.json!')
     # Provide any mapper modules the module pipe from each module except its own
     for mapper_name, mapper_module in module_objects.items():
         if type(mapper_module).__name__.lower() == 'mapper':

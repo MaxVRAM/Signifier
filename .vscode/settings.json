@@ -5,5 +5,9 @@
     "env": {"PYTHONPATH": "${workspaceRoot}"},
     "cSpell.words": [],
     "python.autoComplete.extraPaths": [
-        "~/pyalsaaudio/*"]
+        "~/pyalsaaudio/*"
+    ],
+    "python.analysis.extraPaths": [
+        "~/pyalsaaudio/*"
+    ]
 }
