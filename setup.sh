@@ -14,9 +14,9 @@ echo
 OPTION_SIG_SERVICE=true
 OPTION_WEB_SERVICE=true
 OPTION_VPN_SERVICE=true
-OPTION_DL_VPN_CRED=false
-OPTION_DL_WIFI_CFG=false
-OPTION_DL_AUDIO=false
+OPTION_DL_VPN_CRED=true
+OPTION_DL_WIFI_CFG=true
+OPTION_DL_AUDIO=true
 OPTION_UPDATE_ARDUINO=true
 OPTION_REBOOT=true
 
@@ -62,16 +62,22 @@ if [[ $REPLY =~ ^[Nn]$ ]]; then
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         OPTION_DL_VPN_CRED=true
+    else
+        OPTION_DL_VPN_CRED=false
     fi
     read -p "   5. Download/update new WiFi credentials from server? (requires password) [y/N] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         OPTION_DL_WIFI_CFG=true
+    else
+        OPTION_DL_WIFI_CFG=false
     fi
     read -p "   6. Download/update latest audio library from server? (requires password) [y/N] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         OPTION_DL_AUDIO=true
+    else
+        OPTION_DL_AUDIO=false
     fi
     read -p "   7. Compile and push latest LED code to Arduino (Arduino must be connected)? [Y/n] " -n 1 -r
     echo
@@ -304,21 +310,21 @@ sudo cp $SIG_PATH/sys/config.txt /boot/config.txt
 
 FILE=/boot/config.txt
 if [ -f "$FILE" ]; then
-    tail -c1 $FILE | read -r _ || echo >> $FILE
+    tail -c1 $FILE | read -r _ || sudo echo >> $FILE
 fi
 LINE="dtoverlay=disable_hdmi_audio"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 
 FILE=/etc/modules-load.d/modules.conf
 if [ -f "$FILE" ]; then
-    tail -c1 $FILE | read -r _ || echo >> $FILE
+    tail -c1 $FILE | read -r _ || sudo echo >> $FILE
 fi
 LINE="snd_aloop"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 
 FILE=/etc/modprobe.d/alsa-base.conf
 if [ -f "$FILE" ]; then
-    tail -c1 $FILE | read -r _ || echo >> $FILE
+    tail -c1 $FILE | read -r _ || sudo echo >> $FILE
 fi
 LINE="options snd_bcm2835 index=0"
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
