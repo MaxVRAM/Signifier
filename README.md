@@ -112,10 +112,10 @@ All media content for the Signifiers should go into the Signifier application's 
 The default path for audio resources supplied on delivery is here:
 
 ```
-/home/pi/Signifier/media/audio/sig_sounds_48000_mono_16bit
+/home/pi/Signifier/media/audio/
 ```
 
-As of writing, there are 12 separate "collections" of Signifier audio presets: `S1`, `S2`... `S12`.
+There are 11 separate "collections" of Signifier audio presets: `S1`, `S2`... `S11`.
 
 ## Format
 
@@ -148,56 +148,81 @@ Once converted, simply add the folder containing the new collections into the `m
 
 Use an application like BalenaEtcher to write the supplied Signifier image on to a fresh SD card. This is by far the easiest and quickest method to deploy a new Signifier.
 
+**Note:** Each Signifier should have a unique *hostname* that reflects the assigned letter of its physical component. When duplicating the Signifier image, the hostname should be changed from within the operating system. This is especially important to do if the Signifiers are intended to be deployed in a networked or VPN environment.
+
 ## Option 2: Install script
 
-Should the SD card duplication not work, or if you'd like to build the Signifier environment on a fresh environment, you can use the `setup.sh` script supplied in this repo.
+Should the SD card duplication not work, or if you'd like to build the Signifier environment on a fresh environment, you can use the `setup.sh` script supplied in this repository.
+
+On any Windows, OS X, or Linux system:
 
 1. Download the the Raspberry Pi Imager software: <https://www.raspberrypi.com/software/>
 
-2. Open the imager software, select **Raspberry Pi OS (other)** > **Raspberry Pi OS Lite (64-bit)**, then chose the SD card from the "Choose Storage" option.
+2. Open the imager software, select **Raspberry Pi OS (other)** > **Raspberry Pi OS Lite (64-bit)**
 
-3. **IMPORTANT**, to create a new Signifier image you need to provide additional options to the imager before you hit "WRITE":
+3. Chose the SD card from the "Choose Storage" option.
+
+4. Click the gear icon, and complete the following details:
 
     - **Hostname**:
       - Signifier name format: `mmwSig<letter>`
-      
-      - Where `<letter>` is the capital letter of the Signifier being deployed (e.g. "A", "B"... "N"):
-      
-      - For example: `mmwSigF`
+        - Where `<letter>` is the capital letter of the Signifier being deployed (e.g. "A", "B"... "N"):
+        - For example: `mmwSigF`
 
-    - **SSH**:
+    - **Enable SSH**:
+      - Use password authentication
+
+    - **Set username and password**
+      - Username: `pi`
       - Password = **~~redacted~~**
 
-    - **WIFI**:
+    - **Configure wifi**:
       - SSID = `mmw_sig_net`
+      - Password = **~~redacted~~**
+      - WiFi country = `AU`
+
+    - **Set locale settings**
     
-    - TODO finish config...
+      - Time zone = `Australia/Victoria`
+      - Keyboard  layout = `us`
+      - Skip first-run wizard = `checked`
 
+5. Hit `SAVE` then `WRITE`, and wait for the image to finish installing and verifying.
 
-4. Insert the SD card into the RPi and connect the USB-C power cable.
+6. Before removing the SD card from the reader, open the newly created drive called `BOOT` from your file explorer.
 
-5. Once booted, install the `git` module:
+7. Copy and paste the `sig-contents` directory provided into the root of the SD card's `BOOT` drive. 
+
+8. Remove the SD card from the computer and insert into the RPi, the connect the USB-C power cable.
+
+Now it's time to install the Signifier application on your fresh Raspberry Pi OS:
+
+9. Once the Pi has booted, login using the credentials your provided during installation, with username `pi`.
+
+10. Install the `git` module:
 
     ```bash
     sudo apt install git
     ```
 
-6. Clone this repo:
+11. Clone this repo:
 
     ```bash
     git clone https://github.com/MaxVRAM/Signifier.git && cd Signifier
     ```
 
-    - **NOTE: To enable remote management of the Signifier, a VPN server is required. Prior to runnign the `setup.sh` script, an OpenVPN credentials file should be copied to the home directory on the Signifier, with a filename that matches the exact hostname of the Signifier. For example `mmwSigF.ovpn`.**
-
-7. Execute the install script and follow any prompts:
+9. Execute the install script and follow any prompts:
     ```bash
     ./setup.sh
     ```
 
-8. After installation, reboot the Raspberry Pi to start the Signifier.
+10. After installation, reboot the Raspberry Pi to start the Signifier.
 
-## Option 3: Manual installation
+**NOTE: It's possible that the Signifier monitoring apps could not be installed during the setup.sh procedure. These can be installed by running the `./update-monitoring.sh` command from within the Signifier directory on the Pi.
 
-**TODO** Will provide link to full Wiki installation guide.
 
+# Accessing the Signifiers
+
+There are several methods for accessing the Signifiers. It depends on what you need to accomplish on them, and what kind of access you have to them (e.g. Can you plug a screen and keyboard into them? Are they only accessible via WiFi? etc..)
+
+....more to go
