@@ -1,6 +1,34 @@
 # System audio
 
 
+## USB/Bluetooth Amplifier issues
+
+### USB connectivity
+
+The amplifier in the original hardware spec has a major issue where it would sometimes not connect to the Raspberry Pi via USB. This could only be remidied by physically disconnecting the USB cable and reconnecting it. Power cycling the entire Signifier power source could also fix this, but was not reliable, sometimes requiring multiple power cycles.
+
+I attempted to resolve this from within the OS via CLI, as a command could be dynamically called from the Signifier code itself. This does NOT disable 5v power from passing through the USB port, instead it simple disables it in the OS:
+
+```bash
+# Raspberry Pi 4's USB ports are defined as "usb1" for the USB 2 ports, and "usb2" for the USB 3 ports. The Signifier amp is connected via a USB 3 port... 
+cd /sys/bus/usb/devices/usb2
+# The following file requires a permission modification to write to it... 
+sudo chmod o+w bConfigurationValue
+# Switching the port off is as simple as changing the existing value from 1 to 0...
+/sys/bus/usb/devices/usb2 $ sudo echo 0 > bConfigurationValue
+# To switch the port on again, replace the 0 with 1... 
+/sys/bus/usb/devices/usb2 $ sudo echo 1 > bConfigurationValue
+```
+
+Unfortunately, this had no affect on the amplifier issue. It seems likely that the issue resides from the amplifier itself, where the amp will only reestablish a USB connection once the USB 5v power, i.e. the physical cable, is removed.
+
+This is issue is a complete time-sink, and wouldn't have existed if a simple and reliable analogue 3.5 mm cable from the Raspberry Pi's existing audio output was used.
+
+Since the amplifiers purchased for this project do not have an analogue input, all the amplifiers need to be replaced for this issue to be resolved.
+
+
+
+
 ## ALSA
 
 ### Context

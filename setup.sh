@@ -34,6 +34,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         sudo cp -r /boot/sig-content ~/
         sudo chown -R pi:pi ~/sig-content
         sudo cp ~/sig-content/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
+        sudo cp $SIG_PATH/sys/config.txt /boot/config.txt
     fi
 fi
 
@@ -306,7 +307,6 @@ sudo cp $SIG_PATH/sys/.asoundrc ~/
 sudo modprobe snd-aloop
 sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo $SIG_PATH/sys/disable_hdmi_audio.dts
 
-sudo cp $SIG_PATH/sys/config.txt /boot/config.txt
 
 FILE=/boot/config.txt
 if [ -f "$FILE" ]; then
@@ -391,11 +391,9 @@ if [[ $OPTION_VPN_SERVICE = "true" ]]; then
    sudo systemctl enable openvpn@client.service
 fi
 
-
 if [ ! -d "~/sig-content" ]; then
     sudo rm -fr ~/sig-content
 fi
-
 
 if [[ $OPTION_REBOOT = "true" ]]; then
     echo "Done! Rebooting in 5 seconds..."
