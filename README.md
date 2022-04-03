@@ -294,7 +294,9 @@ Provides the sensor data to Grafana.
 
 SSH provides a command line interface (CLI) into the Signifier operating systems (OS). This will provide *essentially* the same functionality as having a mouse and keyboard connected to the Signifier Raspberry Pi from a remote computer, but requires network access to the Signifier.
 
-You can access a Signifier via SSH with the following command:
+On OS X platforms, you can follow the commands below from the _Terminal_ app. On Windows, this is available from either Command Line, or PowerShell.
+
+Once in a terminal application on your computer, you can access a Signifier remotely via SSH with the following command:
 
 ```bash
 ssh pi@<signifier-ip-address>
@@ -313,67 +315,74 @@ After which, you'll be connected to the Signifier OS CLI.
   ```
 
 - Once in the Signifier directory, you can run the Signifier setup/installation script:
-
-```bash
-./setup.sh
-```
+  ```bash
+  ./setup.sh
+  ```
 
 - Or just update the Signifier code (if it's been updated on GitHub):
-```bash
-./update-app.sh
-```
+  ```bash
+  ./update-app.sh
+  ```
 
 - Or update a connected Arduino with the latest LED code:
-```bash
-./update-arduino.sh
-```
+  ```bash
+  ./update-arduino.sh
+  ```
 
 - Or bring up the Signifier monitoring Docker containers (Grafana and Prometheus):
-```bash
-./update-docker.sh
-```
+  ```bash
+  ./update-docker.sh
+  ```
 
 ### Signifier Services
 
-From anywhere in the OS, you can check the status of the Signifier system services. These services are configured during the initial Signifier `setup.sh` process, and try to ensure critical Signifier applications are kept running. Should there be a critical system fault, the service may not be able to maintain the online status of a Signifier application. You can check the status of a Signifier service via the following commands:
+From anywhere in the OS, you can check the status of the Signifier system services. These services are configured during the initial Signifier `setup.sh` process, and try to ensure critical Signifier applications are kept running. Should there be a critical system fault, the service may not be able to maintain the online status of a Signifier application.
 
-- `sudo systemctl status signifier` - status of the Signifier application responsible for the primary Signifier functionality.
-- `sudo systemctl status sig-config` - status of the Sig-Config web-application.
-- `sudo systemctl status openvpn@client.service` - status of the Signifier's access to the Sig-Net VPN.
+- You can check the status of a Signifier service via the following commands:
 
-If a service returns a `disabled` status, it can be re-enabled using the same command, only replacing `status` with `enable`. For example:
+  - `sudo systemctl status signifier` - status of the Signifier application responsible for the primary Signifier functionality.
+  - `sudo systemctl status sig-config` - status of the Sig-Config web-application.
+  - `sudo systemctl status openvpn@client.service` - status of the Signifier's access to the Sig-Net VPN.
+
+- If a service returns a `disabled` status, it can be re-enabled using the same command, only replacing `status` with `enable`. For example:
 
   ```bash
   sudo systemctl enable signifier
   ```
   
-When the system is rebooted, the service should automatically start. The service can be started immediately using the `start` keyword. For example:
+- When the system is rebooted, the service should automatically start. The service can be started immediately using the `start` keyword. For example:
 
   ```bash
   sudo systemctl start signifier
   ```
 
-```
 ### General OS Commands
 
 - Reboot the Signifier Raspberry Pi:
-```bash
-sudo reboot
-```
+  ```bash
+  sudo reboot
+  ```
 
 - Shutdown the Signifier Raspberry Pi:
-```bash
-sudo poweroff
-```
+  ```bash
+  sudo poweroff
+  ```
 
 - Test the audio output:
-```bash
-speaker-test -t wav
-# You can then use CTRL-C to abort the test
-```
+  ```bash
+  speaker-test -t wav
+  # Use CTRL-C to abort the test at any time.
+  ```
 
 - Reboot the Signifier Raspberry Pi:
-```bash
-sudo reboot
-```
+  ```bash
+  sudo reboot
+  ```
 
+## Method 3: Physical access
+
+If you are able to connect a monitor and keyboard (via micro HDMI and USB ports, respectively), you are afforded the same functionality as SSH (explained above), only without the requirement of network access.
+
+This should only be required if the Signifier is inaccessible via SSH, in instances where the Signifier is unable to find a valid WiFi connection, or where the OS is unable to start critical system functionality (for example, if the SD card has been corrupted).
+
+See Method 2 for examples of functionality in this mode.
