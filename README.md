@@ -255,7 +255,9 @@ If you're on the same WiFi network (or VPN) as the Signifier, you can access the
 
 ### Sig-Config
 
-**URL:** <signifier-ip-address>:5000
+Update the Signifier configuration.
+
+**URL:** `<signifier-ip-address>:5000`
 
 **Functionality:**
   
@@ -266,7 +268,9 @@ If you're on the same WiFi network (or VPN) as the Signifier, you can access the
 
 ### Grafana
 
-**URL:** <signifier-ip-address>:3000
+View Signifier data graphed on tidy dashboards.
+
+**URL:** `<signifier-ip-address>:3000`
 
 **Functionality:**
   
@@ -275,4 +279,101 @@ If you're on the same WiFi network (or VPN) as the Signifier, you can access the
 - Useful when updating Signifier configuration.
 
 
-....more to go
+### Prometheus/Metrics Push Gateway
+
+Provides the sensor data to Grafana.
+
+**URL:** `<signifier-ip-address>:9091`
+
+**Functionality:**
+  
+- View latest Signifier data if Grafana is inaccessable.
+- Provides an API point for custom applications to ingest Signifier data.
+
+## Method 2: SSH
+
+SSH provides a command line interface (CLI) into the Signifier operating systems (OS). This will provide *essentially* the same functionality as having a mouse and keyboard connected to the Signifier Raspberry Pi from a remote computer, but requires network access to the Signifier.
+
+You can access a Signifier via SSH with the following command:
+
+```bash
+ssh pi@<signifier-ip-address>
+```
+
+You'll then have to enter the password for the `pi` user of the Signifier (that you provided in the installation steps).
+
+After which, you'll be connected to the Signifier OS CLI.
+
+### Signifier Scripts
+
+- Navigate to the Signifier directory:
+
+  ```bash
+  cd ~/Signifier
+  ```
+
+- Once in the Signifier directory, you can run the Signifier setup/installation script:
+
+```bash
+./setup.sh
+```
+
+- Or just update the Signifier code (if it's been updated on GitHub):
+```bash
+./update-app.sh
+```
+
+- Or update a connected Arduino with the latest LED code:
+```bash
+./update-arduino.sh
+```
+
+- Or bring up the Signifier monitoring Docker containers (Grafana and Prometheus):
+```bash
+./update-docker.sh
+```
+
+### Signifier Services
+
+From anywhere in the OS, you can check the status of the Signifier system services. These services are configured during the initial Signifier `setup.sh` process, and try to ensure critical Signifier applications are kept running. Should there be a critical system fault, the service may not be able to maintain the online status of a Signifier application. You can check the status of a Signifier service via the following commands:
+
+- `sudo systemctl status signifier` - status of the Signifier application responsible for the primary Signifier functionality.
+- `sudo systemctl status sig-config` - status of the Sig-Config web-application.
+- `sudo systemctl status openvpn@client.service` - status of the Signifier's access to the Sig-Net VPN.
+
+If a service returns a `disabled` status, it can be re-enabled using the same command, only replacing `status` with `enable`. For example:
+
+  ```bash
+  sudo systemctl enable signifier
+  ```
+  
+When the system is rebooted, the service should automatically start. The service can be started immediately using the `start` keyword. For example:
+
+  ```bash
+  sudo systemctl start signifier
+  ```
+
+```
+### General OS Commands
+
+- Reboot the Signifier Raspberry Pi:
+```bash
+sudo reboot
+```
+
+- Shutdown the Signifier Raspberry Pi:
+```bash
+sudo poweroff
+```
+
+- Test the audio output:
+```bash
+speaker-test -t wav
+# You can then use CTRL-C to abort the test
+```
+
+- Reboot the Signifier Raspberry Pi:
+```bash
+sudo reboot
+```
+
