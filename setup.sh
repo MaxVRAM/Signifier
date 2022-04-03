@@ -20,6 +20,10 @@ OPTION_DL_AUDIO=true
 OPTION_UPDATE_ARDUINO=true
 OPTION_REBOOT=true
 
+if [ ! -d "$MEDIA_DIR" ]; then
+    mkdir -p $MEDIA_DIR
+fi
+
 read -p "Is this a fresh install? [y/N] " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
