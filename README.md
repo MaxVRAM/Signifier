@@ -223,6 +223,56 @@ Now it's time to install the Signifier application on your fresh Raspberry Pi OS
 
 # Accessing the Signifiers
 
-There are several methods for accessing the Signifiers. It depends on what you need to accomplish on them, and what kind of access you have to them (e.g. Can you plug a screen and keyboard into them? Are they only accessible via WiFi? etc..)
+There are several methods for accessing a Signifier. The method you use will depends on 2 things:
+
+1. What you need to accomplish.
+2. What kind of access you have to the Signifier.
+
+There are 3 primary methods of accesss:
+
+## Method 1: Browser accesss
+
+If you're on the same WiFi network (or VPN) as the Signifier, you can access the following web applications hosted on the Signifier via your browser:
+
+| Hostname | Sig-Config              | Grafana                 | Metrics Gateway         |
+|----------|-------------------------|-------------------------|-------------------------|
+| mmwSigA  | <http://10.8.0.8:5000>  | <http://10.8.0.8:3000>  | <http://10.8.0.8:9091>  |
+| mmwSigB  | <http://10.8.0.9:5000>  | <http://10.8.0.9:3000>  | <http://10.8.0.9:9091>  |
+| mmwSigC  | <http://10.8.0.10:5000> | <http://10.8.0.10:3000> | <http://10.8.0.10:9091> |
+| mmwSigD  | <http://10.8.0.11:5000> | <http://10.8.0.11:3000> | <http://10.8.0.11:9091> |
+| mmwSigE  | <http://10.8.0.12:5000> | <http://10.8.0.12:3000> | <http://10.8.0.12:9091> |
+| mmwSigF  | <http://10.8.0.13:5000> | <http://10.8.0.13:3000> | <http://10.8.0.13:9091> |
+| mmwSigG  | <http://10.8.0.14:5000> | <http://10.8.0.14:3000> | <http://10.8.0.14:9091> |
+| mmwSigH  | <http://10.8.0.15:5000> | <http://10.8.0.15:3000> | <http://10.8.0.15:9091> |
+| mmwSigI  | <http://10.8.0.16:5000> | <http://10.8.0.16:3000> | <http://10.8.0.16:9091> |
+| mmwSigJ  | <http://10.8.0.17:5000> | <http://10.8.0.17:3000> | <http://10.8.0.17:9091> |
+| mmwSigK  | <http://10.8.0.18:5000> | <http://10.8.0.18:3000> | <http://10.8.0.18:9091> |
+| mmwSigL  | <http://10.8.0.19:5000> | <http://10.8.0.19:3000> | <http://10.8.0.19:9091> |
+| mmwSigM  | <http://10.8.0.20:5000> | <http://10.8.0.20:3000> | <http://10.8.0.20:9091> |
+| mmwSigN  | <http://10.8.0.21:5000> | <http://10.8.0.21:3000> | <http://10.8.0.21:9091> |
+| mmwSigO  | <http://10.8.0.22:5000> | <http://10.8.0.22:3000> | <http://10.8.0.22:9091> |
+
+
+### Sig-Config
+
+**URL:** <signifier-ip-address>:5000
+
+**Functionality:**
+  
+- Download the current Signifier configuration files.
+- Upload new or modified configuration files.
+- Restart the Signifier.
+- Most Signifier modules will apply updated configurations during runtime without requiring a restart.
+
+### Grafana
+
+**URL:** <signifier-ip-address>:3000
+
+**Functionality:**
+  
+- Monitor the status of online Signifiers.
+- View pretty graphs displaying sensor, composition, LED, and system data.
+- Useful when updating Signifier configuration.
+
 
 ....more to go
