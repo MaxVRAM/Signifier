@@ -211,14 +211,16 @@ Now it's time to install the Signifier application on your fresh Raspberry Pi OS
     git clone https://github.com/MaxVRAM/Signifier.git && cd Signifier
     ```
 
-9. Execute the install script and follow any prompts:
+12. Execute the install script and follow any prompts:
     ```bash
     ./setup.sh
     ```
 
-10. After installation, reboot the Raspberry Pi to start the Signifier.
+    - **NOTE:** The most straight-forward and comprehensive installation option is to enter **yes** to the first two options. This will install and copy/download all content and configure the system for all Signifier functionality. To customise the setup and select individual elements, enter **no** for the second option.
 
-**NOTE: It's possible that the Signifier monitoring apps could not be installed during the setup.sh procedure. These can be installed by running the `./update-monitoring.sh` command from within the Signifier directory on the Pi.
+13. After installation, reboot the Raspberry Pi to start the Signifier.
+
+**NOTE:** It's possible that the Signifier monitoring apps could not be installed during the setup.sh procedure. These can be installed by running the `./update-monitoring.sh` command from within the Signifier directory on the Pi.
 
 
 # Accessing the Signifiers
@@ -374,15 +376,10 @@ From anywhere in the OS, you can check the status of the Signifier system servic
   # Use CTRL-C to abort the test at any time.
   ```
 
-- Reboot the Signifier Raspberry Pi:
-  ```bash
-  sudo reboot
-  ```
-
 ## Method 3: Physical access
 
 If you are able to connect a monitor and keyboard (via micro HDMI and USB ports, respectively), you are afforded the same functionality as SSH (explained above), only without the requirement of network access.
 
 This should only be required if the Signifier is inaccessible via SSH, in instances where the Signifier is unable to find a valid WiFi connection, or where the OS is unable to start critical system functionality (for example, if the SD card has been corrupted).
 
-See Method 2 for examples of functionality in this mode.
+See **Method 2** for examples of functionality in this mode.
