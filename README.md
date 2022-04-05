@@ -1,6 +1,16 @@
-# MMW Signifier
+---
+title: "MMW Signifier: Technical Documentation"
+author: Chris Vik
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    highlight: tango
+    path: /doc/signifier-documentation.pdf
+---
 
-This repository hosts the project for the individual Signifier units. For the Signifier Server code, see the associated repository **(TODO)**.
+
+# MMW Signifier
 
 > "Signifier" is comprehensive platform to run the interactive sound & light sculpture on Raspberry Pi 4. Each of the 15 Signifiers allow user interactive through integrated Bluetooth scanning, and microphone input analysis, which shapes the interactive audio composition and LED reactivity. Created by Chris Vik in collaboration with [office.org.au](https://office.org.au) for Melbourne Music Week 2021/2022.
 
@@ -9,6 +19,42 @@ This repository hosts the project for the individual Signifier units. For the Si
 Each of the 15 Signifiers use a **Raspberry Pi 4B (4GB)** fitted with several hardware devices to provide interaction with the physical world.
 
 This application manages a suite sensor input modules, **sources**, and output modules, **destinations**. A Signifier's behaviour is customisable via a scheduler and value mapping system, which allow total control over the automation and interaction between inputs and outputs, even during run-time.
+
+## Contents {ignore=true}
+
+
+<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=6 orderedList=false} -->
+
+<!-- code_chunk_output -->
+
+- [Project features](#project-features)
+  - [Codebase](#codebase)
+  - [Hardware integration](#hardware-integration)
+  - [Configuration and management](#configuration-and-management)
+  - [Metrics and networking](#metrics-and-networking)
+- [Hardware](#hardware)
+- [Software](#software)
+  - [Core](#core)
+  - [System modules](#system-modules)
+  - [Python modules](#python-modules)
+  - [Docker & containers](#docker-containers)
+- [Location](#location)
+- [Format](#format)
+- [Replacing / adding audio collections](#replacing-adding-audio-collections)
+- [Option 1: SD card duplication](#option-1-sd-card-duplication)
+- [Option 2: Install script](#option-2-install-script)
+- [Method 1: Browser accesss](#method-1-browser-accesss)
+  - [Sig-Config](#sig-config)
+  - [Grafana](#grafana)
+  - [Prometheus/Metrics Push Gateway](#prometheusmetrics-push-gateway)
+- [Method 2: SSH](#method-2-ssh)
+  - [Signifier Scripts](#signifier-scripts)
+  - [Signifier Services](#signifier-services)
+  - [General OS Commands](#general-os-commands)
+- [Method 3: Physical access](#method-3-physical-access)
+
+<!-- /code_chunk_output -->
+
 
 ## Project features
 
