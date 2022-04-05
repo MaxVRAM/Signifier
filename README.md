@@ -112,10 +112,10 @@ All media content for the Signifiers should go into the Signifier application's 
 The default path for audio resources supplied on delivery is here:
 
 ```
-/home/pi/Signifier/media/audio/sig_sounds_48000_mono_16bit
+/home/pi/Signifier/media/audio/
 ```
 
-As of writing, there are 12 separate "collections" of Signifier audio presets: `S1`, `S2`... `S12`.
+There are 11 separate "collections" of Signifier audio presets: `S1`, `S2`... `S11`.
 
 ## Format
 
@@ -148,56 +148,241 @@ Once converted, simply add the folder containing the new collections into the `m
 
 Use an application like BalenaEtcher to write the supplied Signifier image on to a fresh SD card. This is by far the easiest and quickest method to deploy a new Signifier.
 
+**Note:** Each Signifier should have a unique *hostname* that reflects the assigned letter of its physical component. When duplicating the Signifier image, the hostname should be changed from within the operating system. This is especially important to do if the Signifiers are intended to be deployed in a networked or VPN environment.
+
 ## Option 2: Install script
 
-Should the SD card duplication not work, or if you'd like to build the Signifier environment on a fresh environment, you can use the `setup.sh` script supplied in this repo.
+Should the SD card duplication not work, or if you'd like to build the Signifier environment on a fresh environment, you can use the `setup.sh` script supplied in this repository.
+
+On any Windows, OS X, or Linux system:
 
 1. Download the the Raspberry Pi Imager software: <https://www.raspberrypi.com/software/>
 
-2. Open the imager software, select **Raspberry Pi OS (other)** > **Raspberry Pi OS Lite (64-bit)**, then chose the SD card from the "Choose Storage" option.
+2. Open the imager software, select **Raspberry Pi OS (other)** > **Raspberry Pi OS Lite (64-bit)**
 
-3. **IMPORTANT**, to create a new Signifier image you need to provide additional options to the imager before you hit "WRITE":
+3. Chose the SD card from the "Choose Storage" option.
+
+4. Click the gear icon, and complete the following details:
 
     - **Hostname**:
       - Signifier name format: `mmwSig<letter>`
-      
-      - Where `<letter>` is the capital letter of the Signifier being deployed (e.g. "A", "B"... "N"):
-      
-      - For example: `mmwSigF`
+        - Where `<letter>` is the capital letter of the Signifier being deployed (e.g. "A", "B"... "N"):
+        - For example: `mmwSigF`
 
-    - **SSH**:
+    - **Enable SSH**:
+      - Use password authentication
+
+    - **Set username and password**
+      - Username: `pi`
       - Password = **~~redacted~~**
 
-    - **WIFI**:
+    - **Configure wifi**:
       - SSID = `mmw_sig_net`
+      - Password = **~~redacted~~**
+      - WiFi country = `AU`
+
+    - **Set locale settings**
     
-    - TODO finish config...
+      - Time zone = `Australia/Victoria`
+      - Keyboard  layout = `us`
+      - Skip first-run wizard = `checked`
 
+5. Hit `SAVE` then `WRITE`, and wait for the image to finish installing and verifying.
 
-4. Insert the SD card into the RPi and connect the USB-C power cable.
+6. Before removing the SD card from the reader, open the newly created drive called `BOOT` from your file explorer.
 
-5. Once booted, install the `git` module:
+7. Copy and paste the `sig-contents` directory provided into the root of the SD card's `BOOT` drive. 
+
+8. Remove the SD card from the computer and insert into the RPi, the connect the USB-C power cable.
+
+Now it's time to install the Signifier application on your fresh Raspberry Pi OS:
+
+9. Once the Pi has booted, login using the credentials your provided during installation, with username `pi`.
+
+10. Install the `git` module:
 
     ```bash
     sudo apt install git
     ```
 
-6. Clone this repo:
+11. Clone this repo:
 
     ```bash
     git clone https://github.com/MaxVRAM/Signifier.git && cd Signifier
     ```
 
-    - **NOTE: To enable remote management of the Signifier, a VPN server is required. Prior to runnign the `setup.sh` script, an OpenVPN credentials file should be copied to the home directory on the Signifier, with a filename that matches the exact hostname of the Signifier. For example `mmwSigF.ovpn`.**
-
-7. Execute the install script and follow any prompts:
+9. Execute the install script and follow any prompts:
     ```bash
     ./setup.sh
     ```
 
-8. After installation, reboot the Raspberry Pi to start the Signifier.
+10. After installation, reboot the Raspberry Pi to start the Signifier.
 
-## Option 3: Manual installation
+**NOTE: It's possible that the Signifier monitoring apps could not be installed during the setup.sh procedure. These can be installed by running the `./update-monitoring.sh` command from within the Signifier directory on the Pi.
 
-**TODO** Will provide link to full Wiki installation guide.
 
+# Accessing the Signifiers
+
+There are several methods for accessing a Signifier. The method you use will depends on 2 things:
+
+1. What you need to accomplish.
+2. What kind of access you have to the Signifier.
+
+There are 3 primary methods of accesss:
+
+## Method 1: Browser accesss
+
+If you're on the same WiFi network (or VPN) as the Signifier, you can access the following web applications hosted on the Signifier via your browser:
+
+| Hostname | Sig-Config              | Grafana                 | Metrics Gateway         |
+|----------|-------------------------|-------------------------|-------------------------|
+| mmwSigA  | <http://10.8.0.8:5000>  | <http://10.8.0.8:3000>  | <http://10.8.0.8:9091>  |
+| mmwSigB  | <http://10.8.0.9:5000>  | <http://10.8.0.9:3000>  | <http://10.8.0.9:9091>  |
+| mmwSigC  | <http://10.8.0.10:5000> | <http://10.8.0.10:3000> | <http://10.8.0.10:9091> |
+| mmwSigD  | <http://10.8.0.11:5000> | <http://10.8.0.11:3000> | <http://10.8.0.11:9091> |
+| mmwSigE  | <http://10.8.0.12:5000> | <http://10.8.0.12:3000> | <http://10.8.0.12:9091> |
+| mmwSigF  | <http://10.8.0.13:5000> | <http://10.8.0.13:3000> | <http://10.8.0.13:9091> |
+| mmwSigG  | <http://10.8.0.14:5000> | <http://10.8.0.14:3000> | <http://10.8.0.14:9091> |
+| mmwSigH  | <http://10.8.0.15:5000> | <http://10.8.0.15:3000> | <http://10.8.0.15:9091> |
+| mmwSigI  | <http://10.8.0.16:5000> | <http://10.8.0.16:3000> | <http://10.8.0.16:9091> |
+| mmwSigJ  | <http://10.8.0.17:5000> | <http://10.8.0.17:3000> | <http://10.8.0.17:9091> |
+| mmwSigK  | <http://10.8.0.18:5000> | <http://10.8.0.18:3000> | <http://10.8.0.18:9091> |
+| mmwSigL  | <http://10.8.0.19:5000> | <http://10.8.0.19:3000> | <http://10.8.0.19:9091> |
+| mmwSigM  | <http://10.8.0.20:5000> | <http://10.8.0.20:3000> | <http://10.8.0.20:9091> |
+| mmwSigN  | <http://10.8.0.21:5000> | <http://10.8.0.21:3000> | <http://10.8.0.21:9091> |
+| mmwSigO  | <http://10.8.0.22:5000> | <http://10.8.0.22:3000> | <http://10.8.0.22:9091> |
+
+
+### Sig-Config
+
+Update the Signifier configuration.
+
+**URL:** `<signifier-ip-address>:5000`
+
+**Functionality:**
+  
+- Download the current Signifier configuration files.
+- Upload new or modified configuration files.
+- Restart the Signifier.
+- Most Signifier modules will apply updated configurations during runtime without requiring a restart.
+
+### Grafana
+
+View Signifier data graphed on tidy dashboards.
+
+**URL:** `<signifier-ip-address>:3000`
+
+**Functionality:**
+  
+- Monitor the status of online Signifiers.
+- View pretty graphs displaying sensor, composition, LED, and system data.
+- Useful when updating Signifier configuration.
+
+
+### Prometheus/Metrics Push Gateway
+
+Provides the sensor data to Grafana.
+
+**URL:** `<signifier-ip-address>:9091`
+
+**Functionality:**
+  
+- View latest Signifier data if Grafana is inaccessable.
+- Provides an API point for custom applications to ingest Signifier data.
+
+## Method 2: SSH
+
+SSH provides a command line interface (CLI) into the Signifier operating systems (OS). This will provide *essentially* the same functionality as having a mouse and keyboard connected to the Signifier Raspberry Pi from a remote computer, but requires network access to the Signifier.
+
+On OS X platforms, you can follow the commands below from the _Terminal_ app. On Windows, this is available from either Command Line, or PowerShell.
+
+Once in a terminal application on your computer, you can access a Signifier remotely via SSH with the following command:
+
+```bash
+ssh pi@<signifier-ip-address>
+```
+
+You'll then have to enter the password for the `pi` user of the Signifier (that you provided in the installation steps).
+
+After which, you'll be connected to the Signifier OS CLI.
+
+### Signifier Scripts
+
+- Navigate to the Signifier directory:
+
+  ```bash
+  cd ~/Signifier
+  ```
+
+- Once in the Signifier directory, you can run the Signifier setup/installation script:
+  ```bash
+  ./setup.sh
+  ```
+
+- Or just update the Signifier code (if it's been updated on GitHub):
+  ```bash
+  ./update-app.sh
+  ```
+
+- Or update a connected Arduino with the latest LED code:
+  ```bash
+  ./update-arduino.sh
+  ```
+
+- Or bring up the Signifier monitoring Docker containers (Grafana and Prometheus):
+  ```bash
+  ./update-docker.sh
+  ```
+
+### Signifier Services
+
+From anywhere in the OS, you can check the status of the Signifier system services. These services are configured during the initial Signifier `setup.sh` process, and try to ensure critical Signifier applications are kept running. Should there be a critical system fault, the service may not be able to maintain the online status of a Signifier application.
+
+- You can check the status of a Signifier service via the following commands:
+
+  - `sudo systemctl status signifier` - status of the Signifier application responsible for the primary Signifier functionality.
+  - `sudo systemctl status sig-config` - status of the Sig-Config web-application.
+  - `sudo systemctl status openvpn@client.service` - status of the Signifier's access to the Sig-Net VPN.
+
+- If a service returns a `disabled` status, it can be re-enabled using the same command, only replacing `status` with `enable`. For example:
+
+  ```bash
+  sudo systemctl enable signifier
+  ```
+  
+- When the system is rebooted, the service should automatically start. The service can be started immediately using the `start` keyword. For example:
+
+  ```bash
+  sudo systemctl start signifier
+  ```
+
+### General OS Commands
+
+- Reboot the Signifier Raspberry Pi:
+  ```bash
+  sudo reboot
+  ```
+
+- Shutdown the Signifier Raspberry Pi:
+  ```bash
+  sudo poweroff
+  ```
+
+- Test the audio output:
+  ```bash
+  speaker-test -t wav
+  # Use CTRL-C to abort the test at any time.
+  ```
+
+- Reboot the Signifier Raspberry Pi:
+  ```bash
+  sudo reboot
+  ```
+
+## Method 3: Physical access
+
+If you are able to connect a monitor and keyboard (via micro HDMI and USB ports, respectively), you are afforded the same functionality as SSH (explained above), only without the requirement of network access.
+
+This should only be required if the Signifier is inaccessible via SSH, in instances where the Signifier is unable to find a valid WiFi connection, or where the OS is unable to start critical system functionality (for example, if the SD card has been corrupted).
+
+See Method 2 for examples of functionality in this mode.
