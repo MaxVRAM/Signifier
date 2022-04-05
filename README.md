@@ -1,14 +1,3 @@
----
-title: "MMW Signifier: Technical Documentation"
-author: Chris Vik
-output:
-  pdf_document:
-    toc: true
-    toc_depth: 2
-    highlight: tango
-    path: /doc/signifier-documentation.pdf
----
-
 
 # MMW Signifier
 
@@ -20,13 +9,13 @@ Each of the 15 Signifiers use a **Raspberry Pi 4B (4GB)** fitted with several ha
 
 This application manages a suite sensor input modules, **sources**, and output modules, **destinations**. A Signifier's behaviour is customisable via a scheduler and value mapping system, which allow total control over the automation and interaction between inputs and outputs, even during run-time.
 
-## Contents {ignore=true}
-
+## Contents
 
 <!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=6 orderedList=false} -->
 
 <!-- code_chunk_output -->
 
+- [Contents](#contents)
 - [Project features](#project-features)
   - [Codebase](#codebase)
   - [Hardware integration](#hardware-integration)
