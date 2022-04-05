@@ -11,36 +11,41 @@ This application manages a suite sensor input modules, **sources**, and output m
 
 ## Contents
 
-<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=6 orderedList=false} -->
+<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 
 <!-- code_chunk_output -->
 
-- [Contents](#contents)
-- [Project features](#project-features)
-  - [Codebase](#codebase)
-  - [Hardware integration](#hardware-integration)
-  - [Configuration and management](#configuration-and-management)
-  - [Metrics and networking](#metrics-and-networking)
-- [Hardware](#hardware)
-- [Software](#software)
-  - [Core](#core)
-  - [System modules](#system-modules)
-  - [Python modules](#python-modules)
-  - [Docker & containers](#docker-containers)
-- [Location](#location)
-- [Format](#format)
-- [Replacing / adding audio collections](#replacing-adding-audio-collections)
-- [Option 1: SD card duplication](#option-1-sd-card-duplication)
-- [Option 2: Install script](#option-2-install-script)
-- [Method 1: Browser accesss](#method-1-browser-accesss)
-  - [Sig-Config](#sig-config)
-  - [Grafana](#grafana)
-  - [Prometheus/Metrics Push Gateway](#prometheusmetrics-push-gateway)
-- [Method 2: SSH](#method-2-ssh)
-  - [Signifier Scripts](#signifier-scripts)
-  - [Signifier Services](#signifier-services)
-  - [General OS Commands](#general-os-commands)
-- [Method 3: Physical access](#method-3-physical-access)
+- [MMW Signifier](#mmw-signifier)
+  - [Contents](#contents)
+  - [Project features](#project-features)
+    - [Codebase](#codebase)
+    - [Hardware integration](#hardware-integration)
+    - [Configuration and management](#configuration-and-management)
+    - [Metrics and networking](#metrics-and-networking)
+  - [Hardware](#hardware)
+  - [Software](#software)
+    - [Core](#core)
+    - [System modules](#system-modules)
+    - [Python modules](#python-modules)
+    - [Docker & containers](#docker-containers)
+- [Networking](#networking)
+- [Media content](#media-content)
+  - [Location](#location)
+  - [Format](#format)
+  - [Replacing / adding audio collections](#replacing-adding-audio-collections)
+- [Installation](#installation)
+  - [Option 1: SD card duplication](#option-1-sd-card-duplication)
+  - [Option 2: Install script](#option-2-install-script)
+- [Signifier Access](#signifier-access)
+  - [Method 1: Browser accesss](#method-1-browser-accesss)
+    - [Sig-Config](#sig-config)
+    - [Grafana](#grafana)
+    - [Prometheus/Metrics Push Gateway](#prometheusmetrics-push-gateway)
+  - [Method 2: SSH](#method-2-ssh)
+    - [Signifier Scripts](#signifier-scripts)
+    - [Signifier Services](#signifier-services)
+    - [General OS Commands](#general-os-commands)
+  - [Method 3: Physical access](#method-3-physical-access)
 
 <!-- /code_chunk_output -->
 
@@ -134,7 +139,7 @@ Signifiers will look for the WiFi SSID `mmw_sig_net`, and use the password ~~`re
 
 Once connected, they will automatically attempt connection via VPN. The VPN provides a secure network for the Signifiers to communicate with the Signifier Server, which records metrics, allows for remote SSH access to the Signifiers, and hosts several front-end web-apps for remote monitoring and configuration of the Signifiers.
 
-More information on these systems shortly.
+See the Signifier Access section for more details.
 
 ---
 
@@ -258,7 +263,7 @@ Now it's time to install the Signifier application on your fresh Raspberry Pi OS
 **NOTE:** It's possible that the Signifier monitoring apps could not be installed during the setup.sh procedure. These can be installed by running the `./update-monitoring.sh` command from within the Signifier directory on the Pi.
 
 
-# Accessing the Signifiers
+# Signifier Access
 
 There are several methods for accessing a Signifier. The method you use will depends on 2 things:
 
