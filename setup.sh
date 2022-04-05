@@ -205,6 +205,7 @@ sed -i "/User=/c\\User=$USER" $SERVICE_TEMP
 sed -i "/WorkingDirectory=/c\\WorkingDirectory=$SIG_PATH" $SERVICE_TEMP
 sed -i "/EnvironmentFile=/c\\EnvironmentFile=$CUSTOM_ENV" $SERVICE_TEMP
 sudo cp $SERVICE_TEMP /etc/systemd/system/signifier.service
+rm $SERVICE_TEMP
 
 echo
 echo Updating Sig-Config Interface service...
@@ -219,21 +220,21 @@ sudo cp $SERVICE_TEMP /etc/systemd/system/sig-config.service
 rm $SERVICE_TEMP
 
 
-if [[ $OPTION_SIG_SERVICE = "true" ]]; then
+if [[ $OPTION_SIG_SERVICE != "false" ]]; then
     sudo systemctl enable signifier
 fi
-if [[ $OPTION_WEB_SERVICE = "true" ]]; then
+if [[ $OPTION_WEB_SERVICE != "false" ]]; then
     sudo systemctl enable signifier
 fi
-if [[ $OPTION_DL_VPN_CRED = "true" ]]; then
+if [[ $OPTION_DL_VPN_CRED != "false" ]]; then
     scp -P 14444 signifier@192.168.30.10:~/sig-config/${HOSTNAME}.ovpn ~/
 fi
-if [[ $OPTION_DL_WIFI_CFG = "true" ]]; then
+if [[ $OPTION_DL_WIFI_CFG != "false" ]]; then
     scp -P 14444 signifier@192.168.30.10:~/sig-config/wpa_supplicant.conf ~/
     sudo cp ~/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
     rm ~/wpa_supplicant.conf
 fi
-if [[ $OPTION_DL_AUDIO = "true" ]]; then
+if [[ $OPTION_DL_AUDIO != "false" ]]; then
     scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds/* $MEDIA_DIR
 fi
 
@@ -302,7 +303,7 @@ arduino-cli lib install FastLED
 arduino-cli lib install SerialTransfer
 
 
-if [[ $OPTION_UPDATE_ARDUINO = "true" ]]; then
+if [[ $OPTION_UPDATE_ARDUINO != "false" ]]; then
     source update-arduino.sh
 fi
 
@@ -391,7 +392,7 @@ else
 fi
 echo
 
-if [[ $OPTION_VPN_SERVICE = "true" ]]; then
+if [[ $OPTION_VPN_SERVICE != "false" ]]; then
    sudo systemctl enable openvpn@client.service
 fi
 
@@ -399,7 +400,7 @@ if [ ! -d "~/sig-content" ]; then
     sudo rm -fr ~/sig-content
 fi
 
-if [[ $OPTION_REBOOT = "true" ]]; then
+if [[ $OPTION_REBOOT != "false" ]]; then
     echo "Done! Rebooting in 5 seconds..."
     sleep 5
    sudo reboot
