@@ -13,6 +13,20 @@
                 "smoothing": [0.5, 0.5],
                 "duration": 200
             }
+        },
+        {
+            "source": {
+                "module": "bluetooth",
+                "name": "bluetooth_signal_max",
+                "range": [0.35, 0.5]
+            },
+            "destination": {
+                "module": "leds",
+                "name": "leds_noise_amount",
+                "range": [0, 1],
+                "smoothing": [0.5, 0.5],
+                "duration": 3000
+            }
         }
     ]
 }

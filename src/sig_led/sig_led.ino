@@ -56,16 +56,23 @@ const byte INIT_BRIGHTNESS = 255;
 const byte INIT_SATURATION = 255;
 const byte INIT_HUE = 195;
 
+const byte NOISE_SPEED = 200;
+const byte NOISE_AMT = 0;
+
 LED_PROPERTY brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
 LED_PROPERTY saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0UL};
 LED_PROPERTY hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
-LED_PROPERTY noise = {255, 0, 0, 0UL, 0UL};
+LED_PROPERTY noiseAmt = {NOISE_AMT, NOISE_AMT, NOISE_AMT, 0UL, 0UL};
+LED_PROPERTY noiseSpeed = {NOISE_SPEED, NOISE_SPEED, NOISE_SPEED, 0UL, 0UL};
 
 CHSV initHSV = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
 CHSV solidHSV = initHSV;
 
 CRGB led_pixels[NUM_LEDS];
+CRGB temp_pixels[NUM_LEDS];
+CRGB solid_pixels[NUM_LEDS];
 CRGB noise_pixels[NUM_LEDS];
+unsigned long noiseTime = 0;
 
 
 unsigned long TARGET_LOOP_DUR = 60;
@@ -74,6 +81,7 @@ unsigned long loopStartTime = 0;
 unsigned long serialStartTime = 0;
 unsigned long loopEndTime = 0;
 unsigned long prevLoopTime = 0;
+
 
 unsigned int loopValue(unsigned int min, unsigned int max, unsigned int val)
 {
@@ -121,24 +129,32 @@ void loop()
   smooth(loopAvg, prevLoopTime);
 
   // Update moving values
-  fadeToTarget(noise);
+  fadeToTarget(noiseAmt);
+  fadeToTarget(noiseSpeed);
   fadeToTarget(brightness);
   fadeToTarget(saturation);
   fadeToTarget(hue);
-  solidHSV = CHSV(hue.currVal, saturation.currVal, 255);
+  solidHSV = CHSV(hue.currVal, saturation.currVal, brightness.currVal);
   
   // Write to pixel arrays
-  //update_noise();
-  fill_solid(led_pixels, NUM_LEDS, solidHSV);
-  // for (unsigned int i = 0; i < NUM_LEDS; i++)
-  // {
-  //   //if (noise[i] > )
-  //   led_pixels[i] = noise_pixels[i];
-  // }
+  fill_solid(solid_pixels, NUM_LEDS, solidHSV);
+  update_noise();
+
+  if (noiseAmt.currVal > 0)
+    for (unsigned int i = 0; i < NUM_LEDS; i++)
+    {
+      led_pixels[i] = solid_pixels[i] + noise_pixels[i];
+    }
+  else
+    for (unsigned int i = 0; i < NUM_LEDS; i++)
+    {
+      led_pixels[i] = solid_pixels[i];
+    }
 
 
   // Push pixel arrays to LEDs
-  FastLED.setBrightness(brightness.currVal);
+  //FastLED.setBrightness(brightness.currVal);
+  FastLED.setBrightness(255);
   FastLED.show();
 
   // Calculates the remaining time to wait for a response based on the target loop time
@@ -159,7 +175,6 @@ void loop()
     }
   }
 }
-
 
 
 /***
@@ -197,13 +212,15 @@ void processInput(COMMAND input)
     assignInput(input, hue);
     break;
   case 'N':
-    assignInput(input, noise);
+    assignInput(input, noiseAmt);
+    break;
+  case 'O':
+    assignInput(input, noiseSpeed);
     break;
   default:
     return;
   }
 }
-
 
 
 /***
@@ -260,9 +277,6 @@ void resetFade(LED_PROPERTY &property)
 }
 
 
-
-
-
 /***
  *    __________         __    __                              
  *    \______   \_____ _/  |__/  |_  ___________  ____   ______
@@ -275,35 +289,27 @@ void resetFade(LED_PROPERTY &property)
 
 void update_noise()
 {
-  if (noise.currVal > 0)
+  // Update the offset of the noise function based on speed parameter and loop time.
+  noiseTime += prevLoopTime * noiseSpeed.currVal / 10;
+  CRGB old_noise[NUM_LEDS];
+  CRGB temp_noise[NUM_LEDS];
+
+  // Only process noise pixels if the noise master value is above 0. Otherwise we
+  // assume the noise layer is off and skip it.
+  if (noiseAmt.currVal > 0)
   {
+    long width = map(noiseAmt.currVal, 0, 255, 2, 60);
+    long thresh = map(noiseAmt.currVal, 0, 255, 215, 185);
+
     for (unsigned int i = 0; i < NUM_LEDS; i++)
     {
-      fill_noise8(noise_pixels, NUM_LEDS, 4, 0, 255, 0, 0, 1, ms);
-      //noise_pixels[i] = CHSV(0, 0, inoise8(i * 100, ms));
+      old_noise[i] = noise_pixels[i];
+      uint8_t noiseBrightness = inoise8(i * width, noiseTime) > thresh ? 255 : 0;
+      temp_noise[i] = CRGB(noiseBrightness, noiseBrightness, noiseBrightness);
+      noise_pixels[i] = blend(old_noise[i], temp_noise[i], noiseSpeed.currVal);
     }
-    //fill_noise8(noise_pixels, NUM_LEDS, 4, 0, 1, 1, 1, 1, millis());
-    //fill_noise8 (CRGB *leds, int num_leds, uint8_t octaves, uint16_t x, int scale,
-    //              uint8_t hue_octaves, uint16_t hue_x, int hue_scale, uint16_t time)
   }
 }
-
-
-// NOISE PARAMS
-// pData	the array of data to write into
-// num_points	the number of points of noise to compute
-// octaves	the number of octaves to use for noise
-// x	the x position in the noise field
-// y	the y position in the noise field for 2d functions
-// scale x	the scale (distance) between x points when filling in noise
-// scale y	the scale (distance) between y points when filling in noise
-// time	the time position for the noise field 
-
-
-
-
-
-
 
 
 

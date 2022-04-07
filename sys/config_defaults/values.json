@@ -47,13 +47,21 @@
                 "default": 195,
                 "description": "Hue value of future pixel writes."
             },
-            "leds_noise": {
+            "leds_noise_amount": {
                 "type": "gauge",
                 "command": "N",
                 "min": 0,
                 "max": 255,
                 "default": 0,
                 "description": "Amount of white pixel noise blended over the strip."
+            },
+            "leds_noise_speed": {
+                "type": "gauge",
+                "command": "O",
+                "min": 0,
+                "max": 255,
+                "default": 120,
+                "description": "Speed of LED noise effect."
             }
         }
     },
