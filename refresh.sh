@@ -8,8 +8,8 @@ echo
 
 sudo systemctl stop signifier
 git pull
-restore-defaults.sh
-update-arduino.sh
+source restore-defaults.sh
+source update-arduino.sh
 sudo systemctl start signifier
 
 echo All done. Signifier should be back up shortly...
