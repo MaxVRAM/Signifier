@@ -1,6 +1,6 @@
 {
     "general": {
-        "hostname": "mmwSig",
+        "hostname": "mmwSigDev",
         "log_level": "INFO",
         "process_loop_sleep": 0.001,
         "module_fail_restart_secs": 2,
@@ -18,7 +18,7 @@
     },
     "mapper": {
         "enabled": true,
-        "log_level": "INFO",
+        "log_level": "DEBUG",
         "module_type": "mapper",
         "start_delay": 0,
         "period_ms": 10

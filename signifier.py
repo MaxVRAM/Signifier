@@ -88,7 +88,7 @@ def check_config_update():
                     dict_diff(settings, new_configs[config]['modules'][module]))
                 if len(diff) > 0:
                     print()
-                    logger.info(f'Detected config change to [{module}]: {diff}')
+                    logger.info(f'Config change: [{module}]: {diff}')
                     updated_modules.add(module)
                     if config == 'values':
                         values_config_changed = True
@@ -104,6 +104,11 @@ def check_config_update():
             for m in updated_modules:
                 if m in module_objects:
                     module_objects[m].update_config(configs)
+            print()
+            print(f'{module_objects.keys()}')
+            for p in mp.active_children():
+                print(f'{p}')
+            print()
         CONFIG_UPDATE_SECS = configs['config']['modules']['general'].get(
                 'config_update_secs', 2)
 

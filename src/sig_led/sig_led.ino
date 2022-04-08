@@ -58,15 +58,23 @@ const byte INIT_HUE = 195;
 
 const byte INIT_NOISE_SPEED = 200;
 const byte INIT_NOISE_AMT = 0;
+const byte INIT_NOISE_SAT = 0;
+const byte INIT_NOISE_HUE = 0;
 
 const byte INIT_MIRROR_BAR = 0;
+const byte INIT_MIRROR_SAT = 0;
+const byte INIT_MIRROR_HUE = 0;
 
 LED_PROPERTY brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
 LED_PROPERTY saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0UL};
 LED_PROPERTY hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
 LED_PROPERTY noiseAmt = {INIT_NOISE_AMT, INIT_NOISE_AMT, INIT_NOISE_AMT, 0UL, 0UL};
 LED_PROPERTY noiseSpeed = {INIT_NOISE_SPEED, INIT_NOISE_SPEED, INIT_NOISE_SPEED, 0UL, 0UL};
+LED_PROPERTY noiseSat = {INIT_NOISE_SAT, INIT_NOISE_SAT, INIT_NOISE_SAT, 0UL, 0UL};
+LED_PROPERTY noiseHue = {INIT_NOISE_HUE, INIT_NOISE_HUE, INIT_NOISE_HUE, 0UL, 0UL};
 LED_PROPERTY mirrorBar = {INIT_MIRROR_BAR, INIT_MIRROR_BAR, INIT_MIRROR_BAR, 0UL, 0UL};
+LED_PROPERTY mirrorSat = {INIT_MIRROR_SAT, INIT_MIRROR_SAT, INIT_MIRROR_SAT, 0UL, 0UL};
+LED_PROPERTY mirrorHue = {INIT_MIRROR_HUE, INIT_MIRROR_HUE, INIT_MIRROR_HUE, 0UL, 0UL};
 
 CHSV initHSV = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
 
@@ -74,7 +82,6 @@ CRGB led_pixels[NUM_LEDS];
 
 uint8_t noise_pixels[NUM_LEDS];
 unsigned long noiseTime = 0;
-
 uint8_t mirror_bar_pixels[QRT_LEDS];
 
 
@@ -142,7 +149,11 @@ void loop()
   fadeToTarget(hue);
   fadeToTarget(noiseAmt);
   fadeToTarget(noiseSpeed);
+  fadeToTarget(noiseSat);
+  fadeToTarget(noiseHue);
   fadeToTarget(mirrorBar);
+  fadeToTarget(mirrorSat);
+  fadeToTarget(mirrorHue);
   
   // Write to pixel arrays
   fill_solid(led_pixels, NUM_LEDS, CHSV(hue.currVal, saturation.currVal, brightness.currVal));
@@ -214,8 +225,20 @@ void processInput(COMMAND input)
   case 'O': // Set speed of noise effect
     assignInput(input, noiseSpeed);
     break;
+  case 'P': // Set saturation of noise effect
+    assignInput(input, noiseSat);
+    break;
+  case 'Q': // Set hue of noise effect
+    assignInput(input, noiseHue);
+    break;
   case 'M': // Set size of mirror bar layer
     assignInput(input, mirrorBar);
+    break;
+  case 'K': // Set saturation of mirror bar layer
+    assignInput(input, mirrorSat);
+    break;
+  case 'L': // Set hue of mirror bar layer
+    assignInput(input, mirrorHue);
     break;
   default:
     return;
@@ -303,7 +326,9 @@ void add_noise(struct CRGB * targetArray, int numToFill)
     {
       uint8_t noiseBrightness = inoise8(i * width, noiseTime) > thresh ? amount : 0;
       noise_pixels[i] = blend8(noise_pixels[i], noiseBrightness, noiseSpeed.currVal);
-      targetArray[i].addToRGB(noise_pixels[i]);
+      CRGB new_noise;
+      hsv2rgb_rainbow(CHSV(noiseHue.currVal, noiseSat.currVal, noise_pixels[i]), new_noise);
+      targetArray[i] += new_noise; // addToRGB(noise_pixels[i]);
     }
   }
 }
@@ -316,7 +341,9 @@ void add_mirror_bar(struct CRGB * targetArray, int numToFill)
   {
     uint8_t barBrightness = i * 4 < mirrorBar.currVal ? 255 : 0;
     mirror_bar_pixels[i] = blend8(mirror_bar_pixels[i], barBrightness, 10);
-    mirrorPixel(targetArray, i, mirror_bar_pixels[i] * 0.5);
+    CRGB new_bar;
+    hsv2rgb_rainbow(CHSV(mirrorHue.currVal, mirrorSat.currVal, mirror_bar_pixels[i]), new_bar);
+    mirrorPixel(targetArray, i, new_bar);
     //targetArray[i].addToRGB(mirror_bar_pixels[i]);
   }
 }
@@ -407,17 +434,17 @@ void endToEnd(struct CRGB * targetArray, int index, CRGB colour)
 
 // Provides remapped pixel assignment. Index should be within 1/4 of total LED count
 //void mirrorPixel(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
-void mirrorPixel(struct CRGB * targetArray, int index, uint8_t value)
+void mirrorPixel(struct CRGB * targetArray, int index, CRGB colour)
 {
   unsigned int UA = loopValue(0, NUM_LEDS, index);
   unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - index);
   unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - index);
   unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + index);
 
-  targetArray[UA].addToRGB(value);   // Up, Side A
-  targetArray[UB].addToRGB(value);   // Up, Side B
-  targetArray[DA].addToRGB(value);   // Down, Side A
-  targetArray[DB].addToRGB(value);   // Down, Side B
+  targetArray[UA] += colour;   // Up, Side A
+  targetArray[UB] += colour;   // Up, Side B
+  targetArray[DA] += colour;   // Down, Side A
+  targetArray[DB] += colour;   // Down, Side B
 }
 
 
