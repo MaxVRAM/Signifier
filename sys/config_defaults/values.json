@@ -62,6 +62,14 @@
                 "max": 255,
                 "default": 120,
                 "description": "Speed of LED noise effect."
+            },
+            "leds_mirror_bar": {
+                "type": "gauge",
+                "command": "M",
+                "min": 0,
+                "max": 255,
+                "default": 0,
+                "description": "Creates a bar of white expanding outwards from the centre."
             }
         }
     },

@@ -4,12 +4,12 @@
             "source": {
                 "module": "analysis",
                 "name": "analysis_peak",
-                "range": [0, 1]
+                "range": [0, 0.8]
             },
             "destination": {
                 "module": "leds",
                 "name": "leds_brightness",
-                "range": [0.03, 1],
+                "range": [0.05, 1],
                 "smoothing": [0.5, 0.5],
                 "duration": 200
             }
@@ -26,6 +26,34 @@
                 "range": [0, 1],
                 "smoothing": [0.5, 0.5],
                 "duration": 3000
+            }
+        },
+        {
+            "source": {
+                "module": "analysis",
+                "name": "analysis_peak",
+                "range": [0, 0.8]
+            },
+            "destination": {
+                "module": "leds",
+                "name": "leds_noise_speed",
+                "range": [0.01, 1],
+                "smoothing": [0.5, 0.5],
+                "duration": 50
+            }
+        },
+        {
+            "source": {
+                "module": "analysis",
+                "name": "analysis_peak",
+                "range": [0.2, 0.5]
+            },
+            "destination": {
+                "module": "leds",
+                "name": "leds_mirror_bar",
+                "range": [0, 1],
+                "smoothing": [0.5, 0.5],
+                "duration": 100
             }
         }
     ]
