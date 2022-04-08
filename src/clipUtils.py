@@ -14,9 +14,7 @@ from __future__ import annotations
 import random
 
 from src.utils import plural
-#from src.utils import SigLog
 
-#logger = SigLog.get_logger('Sig.ClipUtils')
 logger = None
 
 
@@ -46,6 +44,9 @@ def init_sounds(clips: set, channels: dict) -> dict:
         logger.warning(
             f"Unable to build ({len(remaining)}) " f"Sound object{plural(remaining)}! "
         )
+        
+        for c in clips:
+            print(f'Clip: {c.name}    Channel index: {c.index}')
     return {"channels": channels, "clips": remaining}
 
 

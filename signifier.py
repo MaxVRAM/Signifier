@@ -177,8 +177,11 @@ if __name__ == '__main__':
     if configs == None:
         exit_handler.shutdown()
 
-    # Write current hostname to config file
+
+
     config_data = configs['config']['modules']
+    logger.setLevel(config_data['general']['log_level'])
+    # Write current hostname to config file
     if config_data['general']['hostname'] != HOSTNAME:
         config_data['general']['hostname'] = HOSTNAME
         with open(os.path.join(CONFIG_PATH, configs['config']['file']),

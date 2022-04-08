@@ -56,23 +56,26 @@ const byte INIT_BRIGHTNESS = 255;
 const byte INIT_SATURATION = 255;
 const byte INIT_HUE = 195;
 
-const byte NOISE_SPEED = 200;
-const byte NOISE_AMT = 0;
+const byte INIT_NOISE_SPEED = 200;
+const byte INIT_NOISE_AMT = 0;
+
+const byte INIT_MIRROR_BAR = 0;
 
 LED_PROPERTY brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
 LED_PROPERTY saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0UL};
 LED_PROPERTY hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
-LED_PROPERTY noiseAmt = {NOISE_AMT, NOISE_AMT, NOISE_AMT, 0UL, 0UL};
-LED_PROPERTY noiseSpeed = {NOISE_SPEED, NOISE_SPEED, NOISE_SPEED, 0UL, 0UL};
+LED_PROPERTY noiseAmt = {INIT_NOISE_AMT, INIT_NOISE_AMT, INIT_NOISE_AMT, 0UL, 0UL};
+LED_PROPERTY noiseSpeed = {INIT_NOISE_SPEED, INIT_NOISE_SPEED, INIT_NOISE_SPEED, 0UL, 0UL};
+LED_PROPERTY mirrorBar = {INIT_MIRROR_BAR, INIT_MIRROR_BAR, INIT_MIRROR_BAR, 0UL, 0UL};
 
 CHSV initHSV = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
-CHSV solidHSV = initHSV;
 
 CRGB led_pixels[NUM_LEDS];
-CRGB temp_pixels[NUM_LEDS];
-CRGB solid_pixels[NUM_LEDS];
-CRGB noise_pixels[NUM_LEDS];
+
+uint8_t noise_pixels[NUM_LEDS];
 unsigned long noiseTime = 0;
+
+uint8_t mirror_bar_pixels[QRT_LEDS];
 
 
 unsigned long TARGET_LOOP_DUR = 60;
@@ -101,6 +104,11 @@ unsigned int loopValue(unsigned int min, unsigned int max, unsigned int val)
 
 void setup()
 {
+  for (uint8_t i = 0; i < NUM_LEDS; i++)
+  {
+    noise_pixels[i] = 0;
+  }
+
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(led_pixels, NUM_LEDS);
   startup_sequence();
 
@@ -129,28 +137,17 @@ void loop()
   smooth(loopAvg, prevLoopTime);
 
   // Update moving values
-  fadeToTarget(noiseAmt);
-  fadeToTarget(noiseSpeed);
   fadeToTarget(brightness);
   fadeToTarget(saturation);
   fadeToTarget(hue);
-  solidHSV = CHSV(hue.currVal, saturation.currVal, brightness.currVal);
+  fadeToTarget(noiseAmt);
+  fadeToTarget(noiseSpeed);
+  fadeToTarget(mirrorBar);
   
   // Write to pixel arrays
-  fill_solid(solid_pixels, NUM_LEDS, solidHSV);
-  update_noise();
-
-  if (noiseAmt.currVal > 0)
-    for (unsigned int i = 0; i < NUM_LEDS; i++)
-    {
-      led_pixels[i] = solid_pixels[i] + noise_pixels[i];
-    }
-  else
-    for (unsigned int i = 0; i < NUM_LEDS; i++)
-    {
-      led_pixels[i] = solid_pixels[i];
-    }
-
+  fill_solid(led_pixels, NUM_LEDS, CHSV(hue.currVal, saturation.currVal, brightness.currVal));
+  add_noise(led_pixels, NUM_LEDS);
+  add_mirror_bar(led_pixels, NUM_LEDS);
 
   // Push pixel arrays to LEDs
   //FastLED.setBrightness(brightness.currVal);
@@ -199,23 +196,26 @@ void processInput(COMMAND input)
 {
   switch (input.command)
   {
-  case 'l':
+  case 'l': // Updates the Arduino's target loop duration
     TARGET_LOOP_DUR = input.value;
     sendCommand(COMMAND{'l', TARGET_LOOP_DUR, 0});
-  case 'B':
+  case 'B': // Sets the solid fill colour's brightness
     assignInput(input, brightness);
     break;
-  case 'S':
+  case 'S': // Set solid fill colour saturation
     assignInput(input, saturation);
     break;
-  case 'H':
+  case 'H': // Set solid fill colour hue
     assignInput(input, hue);
     break;
-  case 'N':
+  case 'N': // Set amount of overlaid noise effect
     assignInput(input, noiseAmt);
     break;
-  case 'O':
+  case 'O': // Set speed of noise effect
     assignInput(input, noiseSpeed);
+    break;
+  case 'M': // Set size of mirror bar layer
+    assignInput(input, mirrorBar);
     break;
   default:
     return;
@@ -286,31 +286,40 @@ void resetFade(LED_PROPERTY &property)
  *                    \/                \/           \/     \/ 
  */
 
-
-void update_noise()
+// Generates simplex noise pattern over LED strip and adds the effect to the solid colour
+void add_noise(struct CRGB * targetArray, int numToFill)
 {
-  // Update the offset of the noise function based on speed parameter and loop time.
-  noiseTime += prevLoopTime * noiseSpeed.currVal / 10;
-  CRGB old_noise[NUM_LEDS];
-  CRGB temp_noise[NUM_LEDS];
-
-  // Only process noise pixels if the noise master value is above 0. Otherwise we
-  // assume the noise layer is off and skip it.
+  // Only process the effect's values if it's amount is above 0.
+  // Otherwise we assume the effect layer is off and skip it.
   if (noiseAmt.currVal > 0)
   {
+    // Update the offset of the noise function based on speed parameter and loop time.
+    noiseTime += prevLoopTime * noiseSpeed.currVal / 10;
     long width = map(noiseAmt.currVal, 0, 255, 2, 60);
     long thresh = map(noiseAmt.currVal, 0, 255, 215, 185);
+    long amount = map(noiseAmt.currVal, 0, 255, 40, 255);
 
     for (unsigned int i = 0; i < NUM_LEDS; i++)
     {
-      old_noise[i] = noise_pixels[i];
-      uint8_t noiseBrightness = inoise8(i * width, noiseTime) > thresh ? 255 : 0;
-      temp_noise[i] = CRGB(noiseBrightness, noiseBrightness, noiseBrightness);
-      noise_pixels[i] = blend(old_noise[i], temp_noise[i], noiseSpeed.currVal);
+      uint8_t noiseBrightness = inoise8(i * width, noiseTime) > thresh ? amount : 0;
+      noise_pixels[i] = blend8(noise_pixels[i], noiseBrightness, noiseSpeed.currVal);
+      targetArray[i].addToRGB(noise_pixels[i]);
     }
   }
 }
 
+
+// Applies the mirror bar effect pattern over the solid colour
+void add_mirror_bar(struct CRGB * targetArray, int numToFill)
+{
+  for (unsigned int i = 0; i < QRT_LEDS; i++)
+  {
+    uint8_t barBrightness = i * 4 < mirrorBar.currVal ? 255 : 0;
+    mirror_bar_pixels[i] = blend8(mirror_bar_pixels[i], barBrightness, 10);
+    mirrorPixel(targetArray, i, mirror_bar_pixels[i] * 0.5);
+    //targetArray[i].addToRGB(mirror_bar_pixels[i]);
+  }
+}
 
 
 /***
@@ -379,7 +388,37 @@ float smooth(AVERAGE &avgStruct, long newValue)
   return avgStruct.average;
 }
 
+uint8_t lerp(uint8_t a, uint8_t b, uint8_t x)
+{ 
+  return a + (long)x / 255 * (b - a);
+}
 
+
+// Provides remapped pixel assignment. Index should be within 1/2 of total LED count
+void endToEnd(struct CRGB * targetArray, int index, CRGB colour)
+{
+  unsigned int SA = loopValue(0, NUM_LEDS, QRT_LEDS + index);
+  unsigned int SB = loopValue(0, NUM_LEDS, QRT_LEDS - 1 - index);
+
+  targetArray[SA] = colour;   // Side A
+  targetArray[SB] = colour;   // Side B
+}
+
+
+// Provides remapped pixel assignment. Index should be within 1/4 of total LED count
+//void mirrorPixel(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
+void mirrorPixel(struct CRGB * targetArray, int index, uint8_t value)
+{
+  unsigned int UA = loopValue(0, NUM_LEDS, index);
+  unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - index);
+  unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - index);
+  unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + index);
+
+  targetArray[UA].addToRGB(value);   // Up, Side A
+  targetArray[UB].addToRGB(value);   // Up, Side B
+  targetArray[DA].addToRGB(value);   // Down, Side A
+  targetArray[DB].addToRGB(value);   // Down, Side B
+}
 
 
 /***

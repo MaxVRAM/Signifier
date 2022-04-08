@@ -210,7 +210,6 @@ class CompositionProcess(ModuleProcess, Thread):
                 for chan in self.channels:
                     chan.stop
             self.channels = self.get_channels(self.inactive_pool)
-            print(f'Pool size: {len(self.inactive_pool)}   Num channels: {len(self.channels)}')
             clipUtils.init_sounds(self.inactive_pool, self.channels)
             self.metrics_pusher.update(f"{self.module_name}_collection", name)
             return self.current_collection
