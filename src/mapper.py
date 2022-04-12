@@ -12,7 +12,6 @@ Processes module source values and sends them to module destination parameters.
 from __future__ import annotations
 
 import time
-import logging
 
 import multiprocessing as mp
 

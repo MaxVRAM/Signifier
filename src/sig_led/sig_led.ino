@@ -52,6 +52,8 @@ struct LED_PROPERTY
   float lerpPos;
 };
 
+const byte INIT_MAIN_BRIGHT = 255;
+
 const byte INIT_BRIGHTNESS = 255;
 const byte INIT_SATURATION = 255;
 const byte INIT_HUE = 195;
@@ -62,9 +64,11 @@ const byte INIT_NOISE_SAT = 0;
 const byte INIT_NOISE_HUE = 0;
 
 const byte INIT_MIRROR_BAR = 0;
+const byte INIT_MIRROR_MIX = 125;
 const byte INIT_MIRROR_SAT = 0;
 const byte INIT_MIRROR_HUE = 0;
 
+LED_PROPERTY mainBright = {INIT_MAIN_BRIGHT, INIT_MAIN_BRIGHT, INIT_MAIN_BRIGHT, 0UL, 0UL};
 LED_PROPERTY brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
 LED_PROPERTY saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0UL};
 LED_PROPERTY hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
@@ -73,6 +77,7 @@ LED_PROPERTY noiseSpeed = {INIT_NOISE_SPEED, INIT_NOISE_SPEED, INIT_NOISE_SPEED,
 LED_PROPERTY noiseSat = {INIT_NOISE_SAT, INIT_NOISE_SAT, INIT_NOISE_SAT, 0UL, 0UL};
 LED_PROPERTY noiseHue = {INIT_NOISE_HUE, INIT_NOISE_HUE, INIT_NOISE_HUE, 0UL, 0UL};
 LED_PROPERTY mirrorBar = {INIT_MIRROR_BAR, INIT_MIRROR_BAR, INIT_MIRROR_BAR, 0UL, 0UL};
+LED_PROPERTY mirrorMix = {INIT_MIRROR_MIX, INIT_MIRROR_MIX, INIT_MIRROR_MIX, 0UL, 0UL};
 LED_PROPERTY mirrorSat = {INIT_MIRROR_SAT, INIT_MIRROR_SAT, INIT_MIRROR_SAT, 0UL, 0UL};
 LED_PROPERTY mirrorHue = {INIT_MIRROR_HUE, INIT_MIRROR_HUE, INIT_MIRROR_HUE, 0UL, 0UL};
 
@@ -118,6 +123,7 @@ void setup()
 
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(led_pixels, NUM_LEDS);
   startup_sequence();
+  FastLED.setBrightness(0);
 
   // Serial transfer setup
   Serial.begin(BAUD);
@@ -144,6 +150,7 @@ void loop()
   smooth(loopAvg, prevLoopTime);
 
   // Update moving values
+  fadeToTarget(mainBright);
   fadeToTarget(brightness);
   fadeToTarget(saturation);
   fadeToTarget(hue);
@@ -157,12 +164,12 @@ void loop()
   
   // Write to pixel arrays
   fill_solid(led_pixels, NUM_LEDS, CHSV(hue.currVal, saturation.currVal, brightness.currVal));
-  add_noise(led_pixels, NUM_LEDS);
   add_mirror_bar(led_pixels, NUM_LEDS);
+  add_noise(led_pixels, NUM_LEDS);
 
   // Push pixel arrays to LEDs
   //FastLED.setBrightness(brightness.currVal);
-  FastLED.setBrightness(255);
+  FastLED.setBrightness(mainBright.currVal);
   FastLED.show();
 
   // Calculates the remaining time to wait for a response based on the target loop time
@@ -234,11 +241,17 @@ void processInput(COMMAND input)
   case 'M': // Set size of mirror bar layer
     assignInput(input, mirrorBar);
     break;
+  case 'J': // Set mix level of mirror bar layer
+    assignInput(input, mirrorMix);
+    break;
   case 'K': // Set saturation of mirror bar layer
     assignInput(input, mirrorSat);
     break;
   case 'L': // Set hue of mirror bar layer
     assignInput(input, mirrorHue);
+    break;
+  case 'Z': // Main LED strip brightness amount
+    assignInput(input, mainBright);
     break;
   default:
     return;
@@ -339,53 +352,12 @@ void add_mirror_bar(struct CRGB * targetArray, int numToFill)
 {
   for (unsigned int i = 0; i < QRT_LEDS; i++)
   {
-    uint8_t barBrightness = i * 4 < mirrorBar.currVal ? 255 : 0;
+    uint8_t barBrightness = i * 4 < mirrorBar.currVal ? 255 * mirrorMix.currVal : 0;
     mirror_bar_pixels[i] = blend8(mirror_bar_pixels[i], barBrightness, 10);
     CRGB new_bar;
     hsv2rgb_rainbow(CHSV(mirrorHue.currVal, mirrorSat.currVal, mirror_bar_pixels[i]), new_bar);
-    mirrorPixel(targetArray, i, new_bar);
+    mirrorPixel(targetArray, i, new_bar, mirror_bar_pixels[i]);
     //targetArray[i].addToRGB(mirror_bar_pixels[i]);
-  }
-}
-
-
-/***
- *      _________ __                 __                
- *     /   _____//  |______ ________/  |_ __ ________  
- *     \_____  \\   __\__  \\_  __ \   __\  |  \____ \ 
- *     /        \|  |  / __ \|  | \/|  | |  |  /  |_> >
- *    /_______  /|__| (____  /__|   |__| |____/|   __/ 
- *            \/           \/                  |__|    
- */
-
-void startup_sequence()
-{
-  // Ensure blackout pixels
-  FastLED.clear(true);
-  brightness.currVal = 0;
-  resetFade(brightness);
-  FastLED.setBrightness(0);
-  FastLED.show();
-
-  // Write default colour to pixels
-  fill_solid(led_pixels, NUM_LEDS, initHSV);
-
-  int counter = 0;
-  // Quickly fade in
-  while (counter < 255)
-  {
-    counter += 3;
-    if (counter > 255) counter = 255;
-    FastLED.setBrightness(counter);
-    FastLED.show();
-  }
-  // Quickerly fade out
-  while (counter > 0)
-  {
-    counter -= 4;
-    if (counter < 0) counter = 0;
-    FastLED.setBrightness(counter);
-    FastLED.show();
   }
 }
 
@@ -434,109 +406,60 @@ void endToEnd(struct CRGB * targetArray, int index, CRGB colour)
 
 // Provides remapped pixel assignment. Index should be within 1/4 of total LED count
 //void mirrorPixel(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
-void mirrorPixel(struct CRGB * targetArray, int index, CRGB colour)
+void mirrorPixel(struct CRGB * targetArray, int index, CRGB colour, uint8_t bright)
 {
   unsigned int UA = loopValue(0, NUM_LEDS, index);
   unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - index);
   unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - index);
   unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + index);
 
-  targetArray[UA] += colour;   // Up, Side A
-  targetArray[UB] += colour;   // Up, Side B
-  targetArray[DA] += colour;   // Down, Side A
-  targetArray[DB] += colour;   // Down, Side B
+  // targetArray[UA] += colour;   // Up, Side A
+  // targetArray[UB] += colour;   // Up, Side B
+  // targetArray[DA] += colour;   // Down, Side A
+  // targetArray[DB] += colour;   // Down, Side B
+
+  nblend(targetArray[UA], colour, bright);   // Up, Side A
+  nblend(targetArray[UB], colour, bright);   // Up, Side B
+  nblend(targetArray[DA], colour, bright);   // Down, Side A
+  nblend(targetArray[DB], colour, bright);   // Down, Side B
 }
 
 
+
 /***
- *    ________  .__       .___   _________ __          _____  _____ 
- *    \_____  \ |  |    __| _/  /   _____//  |_ __ ___/ ____\/ ____\
- *     /   |   \|  |   / __ |   \_____  \\   __\  |  \   __\\   __\ 
- *    /    |    \  |__/ /_/ |   /        \|  | |  |  /|  |   |  |   
- *    \_______  /____/\____ |  /_______  /|__| |____/ |__|   |__|   
- *            \/           \/          \/                           
+ *      _________ __                 __                
+ *     /   _____//  |______ ________/  |_ __ ________  
+ *     \_____  \\   __\__  \\_  __ \   __\  |  \____ \ 
+ *     /        \|  |  / __ \|  | \/|  | |  |  /  |_> >
+ *    /_______  /|__| (____  /__|   |__| |____/|   __/ 
+ *            \/           \/                  |__|    
  */
 
-  // FastLED.clear(true);
-  // led_pixels[0] = CRGB::White;
-  // led_pixels[QRT_LEDS - 1] = CRGB::White;
-  // led_pixels[QRT_LEDS] = CRGB::White;
-  // led_pixels[HALF_LEDS - 1] = CRGB::White;
-  // led_pixels[NUM_LEDS - 1] = CRGB::White;
-  // led_pixels[HALF_LEDS + QRT_LEDS - 1] = CRGB::White;
-  // led_pixels[HALF_LEDS + QRT_LEDS] = CRGB::White;
+void startup_sequence()
+{
+  // Ensure blackout pixels
+  FastLED.clear(true);
+  FastLED.setBrightness(0);
+  FastLED.show();
 
-  // FastLED.show();
-  // delay(100000);
+  // Write default colour to pixels
+  fill_solid(led_pixels, NUM_LEDS, initHSV);
 
-  // for (int j = 0; j < 100; j++)
-  // {
-  //   // Demo for mirror
-  //   for (unsigned int i = 0; i < QRT_LEDS; i++)
-  //   {
-  //     mirrorPixel(led_pixels, initHSV, i);
-  //     FastLED.show();
-  //     mirrorPixel(led_pixels, CRGB::Black, i - 1);
-  //     delay(10);
-  //   }
-  // }
-
-  // // Demo for end to end
-  // for (unsigned int i = 0; i < HALF_LEDS; i++)
-  // {
-  //   endToEnd(led_pixels, initHSV, i);
-  //   for (unsigned int j = 0; j < NUM_LEDS; j++)
-  //   {
-  //     led_pixels[j].nscale8_video(253);
-  //   }
-  //   FastLED.show();
-  //   delay(1);
-  // }
-
-  // for (unsigned int i = 0; i < )
-
-  // // // Shiny demo bit
-  // CRGB whiteTarget = CRGB::White;
-  // for (unsigned int i = 0; i < NUM_LEDS; i++)
-  // {
-  //   CRGB currentA = led_pixels[i];
-  //   CRGB currentB = led_pixels[NUM_LEDS - i - 1];
-  //   whiteTarget.nscale8(253);
-  //   led_pixels[i] = CRGB::White;
-  //   led_pixels[NUM_LEDS - i - 1] = CRGB::White;
-  //   FastLED.show();
-  //   led_pixels[i] = blend(currentA, initHSV, 1);
-  //   led_pixels[NUM_LEDS - i - 1] = blend(currentB, initHSV, 1);
-  //   for (unsigned int j = 0; j < NUM_LEDS; j++)
-  //   {
-  //     led_pixels[j].nscale8(253);
-  //   }
-  // }
-
-
-
-
-// NOTE: This may not be feasible with the varied physical alignment of LED strips across each Signifiers
-// // Provides remapped pixel assignment. Index should be within 1/4 of total LED count
-// void mirrorPixel(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
-// {
-//   unsigned int UA = loopValue(0, NUM_LEDS, i);
-//   unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - i);
-//   unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - i);
-//   unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + i);
-
-//   in_leds[UA] = colour;   // Up, Side A
-// //  in_leds[UB] = colour;   // Up, Side B
-// //  in_leds[DA] = colour;   // Down, Side A
-// //  in_leds[DB] = colour;   // Down, Side B
-// }  
-
-// // Provides remapped pixel assignment. Index should be within 1/2 of total LED count
-// void endToEnd(CRGB (& in_leds)[NUM_LEDS], CRGB colour, unsigned int i)
-// {
-//   unsigned int SA = loopValue(0, NUM_LEDS, QRT_LEDS + i);
-//   unsigned int SB = loopValue(0, NUM_LEDS, QRT_LEDS - 1 - i);
-
-//   in_leds[SA] = colour;   // Side A
-//   in_leds[SB] = colour;   // Side B
-// }
+  int counter = 0;
+  // Quickly fade in
+  while (counter < 255)
+  {
+    counter += 3;
+    if (counter > 255) counter = 255;
+    FastLED.setBrightness(counter);
+    FastLED.show();
+  }
+  // Quickerly fade out
+  while (counter > 0)
+  {
+    counter -= 4;
+    if (counter < 0) counter = 0;
+    FastLED.setBrightness(counter);
+    FastLED.show();
+  }
+}

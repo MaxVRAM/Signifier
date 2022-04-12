@@ -169,7 +169,7 @@ class LedsProcess(ModuleProcess, mp.Process):
         timeout_start = time.time()
         while time.time() < timeout_start + 0.5:
             if self.link is not None and self.link.available():
-                if self.send_packet(SendPacket("B", 0, 500)) is None:
+                if self.send_packet(SendPacket("Z", 0, 500)) is None:
                     self.logger.debug(f"Arduino received shutdown request.")
                     self.link.close()
                     self.logger.debug(f"Arduino connection terminated.")

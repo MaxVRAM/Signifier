@@ -105,10 +105,6 @@ def check_config_update():
                 if m in module_objects:
                     module_objects[m].update_config(configs)
             print()
-            print(f'{module_objects.keys()}')
-            for p in mp.active_children():
-                print(f'{p}')
-            print()
         CONFIG_UPDATE_SECS = configs['config']['modules']['general'].get(
                 'config_update_secs', 2)
 
@@ -216,4 +212,4 @@ if __name__ == '__main__':
         for m in module_objects.values():
             m.monitor()
         check_config_update()
-        time.sleep(0.001)
+        time.sleep(config_data['general']['process_loop_sleep'])

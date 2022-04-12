@@ -208,7 +208,7 @@ class CompositionProcess(ModuleProcess, Thread):
             self.inactive_pool = pool
             if self.channels is not None:
                 for chan in self.channels:
-                    chan.stop
+                    chan.stop()
             self.channels = self.get_channels(self.inactive_pool)
             clipUtils.init_sounds(self.inactive_pool, self.channels)
             self.metrics_pusher.update(f"{self.module_name}_collection", name)

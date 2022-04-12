@@ -202,6 +202,9 @@ class SigLog:
     format_msg = '%(asctime)s %(name)18s - %(levelname)10s - %(message)s'
     formatter = logging.Formatter(fmt=format_msg, datefmt=format_dt)
 
+    def get_all_loggers():
+        loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
+        return loggers
 
     def get_console_handler():
         console_handler = logging.StreamHandler(sys.stdout)

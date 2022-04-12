@@ -63,7 +63,7 @@
                 "default": 120,
                 "description": "Speed of LED noise effect."
             },
-            "noise_saturation": {
+            "leds_noise_saturation": {
                 "type": "gauge",
                 "command": "P",
                 "min": 0,
@@ -71,7 +71,7 @@
                 "default": 180,
                 "description": "Saturation of noise effect colour."
             },
-            "noise_hue": {
+            "leds_noise_hue": {
                 "type": "gauge",
                 "command": "Q",
                 "min": 0,
@@ -87,7 +87,15 @@
                 "default": 0,
                 "description": "Creates a bar of white expanding outwards from the centre."
             },
-            "mirror_saturation": {
+            "leds_mirror_mix": {
+                "type": "gauge",
+                "command": "J",
+                "min": 0,
+                "max": 255,
+                "default": 150,
+                "description": "Mix amount of the mirror effect over the solid colour."
+            },
+            "leds_mirror_saturation": {
                 "type": "gauge",
                 "command": "K",
                 "min": 0,
@@ -95,7 +103,7 @@
                 "default": 255,
                 "description": "Saturation of mirror effect colour."
             },
-            "mirror_hue": {
+            "leds_mirror_hue": {
                 "type": "gauge",
                 "command": "L",
                 "min": 0,

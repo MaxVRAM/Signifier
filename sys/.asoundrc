@@ -5,17 +5,19 @@
 pcm.headphonesloop {
     type multi
     slaves.a.pcm "hw:Headphones,0"
-    slaves.a.channels 1
+    slaves.a.channels 2
     slaves.b.pcm "hw:Loopback,0"
     slaves.b.channels 1
     bindings.0 { slave a; channel 0; }
-    bindings.1 { slave b; channel 0; }
+    bindings.1 { slave a; channel 1; }
+    bindings.2 { slave b; channel 0; }
 }
 pcm.out2headphones {
     type route
     slave.pcm "headphonesloop"
     ttable.0.0 1
     ttable.0.1 1
+    ttable.0.2 1
 }
 
 # -------------------------------------------
@@ -45,7 +47,7 @@ pcm.out2bluetooth {
 # ------------------------------------------
 pcm.!default {
     type asym
-    playback.pcm "plug:out2bluetooth"
-    #playback.pcm "plug:out2headphones"
+    #playback.pcm "plug:out2bluetooth"
+    playback.pcm "plug:out2headphones"
     capture.pcm "hw:Loopback,1"
 }
