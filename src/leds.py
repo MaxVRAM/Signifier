@@ -73,6 +73,8 @@ class LedsProcess(ModuleProcess, mp.Process):
         Module-specific Process run preparation.
         """
         self.start_time = time.time()
+        for d in self.destinations.values():
+            d.set_default()
         return True
 
     def mid_run(self):
@@ -157,6 +159,7 @@ class LedsProcess(ModuleProcess, mp.Process):
         try:
             self.link = Arduino.SerialTransfer(port, baud=self.baud)
             self.link.open()
+            self.logger.debug(f"Arduino serial connection opened.")
             return True
         except Arduino.InvalidSerialPort:
             return False
@@ -208,6 +211,13 @@ class LedValue:
             self.packet = SendPacket(self.command, value, duration)
             self.updated = True
 
+    def set_default(self):
+        """
+        Creates a new serial packet to send from default parameter values.
+        """
+        self.packet = SendPacket(self.command, self.default, self.duration)
+        self.updated = True
+        
     def send(self, send_function, *args) -> bool:
         """
         Returns the serial packet command for the Arduino process to send

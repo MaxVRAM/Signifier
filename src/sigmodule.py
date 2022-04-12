@@ -121,7 +121,7 @@ class SigModule:
         if self.status == ProcessStatus.initialised:
             if self.process is not None:
                 if not self.process.is_alive():
-                    self.logger.debug(f"process starting.")
+                    self.logger.debug(f"Process starting.")
                     self.status = ProcessStatus.starting
                     self.module_start_time = time.time()
                     self.process.start()

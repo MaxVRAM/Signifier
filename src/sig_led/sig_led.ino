@@ -52,13 +52,13 @@ struct LED_PROPERTY
   float lerpPos;
 };
 
-const byte INIT_MAIN_BRIGHT = 255;
+const byte INIT_MAIN_BRIGHT = 0;
 
-const byte INIT_BRIGHTNESS = 255;
-const byte INIT_SATURATION = 255;
-const byte INIT_HUE = 195;
+const byte INIT_SOLID_BRIGHT = 0;
+const byte INIT_SOLID_SAT = 255;
+const byte INIT_SOLID_HUE = 195;
 
-const byte INIT_NOISE_SPEED = 200;
+const byte INIT_NOISE_SPD = 200;
 const byte INIT_NOISE_AMT = 0;
 const byte INIT_NOISE_SAT = 0;
 const byte INIT_NOISE_HUE = 0;
@@ -69,11 +69,11 @@ const byte INIT_MIRROR_SAT = 0;
 const byte INIT_MIRROR_HUE = 0;
 
 LED_PROPERTY mainBright = {INIT_MAIN_BRIGHT, INIT_MAIN_BRIGHT, INIT_MAIN_BRIGHT, 0UL, 0UL};
-LED_PROPERTY brightness = {INIT_BRIGHTNESS, INIT_BRIGHTNESS, INIT_BRIGHTNESS, 0UL, 0UL};
-LED_PROPERTY saturation = {INIT_SATURATION, INIT_SATURATION, INIT_SATURATION, 0UL, 0UL};
-LED_PROPERTY hue = {INIT_HUE, INIT_HUE, INIT_HUE, 0UL, 0UL};
+LED_PROPERTY solidBright = {INIT_SOLID_BRIGHT, INIT_SOLID_BRIGHT, INIT_SOLID_BRIGHT, 0UL, 0UL};
+LED_PROPERTY solidSat = {INIT_SOLID_SAT, INIT_SOLID_SAT, INIT_SOLID_SAT, 0UL, 0UL};
+LED_PROPERTY solidHue = {INIT_SOLID_HUE, INIT_SOLID_HUE, INIT_SOLID_HUE, 0UL, 0UL};
 LED_PROPERTY noiseAmt = {INIT_NOISE_AMT, INIT_NOISE_AMT, INIT_NOISE_AMT, 0UL, 0UL};
-LED_PROPERTY noiseSpeed = {INIT_NOISE_SPEED, INIT_NOISE_SPEED, INIT_NOISE_SPEED, 0UL, 0UL};
+LED_PROPERTY noiseSpeed = {INIT_NOISE_SPD, INIT_NOISE_SPD, INIT_NOISE_SPD, 0UL, 0UL};
 LED_PROPERTY noiseSat = {INIT_NOISE_SAT, INIT_NOISE_SAT, INIT_NOISE_SAT, 0UL, 0UL};
 LED_PROPERTY noiseHue = {INIT_NOISE_HUE, INIT_NOISE_HUE, INIT_NOISE_HUE, 0UL, 0UL};
 LED_PROPERTY mirrorBar = {INIT_MIRROR_BAR, INIT_MIRROR_BAR, INIT_MIRROR_BAR, 0UL, 0UL};
@@ -81,13 +81,14 @@ LED_PROPERTY mirrorMix = {INIT_MIRROR_MIX, INIT_MIRROR_MIX, INIT_MIRROR_MIX, 0UL
 LED_PROPERTY mirrorSat = {INIT_MIRROR_SAT, INIT_MIRROR_SAT, INIT_MIRROR_SAT, 0UL, 0UL};
 LED_PROPERTY mirrorHue = {INIT_MIRROR_HUE, INIT_MIRROR_HUE, INIT_MIRROR_HUE, 0UL, 0UL};
 
-CHSV initHSV = CHSV(INIT_HUE, INIT_SATURATION, INIT_BRIGHTNESS);
+CHSV initHSV = CHSV(INIT_SOLID_HUE, INIT_SOLID_SAT, INIT_SOLID_BRIGHT);
 
 CRGB led_pixels[NUM_LEDS];
 
 uint8_t noise_pixels[NUM_LEDS];
 unsigned long noiseTime = 0;
-uint8_t mirror_bar_pixels[QRT_LEDS];
+
+CRGB mirrorBarPixels[QRT_LEDS];
 
 
 unsigned long TARGET_LOOP_DUR = 60;
@@ -151,9 +152,9 @@ void loop()
 
   // Update moving values
   fadeToTarget(mainBright);
-  fadeToTarget(brightness);
-  fadeToTarget(saturation);
-  fadeToTarget(hue);
+  fadeToTarget(solidBright);
+  fadeToTarget(solidSat);
+  fadeToTarget(solidHue);
   fadeToTarget(noiseAmt);
   fadeToTarget(noiseSpeed);
   fadeToTarget(noiseSat);
@@ -163,12 +164,11 @@ void loop()
   fadeToTarget(mirrorHue);
   
   // Write to pixel arrays
-  fill_solid(led_pixels, NUM_LEDS, CHSV(hue.currVal, saturation.currVal, brightness.currVal));
+  fill_solid(led_pixels, NUM_LEDS, CHSV(solidHue.currVal, solidSat.currVal, solidBright.currVal));
   add_mirror_bar(led_pixels, NUM_LEDS);
   add_noise(led_pixels, NUM_LEDS);
 
   // Push pixel arrays to LEDs
-  //FastLED.setBrightness(brightness.currVal);
   FastLED.setBrightness(mainBright.currVal);
   FastLED.show();
 
@@ -218,13 +218,13 @@ void processInput(COMMAND input)
     TARGET_LOOP_DUR = input.value;
     sendCommand(COMMAND{'l', TARGET_LOOP_DUR, 0});
   case 'B': // Sets the solid fill colour's brightness
-    assignInput(input, brightness);
+    assignInput(input, solidBright);
     break;
   case 'S': // Set solid fill colour saturation
-    assignInput(input, saturation);
+    assignInput(input, solidSat);
     break;
   case 'H': // Set solid fill colour hue
-    assignInput(input, hue);
+    assignInput(input, solidHue);
     break;
   case 'N': // Set amount of overlaid noise effect
     assignInput(input, noiseAmt);
@@ -341,7 +341,7 @@ void add_noise(struct CRGB * targetArray, int numToFill)
       noise_pixels[i] = blend8(noise_pixels[i], noiseBrightness, noiseSpeed.currVal);
       CRGB new_noise;
       hsv2rgb_rainbow(CHSV(noiseHue.currVal, noiseSat.currVal, noise_pixels[i]), new_noise);
-      targetArray[i] += new_noise; // addToRGB(noise_pixels[i]);
+      targetArray[i] += new_noise;
     }
   }
 }
@@ -350,14 +350,46 @@ void add_noise(struct CRGB * targetArray, int numToFill)
 // Applies the mirror bar effect pattern over the solid colour
 void add_mirror_bar(struct CRGB * targetArray, int numToFill)
 {
+  // Prepare new mirror bar pixel colour
+  CRGB new_pixel;
+  hsv2rgb_rainbow(CHSV(mirrorHue.currVal, mirrorSat.currVal, 255), new_pixel);
+
   for (unsigned int i = 0; i < QRT_LEDS; i++)
   {
-    uint8_t barBrightness = i * 4 < mirrorBar.currVal ? 255 * mirrorMix.currVal : 0;
-    mirror_bar_pixels[i] = blend8(mirror_bar_pixels[i], barBrightness, 10);
-    CRGB new_bar;
-    hsv2rgb_rainbow(CHSV(mirrorHue.currVal, mirrorSat.currVal, mirror_bar_pixels[i]), new_bar);
-    mirrorPixel(targetArray, i, new_bar, mirror_bar_pixels[i]);
-    //targetArray[i].addToRGB(mirror_bar_pixels[i]);
+    // Define LED strip pixel positions for the given index of mirrored bar
+    unsigned int mirrorPos[4] = {
+      loopValue(0, NUM_LEDS, i),
+      loopValue(0, NUM_LEDS, HALF_LEDS - 1 - i),
+      loopValue(0, NUM_LEDS, NUM_LEDS - 1 - i),
+      loopValue(0, NUM_LEDS, HALF_LEDS + i)
+    };
+    
+    // Fade mirror array pixel towards current solid strip colour
+    nblend(mirrorBarPixels[i], targetArray[i], 20);   
+    // Add new pixel colour to mirror array if within current effect value
+    if ( i * 4 < mirrorBar.currVal ) {
+      mirrorBarPixels[i].addToRGB(new_pixel);
+    }
+    // For each of the 4 strip pixels assigned to this mirror pixel, add mirror pixel
+    for (uint8_t j = 0; j < 4; j++) {
+      nblend(targetArray[mirrorPos[j]], mirrorBarPixels[i], mirrorMix.currVal);
+    }
+
+
+    // mirrorBarPixels[i] = blend8(mirrorBarPixels[i], pixelAmount, 10);
+    // CRGB new_bar;
+    // hsv2rgb_rainbow(CHSV(mirrorHue.currVal, mirrorSat.currVal, mirrorBarPixels[i]), new_bar);
+    // mirrorPixel(targetArray, i, new_bar, mirrorBarPixels[i]);
+    // //targetArray[i].addToRGB(mirrorBarPixels[i]);
+
+    // unsigned int UA = loopValue(0, NUM_LEDS, index);
+    // unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - index);
+    // unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - index);
+    // unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + index);
+    // nblend(targetArray[UA], colour, bright);   // Up, Side A
+    // nblend(targetArray[UB], colour, bright);   // Up, Side B
+    // nblend(targetArray[DA], colour, bright);   // Down, Side A
+    // nblend(targetArray[DB], colour, bright);   // Down, Side B
   }
 }
 
