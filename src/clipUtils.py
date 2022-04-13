@@ -44,10 +44,16 @@ def init_sounds(clips: set, channels: dict) -> dict:
         logger.warning(
             f"Unable to build ({len(remaining)}) " f"Sound object{plural(remaining)}! "
         )
-        
+
+        print(f'Clips sent to init_sound function:')
         for c in clips:
             print(f'Clip: {c.name}    Channel index: {c.index}')
-    return {"channels": channels, "clips": remaining}
+
+        print(f'Clips assigned channels:')
+        for d in done:
+            print(f'Clip: {d.name}    Channel index: {d.index}')
+
+        return {"channels": channels, "clips": remaining}
 
 
 def get_distributed(clips: set, num_clips: int, **kwargs) -> set:

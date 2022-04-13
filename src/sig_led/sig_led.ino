@@ -160,11 +160,13 @@ void loop()
   fadeToTarget(noiseSat);
   fadeToTarget(noiseHue);
   fadeToTarget(mirrorBar);
+  fadeToTarget(mirrorMix);
   fadeToTarget(mirrorSat);
   fadeToTarget(mirrorHue);
   
+  CHSV solidColour = CHSV(solidHue.currVal, solidSat.currVal, solidBright.currVal);
   // Write to pixel arrays
-  fill_solid(led_pixels, NUM_LEDS, CHSV(solidHue.currVal, solidSat.currVal, solidBright.currVal));
+  fill_solid(led_pixels, NUM_LEDS, solidColour);
   add_mirror_bar(led_pixels, NUM_LEDS);
   add_noise(led_pixels, NUM_LEDS);
 
@@ -322,6 +324,39 @@ void resetFade(LED_PROPERTY &property)
  *                    \/                \/           \/     \/ 
  */
 
+
+// Applies the mirror bar effect pattern over the solid colour
+void add_mirror_bar(struct CRGB * targetArray, int numToFill)
+{
+  // Prepare new mirror bar pixel colour
+  CRGB new_pixel;
+  hsv2rgb_rainbow(CHSV(mirrorHue.currVal, mirrorSat.currVal, 255), new_pixel);
+
+  for (unsigned int i = 0; i < QRT_LEDS; i++)
+  {
+    // Define LED strip pixel positions for the given index of mirrored bar
+    unsigned int mirrorPos[4] = {
+      loopValue(0, NUM_LEDS, i),
+      loopValue(0, NUM_LEDS, HALF_LEDS - 1 - i),
+      loopValue(0, NUM_LEDS, NUM_LEDS - 1 - i),
+      loopValue(0, NUM_LEDS, HALF_LEDS + i)
+    };
+    
+    // Fade mirror array pixel towards current solid strip colour
+    nblend(mirrorBarPixels[i], targetArray[i], 150);   
+    // Add new pixel colour to mirror array if within current effect value
+    if ( i * 4 < mirrorBar.currVal ) {
+      mirrorBarPixels[i] += new_pixel;
+    }
+    // For each of the 4 strip pixels assigned to this mirror pixel, add mirror pixel
+    for (uint8_t j = 0; j < 4; j++) {
+      //targetArray[mirrorPos[j]] += mirrorBarPixels[i] * mirrorMix.currVal;
+      nblend(targetArray[mirrorPos[j]], mirrorBarPixels[i], mirrorMix.currVal);
+    }
+  }
+}
+
+
 // Generates simplex noise pattern over LED strip and adds the effect to the solid colour
 void add_noise(struct CRGB * targetArray, int numToFill)
 {
@@ -343,53 +378,6 @@ void add_noise(struct CRGB * targetArray, int numToFill)
       hsv2rgb_rainbow(CHSV(noiseHue.currVal, noiseSat.currVal, noise_pixels[i]), new_noise);
       targetArray[i] += new_noise;
     }
-  }
-}
-
-
-// Applies the mirror bar effect pattern over the solid colour
-void add_mirror_bar(struct CRGB * targetArray, int numToFill)
-{
-  // Prepare new mirror bar pixel colour
-  CRGB new_pixel;
-  hsv2rgb_rainbow(CHSV(mirrorHue.currVal, mirrorSat.currVal, 255), new_pixel);
-
-  for (unsigned int i = 0; i < QRT_LEDS; i++)
-  {
-    // Define LED strip pixel positions for the given index of mirrored bar
-    unsigned int mirrorPos[4] = {
-      loopValue(0, NUM_LEDS, i),
-      loopValue(0, NUM_LEDS, HALF_LEDS - 1 - i),
-      loopValue(0, NUM_LEDS, NUM_LEDS - 1 - i),
-      loopValue(0, NUM_LEDS, HALF_LEDS + i)
-    };
-    
-    // Fade mirror array pixel towards current solid strip colour
-    nblend(mirrorBarPixels[i], targetArray[i], 20);   
-    // Add new pixel colour to mirror array if within current effect value
-    if ( i * 4 < mirrorBar.currVal ) {
-      mirrorBarPixels[i].addToRGB(new_pixel);
-    }
-    // For each of the 4 strip pixels assigned to this mirror pixel, add mirror pixel
-    for (uint8_t j = 0; j < 4; j++) {
-      nblend(targetArray[mirrorPos[j]], mirrorBarPixels[i], mirrorMix.currVal);
-    }
-
-
-    // mirrorBarPixels[i] = blend8(mirrorBarPixels[i], pixelAmount, 10);
-    // CRGB new_bar;
-    // hsv2rgb_rainbow(CHSV(mirrorHue.currVal, mirrorSat.currVal, mirrorBarPixels[i]), new_bar);
-    // mirrorPixel(targetArray, i, new_bar, mirrorBarPixels[i]);
-    // //targetArray[i].addToRGB(mirrorBarPixels[i]);
-
-    // unsigned int UA = loopValue(0, NUM_LEDS, index);
-    // unsigned int UB = loopValue(0, NUM_LEDS, HALF_LEDS - 1 - index);
-    // unsigned int DA = loopValue(0, NUM_LEDS, NUM_LEDS - 1 - index);
-    // unsigned int DB = loopValue(0, NUM_LEDS, HALF_LEDS + index);
-    // nblend(targetArray[UA], colour, bright);   // Up, Side A
-    // nblend(targetArray[UB], colour, bright);   // Up, Side B
-    // nblend(targetArray[DA], colour, bright);   // Down, Side A
-    // nblend(targetArray[DB], colour, bright);   // Down, Side B
   }
 }
 
