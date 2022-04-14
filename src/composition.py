@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 import random
 import schedule
 
@@ -45,7 +44,6 @@ class Composition(SigModule):
 
     def __init__(self, name: str, config: dict, *args, **kwargs) -> None:
         super().__init__(name, config, *args, **kwargs)
-        self.clip_event = pg.USEREVENT + 1
         clipUtils.logger = self.logger
 
     def create_process(self):
@@ -64,7 +62,7 @@ class CompositionProcess(ModuleProcess, Thread):
     def __init__(self, parent: Composition) -> None:
         super().__init__(parent)
         # Composition assets
-        self.clip_event = parent.clip_event
+        self.clip_event = pg.USEREVENT + 1
         self.channels = None
         self.collections = {}
         self.current_collection = {}
@@ -90,13 +88,13 @@ class CompositionProcess(ModuleProcess, Thread):
         """
         Initialises PyGame audio mixer.
         """
-        self.logger.debug("Initialising audio mixer...")
+        self.logger.debug(f'Initialising audio mixer using '
+                          f'[{self.config.get("audio_engine", "alsa").upper()}] audio engine...')
         pg.mixer.pre_init(
             frequency=self.config["sample_rate"],
             size=self.config["bit_size"],
             channels=1,
-            buffer=self.config["buffer"],
-        )
+            buffer=self.config["buffer"])
         try:
             pg.mixer.init()
         except pg.error as exception:
@@ -107,6 +105,7 @@ class CompositionProcess(ModuleProcess, Thread):
         self.logger.info(f"Audio mixer initialised with {mix[1]}-bit samples "
                     f"@ {mix[0]} Hz over {mix[2]} channel{plural(mix[2])}.")
         return True
+
 
     def init_library(self) -> bool:
         """
@@ -147,10 +146,10 @@ class CompositionProcess(ModuleProcess, Thread):
         """
         try:
             pg.mixer.get_init()
+            schedule.run_pending()
+            self.check_clip_events()
         except pg.error as exception:
             self.failed(exception)
-        schedule.run_pending()
-        self.manage_audio_events()
 
 
     def pre_shutdown(self):
@@ -167,7 +166,9 @@ class CompositionProcess(ModuleProcess, Thread):
         pg.mixer.quit()
         pg.quit()
         if pg.mixer.get_init() is None:
-            self.logger.info(f'Audio mixer released.')
+            self.logger.info('Audio mixer successfully released.')
+        else:
+            self.logger.warning(f'Audio mixer still initialised while closing playback module.')
 
     def select_collection(self, **kwargs):
         """
@@ -194,9 +195,8 @@ class CompositionProcess(ModuleProcess, Thread):
         )
         self.current_collection = {"title": name, "path": path, "names": names}
         # Build clips from collection to populate clip manager
-        self.clips = set(
-            [Clip(path, name, self.config["categories"], self.logger) for name in names]
-        )
+        self.clips = set([Clip(path, name, self.config["categories"],
+                               self.logger) for name in names])
         self.active_pool = set()
         if (
             pool := clipUtils.get_distributed(
@@ -248,7 +248,32 @@ class CompositionProcess(ModuleProcess, Thread):
         """
         self.stop_clip()
 
-    def stop_all_clips(self, **kwargs):
+
+    def wait_for_silence(self):
+        """
+        Holds up the thread until all channels have faded out.
+        """
+        if pg.mixer.get_init() and pg.mixer.get_busy():
+            self.logger.debug(f'Waiting for audio mixer '
+                              f'to release all channels...')
+            block_time = self.fade_out / 1000 + 0.5
+            # self.poll_control(
+            #     block_for = block_time,
+            #     )
+            self.poll_control(block_for = block_time, abort_event = lambda: (not pg.mixer.get_busy()))
+            self.check_clip_events()
+            if pg.mixer.get_busy():
+                self.logger.warning('Mixer not empty after waiting for silence. '
+                                    'Forcing playback to stop on all channels.')
+                self.stop_all_clips('now')
+            else:
+                self.logger.debug("Mixer now empty.")
+        else:
+            self.logger.debug(f'Mixer not initialised or busy. Ignoring request '
+                              f'to wait for silence.')
+
+
+    def stop_all_clips(self, *args, **kwargs):
         """
         Tell all active clips to stop playing, emptying the mixer of\
         active channels.\n `fade_time=(int)` the number of milliseconds active\
@@ -260,53 +285,27 @@ class CompositionProcess(ModuleProcess, Thread):
         fade = kwargs.get("fade_time", self.fade_out)
         if pg.mixer.get_init():
             if pg.mixer.get_busy():
-                self.logger.debug(f"Stopping audio clips: {fade}ms fade...")
-                if kwargs.get("disable_events", False) is True:
-                    self.clear_events()
-                pg.mixer.fadeout(fade)
-
-    def wait_for_silence(self):
-        """
-        Stops the main thread until all channels have faded out.
-        """
-        self.logger.debug(f'Waiting for audio mixer '
-                          f'to release all channels...')
-        if pg.mixer.get_init():
-            self.poll_control(
-                block_for = self.fade_out / 1000 + 0.1,
-                abort_event = lambda: pg.mixer.get_busy())
-        self.logger.debug("Mixer empty.")
+                if fade == 0 or 'now' in args:
+                    self.logger.debug(f"Stopping audio clips immediately.")
+                    pg.mixer.stop()
+                else:
+                    self.logger.debug(f"Stopping audio clips with {fade}ms fade...")
+                    if kwargs.get("disable_events", False) is True:
+                        self.clear_events()
+                    pg.mixer.fadeout(fade)
+            else:
+                self.logger.info(f'Ignoring request to fade out clips, mixer is empty.')
+            self.check_clip_events()
 
 
-    def manage_audio_events(self):
+    def check_clip_events(self):
         """
         Check for audio playback completion events,
         call the clip manager to clean them up.
         """
         for event in pg.event.get():
             if event.type == self.clip_event:
-                self.logger.debug(f"Clip end event: {event}")
                 self.check_finished()
-
-
-    def move_to_inactive(self, clips: set):
-        """
-        Supplied list of Clip(s) are moved from active to inactive pool.
-        """
-        for clip in clips:
-            self.active_pool.remove(clip)
-            self.inactive_pool.add(clip)
-            self.logger.debug(f"{clip.name} | active >>> INACTIVE.")
-
-
-    def move_to_active(self, clips: set):
-        """
-        Supplied list of Clip(s) are moved from inactive to active pool.
-        """
-        for clip in clips:
-            self.inactive_pool.remove(clip)
-            self.active_pool.add(clip)
-            self.logger.debug(f"{clip.name} | inactive >>> ACTIVE.")
 
 
     def check_finished(self) -> set:
@@ -318,9 +317,28 @@ class CompositionProcess(ModuleProcess, Thread):
         for clip in self.active_pool:
             if not clip.channel.get_busy():
                 finished.add(clip)
+                self.logger.debug(f'Clip "{clip.name}" ENDED on channel ({clip.index}).')
         if len(finished) > 0:
             self.move_to_inactive(finished)
         return finished
+
+
+    def move_to_inactive(self, clips: set):
+        """
+        Supplied list of Clip(s) are moved from active to inactive pool.
+        """
+        for clip in clips:
+            self.active_pool.remove(clip)
+            self.inactive_pool.add(clip)
+
+
+    def move_to_active(self, clips: set):
+        """
+        Supplied list of Clip(s) are moved from inactive to active pool.
+        """
+        for clip in clips:
+            self.inactive_pool.remove(clip)
+            self.active_pool.add(clip)
 
 
     def play_clip(self, clips=set(), **kwargs) -> set:
@@ -394,7 +412,7 @@ class CompositionProcess(ModuleProcess, Thread):
 
     def collection_job(self, **kwargs):
         """
-        Select a new collection from the clip manager, replacing any\
+        Select a new collection from the clip manager, replacing any
         currently loaded collection.
         """
         job_params = self.jobs["collection"]["parameters"]
@@ -403,8 +421,11 @@ class CompositionProcess(ModuleProcess, Thread):
         )
         start_clips = kwargs.get("start_clips", job_params.get("start_clips", 1))
         self.stop_job(ignore="collection")
-        self.stop_all_clips()
-        self.wait_for_silence()
+        if pg.mixer.get_init() and pg.mixer.get_busy():
+            self.stop_all_clips()
+            self.wait_for_silence()
+        if len(lingering := self.check_finished()) > 0:
+            self.logger.info(f'Lingering clips cleared from active pool: {lingering}')
         self.channels
         if (
             self.select_collection(name=kwargs.get("collection"), pool_size=pool_size)
@@ -424,7 +445,7 @@ class CompositionProcess(ModuleProcess, Thread):
 
     def clip_selection_job(self, **kwargs):
         """
-        Ensure the clip manager is playing an appropriate number of clips,\
+        Ensure the clip manager is playing an appropriate number of clips,
         and move any finished clips still lingering in the active pool to
         the inactive pool.\n - `quiet_level=(int)` the lowest number of
         concurrent clips playing before looking for more to play.\n -
@@ -435,9 +456,8 @@ class CompositionProcess(ModuleProcess, Thread):
         quiet_level = kwargs.get("quiet_level", job_params["quiet_level"])
         busy_level = kwargs.get("busy_level", job_params["busy_level"])
         start_num = kwargs.get("start_num", 1)
-        self.check_finished()
         if self.clips_playing() < quiet_level:
-            self.play_clip(num_clips=start_num)
+            self.play_clip(num_clips=start_num, event=self.clip_event)
         elif self.clips_playing() > busy_level:
             self.stop_clip("balance")
 
@@ -493,9 +513,12 @@ class CompositionProcess(ModuleProcess, Thread):
         if (ignore := kwargs.get("ignore", None)) is not None:
             jobs.remove(ignore)
         jobs.intersection_update(self.active_jobs.keys())
-        self.logger.debug(f"Stopping jobs: {jobs}")
-        for job in jobs:
-            schedule.cancel_job(self.active_jobs.pop(job))
+        if len(jobs) > 0:
+            self.logger.debug(f"Stopping jobs: {jobs}")
+            for job in jobs:
+                schedule.cancel_job(self.active_jobs.pop(job))
+        else:
+            self.logger.debug(f"No jobs running to stop.")
 
 
     def validate_library(self, config_file: dict) -> bool:

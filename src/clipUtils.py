@@ -39,7 +39,7 @@ def init_sounds(clips: set, channels: dict) -> dict:
         if clip.build_sound(channels.popitem()) is not None:
             done.add(clip)
     remaining = list(clips.difference(done))
-    logger.debug(f"Collection selected with {get_contents(done, count=True)}.")
+    logger.info(f"Initialised ({len(done)}) clips{plural(remaining)}: {get_contents(done, count=True)}.")
     if len(remaining) > 0:
         logger.warning(
             f"Unable to build ({len(remaining)}) " f"Sound object{plural(remaining)}! "
@@ -86,7 +86,7 @@ def get_distributed(clips: set, num_clips: int, **kwargs) -> set:
                 selection.update(random.sample(contents[category], clips_per_category))
             except ValueError as exception:
                 logger.debug(
-                    f'"{category}" only has ({len(contents[category])}) '
+                    f'Category "{category}" only has ({len(contents[category])}) '
                     f"clip{plural(clips_per_category)}, but was asked for "
                     f"({clips_per_category})."
                 )
@@ -103,7 +103,6 @@ def get_distributed(clips: set, num_clips: int, **kwargs) -> set:
                     )
         if (unassigned := num_clips - len(selection)) > 0:
             selection.update(random.sample(clips.difference(selection), unassigned))
-    logger.debug(f'Returned: {get_contents(selection, count=True)}".')
     return selection
 
 

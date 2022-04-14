@@ -39,10 +39,14 @@ class SigModule:
         # Signifier configuration
         self.module_name = name
         self.module_config = {}
+        self.failed_count = 0
+        self.last_failed_time = time.time()
         self.logger = SigLog.get_logger(
             f'Sig.{self.module_name.capitalize()}',
             level=self.module_config.get('log_level', 'INFO'))
-        self.apply_new_configs(configs)
+        self.config_latest = configs
+        self.config_dirty = True
+        self.apply_config()
         self.status = ProcessStatus.empty if self.enabled else ProcessStatus.disabled
         # Process management
         self.process = None
@@ -62,19 +66,6 @@ class SigModule:
             }
         self.function_handler = FunctionHandler(
             self.module_name, self.remote_functions)
-
-
-    def apply_new_configs(self, configs):
-        """
-        Generic method to apply new configs to module instance.
-        """
-        self.main_config = configs['config']['modules']
-        self.module_config = self.main_config[self.module_name]
-        self.main_values = configs['values']['modules']
-        self.module_values = self.main_values.get(self.module_name, {})
-        self.rules_config = configs['rules']['modules']
-        self.enabled = self.module_config.get("enabled", False)
-        self.logger.setLevel(self.module_config.get('log_level', 'INFO'))
 
 
     def create_process(self):
@@ -104,14 +95,34 @@ class SigModule:
                 f'{self.status.name}')
 
 
+    def apply_config(self):
+        """
+        Generic method to apply new configs to module instance.
+        """
+        if self.config_dirty == True:
+            if self.config_latest is not None:
+                self.main_config = self.config_latest['config']['modules']
+                self.module_config = self.main_config[self.module_name]
+                self.main_values = self.config_latest['values']['modules']
+                self.module_values = self.main_values.get(self.module_name, {})
+                self.rules_config = self.config_latest['rules']['modules']
+                self.enabled = self.module_config.get("enabled", False)
+                self.logger.setLevel(self.module_config.get('log_level', 'INFO'))
+                self.config_dirty = False
+            else:
+                self.logger.error(f"Module [{self.module_name}] has no config to apply!")
+                self.status = ProcessStatus.failed
+
+
     def update_config(self, configs: dict, **kwargs):
         """
         Updates the module's configuration based on supplied config dictionary.
         """
-        self.logger.debug("Updating module config...")
+        self.logger.debug(f"Pushing config update to [{self.module_name}]...")
+        self.config_latest = configs
+        self.config_dirty = True
         if self.status == ProcessStatus.running:
             self.stop()
-        self.apply_new_configs(configs)
 
 
     def start(self):
@@ -153,7 +164,7 @@ class SigModule:
                 timeout = 2
             try:
                 self.process.join(timeout=timeout)
-                self.logger.debug('Process stopped and joined main thread.')
+                self.logger.debug('Process closed and joined main thread.')
             except (RuntimeError, AssertionError) as exception:
                 self.logger.warning(f'{exception}')
 
@@ -166,41 +177,47 @@ class SigModule:
         # Retrieve and parse any pending messages from the child process
         if self.child_pipe.poll():
             message = self.child_pipe.recv()
-            self.logger.debug(f'Module received "{message}" from child process.')
+            self.logger.debug(f'Module received "{message}" from its process.')
             if message == "running":
-                self.status = ProcessStatus.running
                 try:
                     self.metrics_q.put((f"{self.module_name}_active", 1), timeout=0.01)
                 except Full:
                     pass
-            if message == 'initialised':
-                self.status = ProcessStatus.initialised
-            elif message in ['initialised', 'closing', 'closed', 'failed']:
-                self.status = ProcessStatus[message]
-                if self.status not in [ProcessStatus.initialised, ProcessStatus.closing]:
+            elif message != self.status.name:
+                if message in ['closed', 'failed']:
                     self.module_end_time = time.time()
                     self.request_join()
                     try:
                         self.metrics_q.put((f"{self.module_name}_active", 0), timeout=0.01)
                     except (Full, AttributeError):
                         pass
+            elif message == 'failed':
+                self.failed_count += 1
+            self.status = ProcessStatus[message]
 
-        # Adjust module status' if necessary
+        # Apply pending config
+        if (self.status not in [
+                ProcessStatus.running,
+                ProcessStatus.starting,
+                ProcessStatus.closing]
+                and self.config_dirty):
+            self.apply_config()
+
+        # Update module status
         if self.enabled:
             if self.status in [
                     ProcessStatus.running,
                     ProcessStatus.starting,
-                    ProcessStatus.closing,
-                    ProcessStatus.failed]:
+                    ProcessStatus.closing]:
                 pass
-            elif self.status == ProcessStatus.disabled:
-                self.status = ProcessStatus.empty
+            elif self.status in [ProcessStatus.empty, ProcessStatus.closed]:
+                self.initialise()
             elif self.status == ProcessStatus.initialised:
                 self.start()
-            else:
-                if time.time() > self.module_end_time + self.main_config.get(
+            elif self.status == ProcessStatus.failed:
+                if time.time() > self.last_failed_time + self.main_config.get(
                         'module_fail_restart_secs', 5):
-                    self.module_end_time = time.time()
+                    self.last_failed_time = time.time()
                     self.initialise('force')
         else:
             if self.status == ProcessStatus.disabled:
@@ -214,16 +231,15 @@ class SigModule:
             self.logger.info(f'Status changed to "{self.status.name}"')
 
 
-
     def module_call(self, *args):
         """
         Handles requests from remote locations to call internal module
         functions. Function names are supplied as strings, and call
         module functions with or without additional arguments.\n
-        Basic module functions are `initialise`, 'start', 'stop' and
+        Default module functions are `initialise`, 'start', 'stop' and
         'monitor'.\nThe special function name `process` passes the
         function call on to its child process via the module's control
-        pipe. The available functions in this case are module-specific.
+        pipe. Additional functions are module-specific.
         """
         self.function_handler.call(args)
 

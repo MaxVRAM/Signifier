@@ -234,15 +234,14 @@ class SigLog:
             handler.doRollover()
 
 
-class TimeOut:
+class Stopwatch:
     """
-    When `check()` is called on object, returns True when duration in seconds has
-    elapsed since its creation.
+    Creates a timestamp on instantiation. `check([float])` returns True when the number of
+    seconds supplied as the argument has elapsed since its creation.
     """
 
-    def __init__(self, duration) -> None:
+    def __init__(self) -> None:
         self.start_time = time.time()
-        self.duration = duration
 
-    def check(self):
-        return True if time.time() > self.start_time + self.duration else False
+    def check(self, duration):
+        return True if time.time() > self.start_time + duration else False

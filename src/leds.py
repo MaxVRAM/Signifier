@@ -216,6 +216,7 @@ class LedValue:
         Creates a new serial packet to send from default parameter values.
         """
         self.packet = SendPacket(self.command, self.default, self.duration)
+        print(self.packet)
         self.updated = True
         
     def send(self, send_function, *args) -> bool:
@@ -253,7 +254,7 @@ class SendPacket:
         self.value = val
         self.duration = dur
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return (
             f'Serial Send Packet | "{self.command}", value: ({self.value}), '
             f"duration ({self.duration})ms."

@@ -86,6 +86,7 @@ CHSV initHSV = CHSV(INIT_SOLID_HUE, INIT_SOLID_SAT, INIT_SOLID_BRIGHT);
 CRGB led_pixels[NUM_LEDS];
 
 uint8_t noise_pixels[NUM_LEDS];
+CRGB noisePixels[NUM_LEDS];
 unsigned long noiseTime = 0;
 
 CRGB mirrorBarPixels[QRT_LEDS];
@@ -343,19 +344,47 @@ void add_mirror_bar(struct CRGB * targetArray, int numToFill)
     };
     
     // Fade mirror array pixel towards current solid strip colour
-    nblend(mirrorBarPixels[i], targetArray[i], 150);   
+    nblend(mirrorBarPixels[i], targetArray[i], 45);   
     // Add new pixel colour to mirror array if within current effect value
     if ( i * 4 < mirrorBar.currVal ) {
       mirrorBarPixels[i] += new_pixel;
     }
     // For each of the 4 strip pixels assigned to this mirror pixel, add mirror pixel
     for (uint8_t j = 0; j < 4; j++) {
-      //targetArray[mirrorPos[j]] += mirrorBarPixels[i] * mirrorMix.currVal;
       nblend(targetArray[mirrorPos[j]], mirrorBarPixels[i], mirrorMix.currVal);
     }
   }
 }
 
+
+// // Generates simplex noise pattern over LED strip and adds the effect to the solid colour
+// void add_noise(struct CRGB * targetArray, int numToFill)
+// {
+//   // Prepare new noise pixel colour
+//   //CRGB new_pixel;
+//   //hsv2rgb_rainbow(CHSV(noiseHue.currVal, noiseSat.currVal, 255), new_pixel);
+//   // Update the offset of the noise function based on speed parameter and loop time.
+//   noiseTime += prevLoopTime * noiseSpeed.currVal / 10;
+//   long width = map(noiseAmt.currVal, 0, 128, 10, 80);
+//   long thresh = map(noiseAmt.currVal, 0, 255, 230, 190);
+//   long amount = map(noiseAmt.currVal, 0, 255, 0, 160);
+
+//   for (unsigned int i = 0; i < NUM_LEDS; i++)
+//   {
+//     // Blend existing noise pixel towards current LED strip array pixel
+//     nblend(noisePixels[i], targetArray[i], 120);
+//     // Add new noise pixel to noise array
+//     uint8_t noiseBrightness = inoise8(i * width, 0, noiseTime) > thresh ? noiseSpeed.currVal : 0;
+//     noisePixels[i] += CRGB(CHSV(noiseHue.currVal, noiseSat.currVal, noiseBright));
+//     // Blend noise pixel into LED strip array
+//     nblend(targetArray[i], noisePixels[i], noiseAmt.currVal);
+    
+//     //noise_pixels[i] = blend8(noise_pixels[i], noiseBrightness, noiseSpeed.currVal);
+//     //CRGB new_noise;
+//     //hsv2rgb_rainbow(CHSV(noiseHue.currVal, noiseSat.currVal, noise_pixels[i]), new_noise);
+//     //targetArray[i] += new_noise;
+//   }
+// }
 
 // Generates simplex noise pattern over LED strip and adds the effect to the solid colour
 void add_noise(struct CRGB * targetArray, int numToFill)
@@ -374,8 +403,7 @@ void add_noise(struct CRGB * targetArray, int numToFill)
     {
       uint8_t noiseBrightness = inoise8(i * width, noiseTime) > thresh ? amount : 0;
       noise_pixels[i] = blend8(noise_pixels[i], noiseBrightness, noiseSpeed.currVal);
-      CRGB new_noise;
-      hsv2rgb_rainbow(CHSV(noiseHue.currVal, noiseSat.currVal, noise_pixels[i]), new_noise);
+      CRGB new_noise = CRGB(CHSV(noiseHue.currVal, noiseSat.currVal, noise_pixels[i]));
       targetArray[i] += new_noise;
     }
   }
