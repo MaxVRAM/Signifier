@@ -169,15 +169,16 @@ class LedsProcess(ModuleProcess, mp.Process):
         Module-specific shutdown preparation.
         """
         self.logger.debug(f"Trying to fade out LEDs and close serial port...")
-        timeout_start = time.time()
-        while time.time() < timeout_start + 0.5:
+        fade_out_time = 1
+        start_time = time.time()
+        while time.time() < start_time + fade_out_time:
             if self.link is not None and self.link.available():
-                if self.send_packet(SendPacket("Z", 0, 500)) is None:
-                    self.logger.debug(f"Arduino received shutdown request.")
+                if self.send_packet(SendPacket("Z", 0, fade_out_time * 1000)) is None:
+                    self.logger.debug('Successfully sent shutdown request command to Arduino.')
+                    self.poll_control(block_for = fade_out_time)
                     self.link.close()
                     self.logger.debug(f"Arduino connection terminated.")
                     self.event.set()
-                    timeout_start = 0
                     return None
                 else:
                     time.sleep(0.001)
@@ -216,7 +217,6 @@ class LedValue:
         Creates a new serial packet to send from default parameter values.
         """
         self.packet = SendPacket(self.command, self.default, self.duration)
-        print(self.packet)
         self.updated = True
         
     def send(self, send_function, *args) -> bool:

@@ -101,7 +101,8 @@ class ModuleProcess:
         command = None
         start_time = time.time()
         if abort_event is None:
-            abort_event = lambda: self.event.is_set()
+            abort_event = lambda: False
+            #abort_event = lambda: self.event.is_set()
 
         def poll():
             while self.parent_pipe.poll():

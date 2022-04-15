@@ -257,9 +257,6 @@ class CompositionProcess(ModuleProcess, Thread):
             self.logger.debug(f'Waiting for audio mixer '
                               f'to release all channels...')
             block_time = self.fade_out / 1000 + 0.5
-            # self.poll_control(
-            #     block_for = block_time,
-            #     )
             self.poll_control(block_for = block_time, abort_event = lambda: (not pg.mixer.get_busy()))
             self.check_clip_events()
             if pg.mixer.get_busy():
