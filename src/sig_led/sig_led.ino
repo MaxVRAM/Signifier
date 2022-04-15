@@ -52,7 +52,7 @@ struct LED_PROPERTY
   float lerpPos;
 };
 
-const byte INIT_MAIN_BRIGHT = 0;
+const byte INIT_MAIN_BRIGHT = 255;
 
 const byte INIT_SOLID_BRIGHT = 0;
 const byte INIT_SOLID_SAT = 255;
@@ -60,6 +60,7 @@ const byte INIT_SOLID_HUE = 195;
 
 const byte INIT_NOISE_SPD = 200;
 const byte INIT_NOISE_AMT = 0;
+const byte INIT_NOISE_THRESH = 120;
 const byte INIT_NOISE_WIDTH = 120;
 const byte INIT_NOISE_SAT = 0;
 const byte INIT_NOISE_HUE = 0;
@@ -74,6 +75,7 @@ LED_PROPERTY solidBright = {INIT_SOLID_BRIGHT, INIT_SOLID_BRIGHT, INIT_SOLID_BRI
 LED_PROPERTY solidSat = {INIT_SOLID_SAT, INIT_SOLID_SAT, INIT_SOLID_SAT, 0UL, 0UL};
 LED_PROPERTY solidHue = {INIT_SOLID_HUE, INIT_SOLID_HUE, INIT_SOLID_HUE, 0UL, 0UL};
 LED_PROPERTY noiseAmt = {INIT_NOISE_AMT, INIT_NOISE_AMT, INIT_NOISE_AMT, 0UL, 0UL};
+LED_PROPERTY noiseThresh = {INIT_NOISE_THRESH, INIT_NOISE_THRESH, INIT_NOISE_THRESH, 0UL, 0UL};
 LED_PROPERTY noiseWidth = {INIT_NOISE_WIDTH, INIT_NOISE_WIDTH, INIT_NOISE_WIDTH, 0UL, 0UL};
 LED_PROPERTY noiseSpeed = {INIT_NOISE_SPD, INIT_NOISE_SPD, INIT_NOISE_SPD, 0UL, 0UL};
 LED_PROPERTY noiseSat = {INIT_NOISE_SAT, INIT_NOISE_SAT, INIT_NOISE_SAT, 0UL, 0UL};
@@ -93,13 +95,13 @@ unsigned long noiseTime = 0;
 uint8_t mirrorBarPixels[QRT_LEDS];
 
 
-unsigned long TARGET_LOOP_DUR = 60;
+unsigned long TARGET_LOOP_DUR = 30;
 unsigned long ms = 0;
 unsigned long loopStartTime = 0;
 unsigned long serialStartTime = 0;
 unsigned long loopEndTime = 0;
 unsigned long prevLoopTime = 0;
-
+bool disconnected = false;
 
 unsigned int loopValue(unsigned int min, unsigned int max, unsigned int val)
 {
@@ -158,6 +160,7 @@ void loop()
   fadeToTarget(solidSat);
   fadeToTarget(solidHue);
   fadeToTarget(noiseAmt);
+  fadeToTarget(noiseThresh);
   fadeToTarget(noiseWidth);
   fadeToTarget(noiseSpeed);
   fadeToTarget(noiseSat);
@@ -217,6 +220,10 @@ void sendCommand(COMMAND output)
 // Update matching LED and system parameters based on received serial commands. 
 void processInput(COMMAND input)
 {
+  if (disconnected == true && mainBright.currVal == 0) {
+    mainBright.currVal = INIT_MAIN_BRIGHT;
+    resetFade(mainBright);
+  }
   switch (input.command)
   {
   case 'l': // Updates the Arduino's target loop duration
@@ -243,6 +250,9 @@ void processInput(COMMAND input)
   case 'Q': // Set hue of noise effect
     assignInput(input, noiseHue);
     break;
+  case 'R': // Set threshold of noise effect
+    assignInput(input, noiseThresh);
+    break;
   case 'W': // Set width of noise effect
     assignInput(input, noiseWidth);
     break;
@@ -260,6 +270,8 @@ void processInput(COMMAND input)
     break;
   case 'Z': // Main LED strip brightness amount
     assignInput(input, mainBright);
+    sendCommand(COMMAND{'Z', input.value, input.duration});
+    disconnected = true;
     break;
   default:
     return;
@@ -402,17 +414,19 @@ void add_mirror_bar(struct CRGB * targetArray, int numToFill)
 // Generates simplex noise pattern over LED strip and adds the effect to the solid colour
 void add_noise(struct CRGB * targetArray, int numToFill)
 {
-  long width = map(noiseAmt.currVal, 0, 255, 2, 60);
-  long thresh = map(noiseAmt.currVal, 0, 255, 215, 185);
+  long width = map(noiseAmt.currVal, 0, 255, 50, 1);
+  long thresh = map(noiseThresh.currVal, 0, 255, 140, 230);
   long amount = map(noiseAmt.currVal, 0, 255, 40, 255);
+
+  // Update the offset of the noise function based on speed parameter and loop time.
+  noiseTime += prevLoopTime * noiseSpeed.currVal / 30;
 
   for (unsigned int i = 0; i < NUM_LEDS; i++) {
     // Fade out existing noise array pixel amount
     noisePixels[i] = scale8(noisePixels[i], 124);
-    // Update the offset of the noise function based on speed parameter and loop time.
-    noiseTime += prevLoopTime * noiseSpeed.currVal / 10;
     // Calculate noise pixel
-    uint8_t newNoisePixel = inoise8(i * noiseWidth.currVal / 4, noiseTime);
+    uint8_t newNoisePixel = inoise8(i * width, noiseTime) > thresh ? noiseAmt.currVal : 0;
+
     // Add new pixel amount to noise array if within current effect value
     // newNoisePixel = map8(
     //   newNoisePixel,
@@ -421,6 +435,7 @@ void add_noise(struct CRGB * targetArray, int numToFill)
     //   0, 255);
 
 //    if ( newNoisePixel > thresh ) {
+    //newNoisePixel = map(newNoisePixel, 0, noiseAmt.currVal, 0, 255);
 
     // Add noise pixel to noise array
     if (noisePixels[i] + newNoisePixel > 255) {
@@ -433,8 +448,8 @@ void add_noise(struct CRGB * targetArray, int numToFill)
     targetArray[i] += CRGB(CHSV(
       noiseHue.currVal,
       noiseSat.currVal,
-      noisePixels[i]))
-      .fadeToBlackBy(255 - noiseAmt.currVal);
+      noisePixels[i]));
+//      .fadeToBlackBy(255 - noiseAmt.currVal);
   }
 }
 
