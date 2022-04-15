@@ -23,29 +23,37 @@
                 "default": 30,
                 "description": "Target Arduino loop length in ms."
             },
-            "leds_brightness": {
+            "leds_main_bright": {
+                "type": "gauge",
+                "command": "Z",
+                "min": 0,
+                "max": 255,
+                "default": 255,
+                "description": "Brightness scaling of entire LED strip."
+            },
+            "leds_solid_bright": {
                 "type": "gauge",
                 "command": "B",
                 "min": 3,
                 "max": 255,
                 "default": 0,
-                "description": "Brightness scaling of entire LED strip."
+                "description": "Brightness of solid colour effect."
             },
-            "leds_saturation": {
+            "leds_solid_sat": {
                 "type": "gauge",
                 "command": "S",
                 "min": 0,
                 "max": 255,
                 "default": 255,
-                "description": "Colour saturation of future pixel writes."
+                "description": "Colour saturation of solid colour effect."
             },
-            "leds_hue": {
+            "leds_solid_hue": {
                 "type": "gauge",
                 "command": "H",
                 "min": 0,
                 "max": 255,
                 "default": 195,
-                "description": "Hue value of future pixel writes."
+                "description": "Hue value of solid colour effect."
             },
             "leds_noise_amount": {
                 "type": "gauge",
@@ -53,22 +61,22 @@
                 "min": 0,
                 "max": 255,
                 "default": 0,
-                "description": "Amount of white pixel noise blended over the strip."
+                "description": "Amount of pixel noise blended over the strip."
             },
             "leds_noise_speed": {
                 "type": "gauge",
                 "command": "O",
                 "min": 0,
                 "max": 255,
-                "default": 120,
+                "default": 2,
                 "description": "Speed of LED noise effect."
             },
-            "leds_noise_saturation": {
+            "leds_noise_sat": {
                 "type": "gauge",
                 "command": "P",
                 "min": 0,
                 "max": 255,
-                "default": 180,
+                "default": 0,
                 "description": "Saturation of noise effect colour."
             },
             "leds_noise_hue": {
@@ -76,8 +84,24 @@
                 "command": "Q",
                 "min": 0,
                 "max": 255,
-                "default": 20,
+                "default": 80,
                 "description": "Hue value of noise effect colour."
+            },
+            "leds_noise_thresh": {
+                "type": "gauge",
+                "command": "R",
+                "min": 0,
+                "max": 255,
+                "default": 10,
+                "description": "Threshold value of noise pixel to activate it."
+            },
+            "leds_noise_width": {
+                "type": "gauge",
+                "command": "W",
+                "min": 0,
+                "max": 255,
+                "default": 200,
+                "description": "Width of the noise particles."
             },
             "leds_mirror_bar": {
                 "type": "gauge",
@@ -92,10 +116,10 @@
                 "command": "J",
                 "min": 0,
                 "max": 255,
-                "default": 150,
+                "default": 255,
                 "description": "Mix amount of the mirror effect over the solid colour."
             },
-            "leds_mirror_saturation": {
+            "leds_mirror_sat": {
                 "type": "gauge",
                 "command": "K",
                 "min": 0,
@@ -108,7 +132,7 @@
                 "command": "L",
                 "min": 0,
                 "max": 255,
-                "default": 210,
+                "default": 80,
                 "description": "Hue value of mirror effect colour."
             }
         }
