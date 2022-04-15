@@ -173,7 +173,7 @@ void loop()
   CHSV solidColour = CHSV(solidHue.currVal, solidSat.currVal, solidBright.currVal);
   // Write to pixel arrays
   fill_solid(ledPixels, NUM_LEDS, solidColour);
-  //add_mirror_bar(ledPixels, NUM_LEDS);
+  add_mirror_bar(ledPixels, NUM_LEDS);
   add_noise(ledPixels, NUM_LEDS);
 
   // Push pixel arrays to LEDs
