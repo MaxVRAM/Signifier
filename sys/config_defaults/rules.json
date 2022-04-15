@@ -8,8 +8,8 @@
             },
             "destination": {
                 "module": "leds",
-                "name": "leds_brightness",
-                "range": [0.05, 1],
+                "name": "leds_solid_bright",
+                "range": [0.05, 0.8],
                 "smoothing": [0.5, 0.5],
                 "duration": 200
             }
