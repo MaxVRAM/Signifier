@@ -101,7 +101,8 @@ class ModuleProcess:
         command = None
         start_time = time.time()
         if abort_event is None:
-            abort_event = lambda: self.event.is_set()
+            abort_event = lambda: False
+            #abort_event = lambda: self.event.is_set()
 
         def poll():
             while self.parent_pipe.poll():
@@ -111,9 +112,15 @@ class ModuleProcess:
 
         poll()
         if block_for > 0:
+            self.logger.debug(f'Blocking command poll for ({block_for}) seconds.')
             while time.time() < start_time + block_for and not abort_event():
                 time.sleep(0.01)
                 poll()
+            if time.time() > start_time + block_for:
+                self.logger.debug(f'Blocking command poll timed out.')
+            else:
+                self.logger.debug(f'Blocking command poll exited from successful trigger.')
+            block_for = 0
         return None
 
 
@@ -144,6 +151,7 @@ class ModuleProcess:
         A supplied exception in arguments will be logged as a critical.
         """
         self.logger.critical(f'{exception}')
-        self.shutdown()
+        self.event.set()
+        self.pre_shutdown()
         if self.parent_pipe.writable:
             self.parent_pipe.send("failed")

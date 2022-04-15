@@ -18,19 +18,16 @@ import random
 
 from pygame.mixer import Sound, Channel
 
-#from src.utils import SigLog
-#logger = None
 
 class Clip:
     """
     Clip objects hold sound file information, its Sound object
-    and its associated Channel, once playback has been triggerd.
+    and its associated Channel.
     """
 
     def __init__(self, root: str, name: str, categories: dict, logger) -> None:
         self.root = root
         self.name = name
-        #self.logger = SigLog.get_logger(f'Sig.{name}')
         self.logger = logger
         self.path = os.path.join(root, name)
         self.length = Sound(self.path).get_length()
@@ -42,11 +39,8 @@ class Clip:
         self.determine_category(categories)
         pass
 
-    def __str__(self) -> str:
-        details = (
-            f'{self.name}, "{self.category}", "{"looping" if self.looping else "one-shot"}", '
-            f'{self.length:.2f}s on chan ({"NONE" if self.channel is None else self.index}).'
-        )
+    def __repr__(self) -> str:
+        details = (f'{self.name}, {self.length:.2f}s, channel ({self.index}).')
         return details
 
     # -----------------
@@ -76,7 +70,7 @@ class Clip:
             self.started = time.time()
             if (event := kwargs.get("event", None)) is not None:
                 self.channel.set_endevent(event)
-            self.logger.debug(f'Playing clip "{self.name}" on channel ({self.index}).')
+            self.logger.debug(f'Clip "{self.name}" STARTED on channel ({self.index}).')
             return self
 
     def stop(self, **kwargs) -> Clip:
@@ -154,7 +148,7 @@ class Clip:
         if not self.sound or not self.channel:
             self.logger.warning(f'Could not build "{self.name}"!')
             return None
-        self.logger.debug(f'Sound "{self.path}" added to channel ({self.index}) [{self.channel}]')
+        #self.logger.debug(f'Sound "{self.name}" added to channel ({self.index}) [{self.channel}]')
         return self
 
 

@@ -47,7 +47,7 @@ pcm.out2bluetooth {
 # ------------------------------------------
 pcm.!default {
     type asym
-    #playback.pcm "plug:out2bluetooth"
-    playback.pcm "plug:out2headphones"
+    playback.pcm "plug:out2bluetooth"
+    #playback.pcm "plug:out2headphones"
     capture.pcm "hw:Loopback,1"
 }

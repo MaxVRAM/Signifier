@@ -27,7 +27,6 @@ from dictdiffer import diff as dict_diff
 import multiprocessing as mp
 
 
-
 # Imports appear unused, but are dynamically loaded by module dictionary
 from src.leds import Leds
 from src.mapper import Mapper
@@ -37,7 +36,8 @@ from src.bluetooth import Bluetooth
 from src.composition import Composition
 
 from src.utils import SigLog
-from src.utils import TimeOut
+from src.utils import plural
+from src.utils import Stopwatch
 from src.utils import load_config_files
 
 
@@ -57,6 +57,7 @@ configs = {name:{'file':file, 'modules':None}\
     for (name, file) in CONFIG_FILES.items()}
 
 config_update_time = time.time()
+process_loop_sleep = 0.001
 metrics_q = mp.Queue(maxsize=500)
 
 module_objects = {}
@@ -145,17 +146,34 @@ class ExitHandler:
                 metrics_q.cancel_join_thread()
                 # Ask each module to close gracefully
                 for m in module_objects.values():
-                    if m.status.name not in ['disabled', 'empty']:
+                    if m.status.name not in ['closed', 'empty', 'disabled', 'failed']:
                         logger.debug(f'[{m.module_name}] status is status "{m.status.name}"...')
                         m.stop()
-                        timeout = TimeOut(1)
-                        while m.status.name in ['running', 'closing']:
-                            m.monitor()
-                            if timeout.check():
-                                # TODO kill process
-                                break
-                            time.sleep(0.001)
-                        logger.debug(f'[{m.module_name}] status is now "{m.status.name}".')
+                active_modules = set(module_objects.keys())
+                timeout = Stopwatch()
+                still_waiting = True
+                while still_waiting and not timeout.check(3):
+                    still_waiting = False
+                    for module in module_objects.values():
+                        if module.status.name not in ['closed', 'empty', 'disabled', 'failed']:
+                            still_waiting = True
+                    time.sleep(process_loop_sleep)
+                            
+                # while len(active_modules) > 0:
+                #     for name, module in module_objects.items():
+                #         if name in active_modules:
+                #             m.monitor()
+                #             if module.status.name in ['closed', 'empty', 'disabled', 'failed']:
+                #                 active_modules.remove(name)
+                            
+                #     if timeout.check(3):
+                #         for active in active_modules:
+                #             module_objects[active].
+                #             # TODO kill process
+                #         break
+                #     time.sleep(process_loop_sleep)
+                #logger.debug(f'[{m.module_name}] status is now "{m.status.name}".')
+
                 logger.info("Signifier shutdown complete!")
                 self.exiting = False
                 sys.exit()
@@ -181,7 +199,9 @@ if __name__ == '__main__':
 
 
     config_data = configs['config']['modules']
-    logger.setLevel(config_data['general']['log_level'])
+    logger.setLevel(config_data['general'].get('log_level'))
+    process_loop_sleep = config_data['general'].get('process_loop_sleep')
+    
     # Write current hostname to config file
     if config_data['general']['hostname'] != HOSTNAME:
         config_data['general']['hostname'] = HOSTNAME
@@ -191,7 +211,6 @@ if __name__ == '__main__':
 
     print()
     logger.info(f'Starting Signifier on [{HOSTNAME}] as user [{os.getenv("USER")}]')
-    print()
 
     # Define and load modules
     for name, settings in configs['config']['modules'].items():
@@ -207,9 +226,12 @@ if __name__ == '__main__':
                 for name, module in module_objects.items()
                 if mapper_name != name}
 
-    # Tidy little run loop
+    logger.info(f'Signifier initialised with ({len(module_objects)}) '
+                f'module{plural(module_objects)}. Starting main program loop...')
+
+    # Main update loop
     while True:
         for m in module_objects.values():
             m.monitor()
         check_config_update()
-        time.sleep(config_data['general']['process_loop_sleep'])
+        time.sleep(process_loop_sleep)

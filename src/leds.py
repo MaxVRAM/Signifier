@@ -10,6 +10,7 @@ Signifier module to manage communication with the Arduino LED system.
 """
 
 from __future__ import annotations
+from asyncio.log import logger
 
 import time
 
@@ -53,6 +54,8 @@ class LedsProcess(ModuleProcess, mp.Process):
         self.update_ms = self.config.get("update_ms", 30)
         self.dur_multiplier = self.config.get("duration_multiplier", 3)
         self.rx_packet = ReceivePacket
+
+        time.sleep(0.5)
 
         if not self.open_connection(self.port):
             self.logger.error(f'Port [{self.port}] invalid. Trying backup '
@@ -111,19 +114,16 @@ class LedsProcess(ModuleProcess, mp.Process):
         except SerialException as exception:
             self.failed(exception)
 
-    def update_values(self):
-        """
-        Updates LED commands and sends each to Arduino via serial connection.
-        """
-        for v in self.destinations.values():
-            v.send(self.send_packet)
-
     def process_packet(self):
         """
         Called by the run thread to process received serial packets
         """
         cmd = self.rx_packet.command.decode("utf-8")
         # `r` = "ready to receive packets" - Arduino
+        if cmd == 'l':
+            self.logger.info(f'Arduino loop length set to ({self.rx_packet.valA})ms.')
+        if cmd == 'Z':
+            self.logger.info(f'LED main brightness set to ({self.rx_packet.valA}).')
         if cmd == "r":
             self.metrics_pusher.update(
                 f"{self.module_name}_loop_duration", self.rx_packet.valA
@@ -132,6 +132,13 @@ class LedsProcess(ModuleProcess, mp.Process):
                 f"{self.module_name}_serial_rx_window", self.rx_packet.valB
             )
             self.update_values()
+
+    def update_values(self):
+        """
+        Updates LED commands and sends each to Arduino via serial connection.
+        """
+        for v in self.destinations.values():
+            v.send(self.send_packet)
 
     def send_packet(self, packet: SendPacket) -> SendPacket:
         """
@@ -169,15 +176,16 @@ class LedsProcess(ModuleProcess, mp.Process):
         Module-specific shutdown preparation.
         """
         self.logger.debug(f"Trying to fade out LEDs and close serial port...")
-        timeout_start = time.time()
-        while time.time() < timeout_start + 0.5:
+        fade_out_time = 1
+        start_time = time.time()
+        while time.time() < start_time + fade_out_time:
             if self.link is not None and self.link.available():
-                if self.send_packet(SendPacket("Z", 0, 500)) is None:
-                    self.logger.debug(f"Arduino received shutdown request.")
+                if self.send_packet(SendPacket("Z", 0, fade_out_time * 1000)) is None:
+                    self.logger.debug('Successfully sent shutdown request command to Arduino.')
+                    self.poll_control(block_for = fade_out_time)
                     self.link.close()
                     self.logger.debug(f"Arduino connection terminated.")
                     self.event.set()
-                    timeout_start = 0
                     return None
                 else:
                     time.sleep(0.001)
@@ -200,7 +208,11 @@ class LedValue:
         self.metrics_pusher = parent.metrics_pusher
         self.updated = True
 
-    def set_value(self, **kwargs):
+    def set_default(self):
+        self.packet = SendPacket(self.command, self.default, self.duration)
+        self.updated = True
+
+    def set_value(self, *args, **kwargs):
         """
         Updates the LED parameter and prepares a serial packet to send.
         """
@@ -208,15 +220,8 @@ class LedValue:
         value = int(scale(value, (0, 1), (self.min, self.max), "clamp"))
         duration = kwargs.get("duration", self.duration)
         if value != self.packet.value:
-            self.packet = SendPacket(self.command, value, duration)
-            self.updated = True
-
-    def set_default(self):
-        """
-        Creates a new serial packet to send from default parameter values.
-        """
-        self.packet = SendPacket(self.command, self.default, self.duration)
-        self.updated = True
+                self.packet = SendPacket(self.command, value, duration)
+                self.updated = True
         
     def send(self, send_function, *args) -> bool:
         """
@@ -253,7 +258,7 @@ class SendPacket:
         self.value = val
         self.duration = dur
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return (
             f'Serial Send Packet | "{self.command}", value: ({self.value}), '
             f"duration ({self.duration})ms."
