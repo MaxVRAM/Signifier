@@ -149,31 +149,15 @@ class ExitHandler:
                     if m.status.name not in ['closed', 'empty', 'disabled', 'failed']:
                         logger.debug(f'[{m.module_name}] status is status "{m.status.name}"...')
                         m.stop()
-                active_modules = set(module_objects.keys())
                 timeout = Stopwatch()
                 still_waiting = True
+                # Hold off shutdown for up to 3 seconds if a process is hanging
                 while still_waiting and not timeout.check(3):
                     still_waiting = False
                     for module in module_objects.values():
                         if module.status.name not in ['closed', 'empty', 'disabled', 'failed']:
                             still_waiting = True
                     time.sleep(process_loop_sleep)
-                            
-                # while len(active_modules) > 0:
-                #     for name, module in module_objects.items():
-                #         if name in active_modules:
-                #             m.monitor()
-                #             if module.status.name in ['closed', 'empty', 'disabled', 'failed']:
-                #                 active_modules.remove(name)
-                            
-                #     if timeout.check(3):
-                #         for active in active_modules:
-                #             module_objects[active].
-                #             # TODO kill process
-                #         break
-                #     time.sleep(process_loop_sleep)
-                #logger.debug(f'[{m.module_name}] status is now "{m.status.name}".')
-
                 logger.info("Signifier shutdown complete!")
                 self.exiting = False
                 sys.exit()

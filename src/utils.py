@@ -34,15 +34,24 @@ def plural(value) -> str:
 
 def scale(value, source_range, dest_range, *args):
     """
-    Scale the given value from the scale of src to the scale of dst.\
+    Scale the input `value` from `source_range` to `dest_range`.\
     Send argument `clamp` to limit output to destination range as well.
     """
     s_range = source_range[1] - source_range[0]
     d_range = dest_range[1] - dest_range[0]
-    scaled_value = ((value - source_range[0]) / s_range) * d_range + dest_range[0]
-    if "clamp" in args:
-        return max(dest_range[0], min(dest_range[1], scaled_value))
-    return scaled_value
+    if s_range == 0 or d_range == 0:
+        return dest_range[1]
+    else:
+        try:
+            if "invert" in args:
+                scaled_value = (1 - (value - source_range[0]) / s_range) * d_range + dest_range[0]
+            else:
+                scaled_value = ((value - source_range[0]) / s_range) * d_range + dest_range[0]                
+        except ZeroDivisionError:
+            scaled_value = value * d_range + dest_range[0]
+        if "clamp" in args:
+            return max(dest_range[0], min(dest_range[1], scaled_value))
+        return scaled_value
 
 
 def lerp(a, b, pos) -> float:

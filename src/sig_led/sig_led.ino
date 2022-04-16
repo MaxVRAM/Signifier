@@ -94,6 +94,10 @@ unsigned long noiseTime = 0;
 
 uint8_t mirrorBarPixels[QRT_LEDS];
 
+CRGB noiseLeds[NUM_LEDS];
+CRGB mirrorLeds[QRT_LEDS];
+
+
 
 unsigned long TARGET_LOOP_DUR = 30;
 unsigned long ms = 0;
@@ -173,7 +177,7 @@ void loop()
   CHSV solidColour = CHSV(solidHue.currVal, solidSat.currVal, solidBright.currVal);
   // Write to pixel arrays
   fill_solid(ledPixels, NUM_LEDS, solidColour);
-  add_mirror_bar(ledPixels, NUM_LEDS);
+  //add_mirror_bar(ledPixels, NUM_LEDS);
   add_noise(ledPixels, NUM_LEDS);
 
   // Push pixel arrays to LEDs
@@ -220,6 +224,7 @@ void sendCommand(COMMAND output)
 // Update matching LED and system parameters based on received serial commands. 
 void processInput(COMMAND input)
 {
+  sendCommand(input);
   if (disconnected == true && mainBright.currVal == 0) {
     mainBright.currVal = INIT_MAIN_BRIGHT;
     resetFade(mainBright);
@@ -228,7 +233,7 @@ void processInput(COMMAND input)
   {
   case 'l': // Updates the Arduino's target loop duration
     TARGET_LOOP_DUR = input.value;
-    sendCommand(COMMAND{'l', TARGET_LOOP_DUR, 0});
+    //sendCommand(COMMAND{'l', TARGET_LOOP_DUR, 0});
   case 'B': // Sets the solid fill colour's brightness
     assignInput(input, solidBright);
     break;
@@ -270,8 +275,9 @@ void processInput(COMMAND input)
     break;
   case 'Z': // Main LED strip brightness amount
     assignInput(input, mainBright);
-    sendCommand(COMMAND{'Z', input.value, input.duration});
-    disconnected = true;
+    if (input.value == 0) {
+      disconnected = true;
+    }
     break;
   default:
     return;
@@ -346,37 +352,24 @@ void resetFade(LED_PROPERTY &property)
 // Applies the mirror bar effect pattern over the solid colour
 void add_mirror_bar(struct CRGB * targetArray, int numToFill)
 {
-  //CRGB newPixel = CRGB(CHSV(mirrorHue.currVal, mirrorSat.currVal, 255);
-  uint8_t addAmount = 64;
-
-  for (unsigned int i = 0; i < QRT_LEDS; i++)
-  {
-    // Define LED strip pixel positions for the given index of mirrored bar
+  // Fade out existing mirror array pixel amount
+  fadeToBlackBy(mirrorLeds, QRT_LEDS, 200);
+  blur1d(mirrorLeds, QRT_LEDS, 180);
+  for (unsigned int i = 0; i < QRT_LEDS; i++) {
+    // Calculate the 4 strip pixel positions for this mirror pixel
     unsigned int mirrorPos[4] = {
       loopValue(0, NUM_LEDS, i),
       loopValue(0, NUM_LEDS, HALF_LEDS - 1 - i),
       loopValue(0, NUM_LEDS, NUM_LEDS - 1 - i),
       loopValue(0, NUM_LEDS, HALF_LEDS + i)
     };
-    
-    // Fade out existing mirror array pixel amount
-    mirrorBarPixels[i] = scale8(mirrorBarPixels[i], 124);
-    // Add new pixel amount to mirror array if within current effect value
+    // Add new pixel to mirror array if within value threshold
     if ( i * 4 < mirrorBar.currVal ) {
-      if (mirrorBarPixels[i] + addAmount > 255) {
-        mirrorBarPixels[i] = 255;
-      }
-      else {
-        mirrorBarPixels[i] += addAmount;
-      }
+      mirrorLeds[i] = CRGB(CHSV(mirrorHue.currVal, mirrorSat.currVal, 255));
     }
-    // For each of the 4 strip pixels assigned to this mirror pixel add mirror pixel
+    // Add mirror pixel to all 4 sections
     for (uint8_t j = 0; j < 4; j++) {
-      targetArray[mirrorPos[j]] += CRGB(CHSV(
-        mirrorHue.currVal,
-        mirrorSat.currVal,
-        mirrorBarPixels[i]))
-        .fadeToBlackBy(255 - mirrorMix.currVal);
+      nblend(targetArray[mirrorPos[j]], mirrorLeds[i], mirrorMix.currVal);
     }
   }
 }
@@ -411,7 +404,7 @@ void add_mirror_bar(struct CRGB * targetArray, int numToFill)
 //   }
 // }
 
-// Generates simplex noise pattern over LED strip and adds the effect to the solid colour
+// Generates perlin noise pattern over LED strip and adds the effect to the solid colour
 void add_noise(struct CRGB * targetArray, int numToFill)
 {
   long width = map(noiseAmt.currVal, 0, 255, 50, 1);

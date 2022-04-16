@@ -62,9 +62,8 @@ class LedsProcess(ModuleProcess, mp.Process):
                               f'port [{self.backup_port}]...'
             )
             if not self.open_connection(self.backup_port):
-                self.failed(
-                    f"Unable to open serial port. " f"Terminating [{self.module_name}]."
-                )
+                self.failed(f"Unable to open serial port. "
+                            f"Terminating [{self.module_name}].")
         else:
             for k, v in self.module_values["destinations"].items():
                 self.destinations[k] = LedValue(k, v, self)
@@ -76,8 +75,6 @@ class LedsProcess(ModuleProcess, mp.Process):
         Module-specific Process run preparation.
         """
         self.start_time = time.time()
-        for d in self.destinations.values():
-            d.set_default()
         return True
 
     def mid_run(self):
@@ -119,19 +116,18 @@ class LedsProcess(ModuleProcess, mp.Process):
         Called by the run thread to process received serial packets
         """
         cmd = self.rx_packet.command.decode("utf-8")
-        # `r` = "ready to receive packets" - Arduino
-        if cmd == 'l':
-            self.logger.info(f'Arduino loop length set to ({self.rx_packet.valA})ms.')
-        if cmd == 'Z':
-            self.logger.info(f'LED main brightness set to ({self.rx_packet.valA}).')
         if cmd == "r":
-            self.metrics_pusher.update(
-                f"{self.module_name}_loop_duration", self.rx_packet.valA
-            )
-            self.metrics_pusher.update(
-                f"{self.module_name}_serial_rx_window", self.rx_packet.valB
-            )
             self.update_values()
+            self.metrics_pusher.update(
+                f"{self.module_name}_loop_duration",
+                self.rx_packet.valA)
+            self.metrics_pusher.update(
+                f"{self.module_name}_serial_rx_window",
+                self.rx_packet.valB)
+        else:
+            for c in self.destinations.values():
+                if cmd == c.command:
+                    c.confirm(self.rx_packet)
 
     def update_values(self):
         """
@@ -207,6 +203,12 @@ class LedValue:
         self.packet = SendPacket(self.command, self.default, self.duration)
         self.metrics_pusher = parent.metrics_pusher
         self.updated = True
+        self.confirmed = False
+
+    def __repr__(self) -> str:
+        return (
+            f'{self.packet}'
+        )
 
     def set_default(self):
         self.packet = SendPacket(self.command, self.default, self.duration)
@@ -230,12 +232,22 @@ class LedValue:
         """
         if self.packet is None:
             return False
-        if "force" in args or self.updated:
-            if send_function(self.packet) is None:
+        if "force" in args or self.updated or not self.confirmed:
+            bounced_packet = send_function(self.packet)
+            if bounced_packet is None:
                 self.metrics_pusher.update(self.name, self.packet.value)
                 self.updated = False
+                self.confirmed = False
                 return True
         return False
+
+    def confirm(self, rx):
+        if (self.command == rx.command.decode("utf-8") and
+                self.packet.value == rx.valA and self.packet.duration == rx.valB):
+            self.confirmed = True
+            self.metrics_pusher.update(self.name, self.packet.value)
+        return None
+        
 
 
 class ReceivePacket(object):
@@ -247,6 +259,12 @@ class ReceivePacket(object):
     valA = 0.0
     valB = 0.0
 
+    def __repr__(self) -> str:
+        return (
+            f'Arduino received packet | "{self.command}", '
+            f'value: ({self.valA}), '
+            f"duration ({self.valB})ms."
+        )
 
 class SendPacket:
     """
@@ -260,6 +278,6 @@ class SendPacket:
 
     def __repr__(self) -> str:
         return (
-            f'Serial Send Packet | "{self.command}", value: ({self.value}), '
+            f'Arduino send packet | "{self.command}", value: ({self.value}), '
             f"duration ({self.duration})ms."
         )

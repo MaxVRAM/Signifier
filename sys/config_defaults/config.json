@@ -10,11 +10,11 @@
         "enabled": true,
         "log_level": "INFO",
         "module_type": "metrics",
-        "start_delay": 0,
+        "start_delay": 1,
         "target_gateway": "localhost:9091",
         "job_name": "signifier",
         "push_period": 1,
-        "timeout": 1
+        "timeout": 0.8
     },
     "mapper": {
         "enabled": true,
@@ -31,7 +31,7 @@
         "backup_port": "/dev/ttyACM1",
         "baud": 38400,
         "start_delay": 0,
-        "update_ms": 20,
+        "update_ms": 30,
         "duration_multiplier": 5
     },
     "bluetooth": {

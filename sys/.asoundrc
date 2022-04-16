@@ -23,23 +23,23 @@ pcm.out2headphones {
 # -------------------------------------------
 #  Bluetooth output / loopback device config
 # -------------------------------------------
-pcm.bluetoothloop {
-    type multi
-    slaves.a.pcm "hw:BR17,0"
-    slaves.a.channels 2
-    slaves.b.pcm "hw:Loopback,0"
-    slaves.b.channels 1
-    bindings.0 { slave a; channel 0; }
-    bindings.1 { slave a; channel 1; }
-    bindings.2 { slave b; channel 0; }
-}
-pcm.out2bluetooth {
-    type route
-    slave.pcm "bluetoothloop"
-    ttable.0.0 1
-    ttable.0.1 1
-    ttable.0.2 1
-}
+# pcm.bluetoothloop {
+#     type multi
+#     slaves.a.pcm "hw:BR17,0"
+#     slaves.a.channels 2
+#     slaves.b.pcm "hw:Loopback,0"
+#     slaves.b.channels 1
+#     bindings.0 { slave a; channel 0; }
+#     bindings.1 { slave a; channel 1; }
+#     bindings.2 { slave b; channel 0; }
+# }
+# pcm.out2bluetooth {
+#     type route
+#     slave.pcm "bluetoothloop"
+#     ttable.0.0 1
+#     ttable.0.1 1
+#     ttable.0.2 1
+# }
 
 
 # ------------------------------------------
@@ -47,7 +47,7 @@ pcm.out2bluetooth {
 # ------------------------------------------
 pcm.!default {
     type asym
-    playback.pcm "plug:out2bluetooth"
-    #playback.pcm "plug:out2headphones"
+    #playback.pcm "plug:out2bluetooth"
+    playback.pcm "plug:out2headphones"
     capture.pcm "hw:Loopback,1"
 }

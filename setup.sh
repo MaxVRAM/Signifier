@@ -4,6 +4,22 @@ echo
 echo -------------------------------------------------------
 echo            Starting Signifier installation
 echo -------------------------------------------------------
+echo
+echo "Before we start. Make sure you have:"
+echo " 1. Copied `/sig-content` folder to the SD card's boot drive."
+echo " 2. The Signifier Arduino is connected (if you want to update it)."
+echo " 3. This device has internet access."
+echo
+echo "Abort the process using [CTRL-C]. It may bugger up installation."
+echo
+read -p "Ready to roll? [Y/n] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]; then
+    exit 0
+fi
+
+sudo systemctl stop signifier
+sudo systemctl stop sig-config
 export HOSTNAME
 SIG_PATH="$PWD"
 MEDIA_DIR=$SIG_PATH/media/audio
@@ -24,80 +40,31 @@ if [ ! -d "$MEDIA_DIR" ]; then
     mkdir -p $MEDIA_DIR
 fi
 
-read -p "Is this a fresh install? [y/N] " -n 1 -r
+echo
+echo "Checking if $BOOT_DIR directory exists..."
+if [ ! -d "$BOOT_DIR" ]; then
+    echo "Cannot find $BOOT_DIR, make sure to copy the content when you burn the Signifier image."
+    echo
+else
+    echo "Grabbing VPN and WiFi config from /boot/sig-content directory..."
+    echo
+    sudo cp -r /boot/sig-content ~/
+    sudo chown -R pi:pi ~/sig-content
+    sudo chmod -x ~/sig-content/*
+    sudo cp ~/sig-content/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
+    sudo cp $SIG_PATH/sys/config.txt /boot/config.txt
+fi
+
+read -p "Download Signifier audio library? (you need connection to the Sig-Net VPN) [y/N] " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo
-    echo "Checking if $BOOT_DIR directory exists..."
-    if [ ! -d "$BOOT_DIR" ]; then
-        echo "Cannot find $BOOT_DIR, make sure to copy the content when you burn the Signifier image!"
-        echo
-    else
-        echo "Grabbing VPN and WiFi config from /boot/sig-content directory..."
-        echo
-        sudo cp -r /boot/sig-content ~/
-        sudo chown -R pi:pi ~/sig-content
-        sudo cp ~/sig-content/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
-        sudo cp $SIG_PATH/sys/config.txt /boot/config.txt
-    fi
+    OPTION_DL_AUDIO=true
+else
+    OPTION_DL_AUDIO=false
 fi
 
-read -p "Perform complete Signifier update? (interaction is still required to enter the server password) [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]; then
-    echo
-    echo "Okay. Let's go through the options one-by-one:"
-    echo
-    read -p "   1. Enable Signifier auto-start on boot? [Y/n] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_SIG_SERVICE=false
-    fi
-    read -p "   2. Enable Signifier configuration web-app auto-start on boot? [Y/n] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_WEB_SERVICE=false
-    fi
-    read -p "   3. Enable VPN connection auto-start on boot? [Y/n] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_VPN_SERVICE=false
-    fi
-    read -p "   4. Download/update VPN credentials from server? (requires password) [y/N] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        OPTION_DL_VPN_CRED=true
-    else
-        OPTION_DL_VPN_CRED=false
-    fi
-    read -p "   5. Download/update new WiFi credentials from server? (requires password) [y/N] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        OPTION_DL_WIFI_CFG=true
-    else
-        OPTION_DL_WIFI_CFG=false
-    fi
-    read -p "   6. Download/update latest audio library from server? (requires password) [y/N] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        OPTION_DL_AUDIO=true
-    else
-        OPTION_DL_AUDIO=false
-    fi
-    read -p "   7. Compile and push latest LED code to Arduino (Arduino must be connected)? [Y/n] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_UPDATE_ARDUINO=false
-    fi
-    read -p "   8. The Signifier must reboot before running. Should it reboot immediately after setup? [Y/n] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        OPTION_REBOOT=false
-    fi
-fi
 
 # Clean up existing system services and permissions
-sudo systemctl stop signifier
 sudo systemctl stop bluetooth
 sudo systemctl disable bluetooth
 sudo setcap cap_net_raw,cap_net_admin+eip $(eval readlink -f `which python`)
@@ -226,17 +193,6 @@ fi
 if [[ $OPTION_WEB_SERVICE != "false" ]]; then
     sudo systemctl enable signifier
 fi
-if [[ $OPTION_DL_VPN_CRED != "false" ]]; then
-    scp -P 14444 signifier@192.168.30.10:~/sig-config/${HOSTNAME}.ovpn ~/
-fi
-if [[ $OPTION_DL_WIFI_CFG != "false" ]]; then
-    scp -P 14444 signifier@192.168.30.10:~/sig-config/wpa_supplicant.conf ~/
-    sudo cp ~/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
-    rm ~/wpa_supplicant.conf
-fi
-if [[ $OPTION_DL_AUDIO != "false" ]]; then
-    scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds/* $MEDIA_DIR
-fi
 
 
 echo Updating system...
@@ -257,55 +213,6 @@ echo Installing Python modules...
 python -m pip install -U --no-input -r requirements.txt
 echo
 
-if ! command -v openvpn &> /dev/null
-then
-    echo "Installing OpenVPN client..."
-    sudo apt install openvpn -y
-else
-    echo "OpenVPN already installed, skipping."
-fi
-
-VPN_PATH=/etc/openvpn
-if [ ! -d "$VPN_PATH" ]; then
-    sudo mkdir -p $VPN_PATH
-    sudo chown root:root $VPN_PATH
-    sudo chmod 700 $VPN_PATH
-fi
-
-VPN_FILE=$(find $HOME -name "$HOSTNAME.ovpn" | sed -n 1p)
-if [ -f "$VPN_FILE" ]; then
-    echo "Found VPN credentials: $VPN_FILE. Adding to OpenVPN..."
-    sudo chmod 700 $VPN_FILE
-    sudo cp $VPN_FILE $VPN_PATH/client.conf
-    sudo rm $VPN_FILE
-else
-    if [ ! -f $VPN_PATH/client.conf ]; then
-        echo "VPN credentials not found! Add manually after installation and run setup script again."
-    # else
-        # sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
-    fi
-fi
-echo
-
-
-if ! command -v arduino-cli &> /dev/null
-then
-    echo "Installing Arduino-CLI in ${ARDUINO_PATH}..."
-    ARDUINO_PATH="$HOME/Arduino"
-    mkdir $ARDUINO_PATH
-    curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=$ARDUINO_PATH sh
-else
-    echo "Arduino-CLI already installed, skipping."
-fi
-arduino-cli core download arduino:megaavr
-arduino-cli core install arduino:megaavr
-arduino-cli lib install FastLED
-arduino-cli lib install SerialTransfer
-
-
-if [[ $OPTION_UPDATE_ARDUINO != "false" ]]; then
-    source update-arduino.sh
-fi
 
 echo Setting up audio environment...
 cp $SIG_PATH/sys/.asoundrc ~/
@@ -338,6 +245,71 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 echo
 
 
+if ! command -v openvpn &> /dev/null
+then
+    echo "Installing OpenVPN client..."
+    sudo apt install openvpn -y
+else
+    echo "OpenVPN already installed, skipping."
+fi
+
+VPN_PATH=/etc/openvpn
+if [ ! -d "$VPN_PATH" ]; then
+    sudo mkdir -p $VPN_PATH
+    sudo chown root:root $VPN_PATH
+    sudo chmod 700 $VPN_PATH
+fi
+
+VPN_FILE=$(find $HOME -name "$HOSTNAME.ovpn" | sed -n 1p)
+if [ -f "$VPN_FILE" ]; then
+    echo "Found VPN credentials: $VPN_FILE. Adding to OpenVPN..."
+    sudo chmod 700 $VPN_FILE
+    sudo mv $VPN_FILE $VPN_PATH/client.conf
+    #sudo rm $VPN_FILE
+else
+    if [ ! -f $VPN_PATH/client.conf ]; then
+        echo "VPN credentials not found! Add manually after installation and run setup script again."
+    # else
+        # sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
+    fi
+fi
+echo
+
+echo "Enabling VPN service and attempting to establish connection..."
+if [[ $OPTION_VPN_SERVICE != "false" ]]; then
+   sudo systemctl enable openvpn@client.service
+   sudo systemctl start openvpn@client.service
+fi
+
+if [[ $OPTION_DL_AUDIO != "false" ]]; then
+    echo "Sleeping for 5 seconds before attempting to download content via VPN..."
+    sleep 5
+    echo "Downloading audio library from Sig-Net VPN server..."
+    scp -r -P 14444 signifier@192.168.30.10:~/sig-sounds/* $MEDIA_DIR
+    echo
+fi
+
+
+if ! command -v arduino-cli &> /dev/null
+then
+    echo "Installing Arduino-CLI in ${ARDUINO_PATH}..."
+    ARDUINO_PATH="$HOME/Arduino"
+    mkdir $ARDUINO_PATH
+    curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=$ARDUINO_PATH sh
+else
+    echo "Arduino-CLI already installed, skipping."
+fi
+arduino-cli core download arduino:megaavr
+arduino-cli core install arduino:megaavr
+arduino-cli lib install FastLED
+arduino-cli lib install SerialTransfer
+
+
+if [[ $OPTION_UPDATE_ARDUINO != "false" ]]; then
+    source update-arduino.sh
+fi
+
+
 if ! command -v docker &> /dev/null
 then
     echo "Installing Docker..."
@@ -360,6 +332,7 @@ else
     echo "Docker Compose already installed, skipping."
 fi
 echo
+
 
 source update-monitoring.sh
 
@@ -392,18 +365,14 @@ else
 fi
 echo
 
-if [[ $OPTION_VPN_SERVICE != "false" ]]; then
-   sudo systemctl enable openvpn@client.service
-fi
-
-if [ ! -d "~/sig-content" ]; then
+if [ -d "~/sig-content" ]; then
     sudo rm -fr ~/sig-content
 fi
 
 if [[ $OPTION_REBOOT != "false" ]]; then
     echo "Done! Rebooting in 5 seconds..."
     sleep 5
-   sudo reboot
+    sudo reboot
 fi
 
 echo -------------------------------------------------------

@@ -106,6 +106,8 @@ class MapperProcess(ModuleProcess, mp.Process):
                         source_value,
                         rule_source.get("range", [0, 1]),
                         rule_dest.get("range", [0, 1]),
+                        "clamp" if rule_source.get("clamp", False) else None,
+                        "invert" if rule_source.get("invert", False) else None
                     )
                     prev_value = self.prev_dest_values[rule_dest["module"]].get(
                         rule_dest["name"]
