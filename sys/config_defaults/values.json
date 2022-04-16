@@ -68,7 +68,7 @@
                 "command": "O",
                 "min": 0,
                 "max": 255,
-                "default": 2,
+                "default": 50,
                 "description": "Speed of LED noise effect."
             },
             "leds_noise_sat": {
@@ -76,7 +76,7 @@
                 "command": "P",
                 "min": 0,
                 "max": 255,
-                "default": 0,
+                "default": 180,
                 "description": "Saturation of noise effect colour."
             },
             "leds_noise_hue": {
@@ -84,23 +84,15 @@
                 "command": "Q",
                 "min": 0,
                 "max": 255,
-                "default": 80,
+                "default": 200,
                 "description": "Hue value of noise effect colour."
-            },
-            "leds_noise_thresh": {
-                "type": "gauge",
-                "command": "R",
-                "min": 0,
-                "max": 255,
-                "default": 10,
-                "description": "Threshold value of noise pixel to activate it."
             },
             "leds_noise_width": {
                 "type": "gauge",
                 "command": "W",
                 "min": 0,
                 "max": 255,
-                "default": 200,
+                "default": 50,
                 "description": "Width of the noise particles."
             },
             "leds_mirror_bar": {
@@ -132,7 +124,7 @@
                 "command": "L",
                 "min": 0,
                 "max": 255,
-                "default": 80,
+                "default": 200,
                 "description": "Hue value of mirror effect colour."
             }
         }

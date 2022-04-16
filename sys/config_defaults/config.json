@@ -52,7 +52,7 @@
         "sample_rate": 48000,
         "dtype": "int16",
         "buffer": 1024,
-        "gain": 1.0
+        "gain": 2.0
     },
     "composition": {
         "enabled": true,
@@ -69,7 +69,7 @@
             "wav"
         ],
         "strict_distribution": false,
-        "mix_volume": 0.8,
+        "mix_volume": 0.5,
         "fade_in_ms": 1000,
         "fade_out_ms": 2000,
         "max_playtime": 60,
@@ -115,7 +115,7 @@
                 "fail_retry_delay": 5,
                 "parameters": {
                     "pool_size": 12,
-                    "start_clips": 1,
+                    "start_clips": 2,
                     "collections": []
                 },
                 "description": "Schedule to change the active collection."
