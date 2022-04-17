@@ -143,7 +143,7 @@ See the Signifier Access section for more details.
 
 ---
 
-# Media content
+# Audio content
 
 ## Location
 
