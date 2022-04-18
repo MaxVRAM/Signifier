@@ -28,10 +28,7 @@ rules = {}
 app = Flask(__name__)
 app.secret_key = b'_5#y2L"sdb/fae\n\xec]/'
 
-
-
 print(f'Started Sig-Config server with SIG_PATH="{SIG_PATH}".')
-
 
 app.config['UPLOAD_FOLDER'] = CONFIG_PATH
 @app.route('/', methods=['GET', 'POST'])

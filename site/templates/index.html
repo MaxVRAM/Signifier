@@ -11,168 +11,156 @@
 
 {% block heading %}
     <h1 class="display-1">{{ hostname }}</h1>
+    For full project details and installation/setup guide, visit the Signifier GitHub page:<p>
+    <a href="https://github.com/MaxVRAM/Signifier" title="Signifier GitHub page">https://github.com/MaxVRAM/Signifier</a> 
 {% endblock %}
 
 {% block content %}
 
+<div class="spacer"></div>
 
-<div>
-    Upload and apply local config file:
-    <form action="" method=post enctype=multipart/form-data>
-    <input class="form-control form-control" id="configUpload" type="file" name=file>
-    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#uploadConfig">Upload</button>
+<div class="container">
+  <h3>{{ hostname }} Config</h3>
+  <div class="container">
+    Upload and apply a new config file to <strong>{{ hostname }}</strong>:
+    <form class="row g-3">
+      <form action="" method=post enctype=multipart/form-data>
+        <div class="col-auto">
+          <input class="form-control form-control" id="configUpload" type="file" name=file>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#uploadConfig">Upload</button>
+        </div>
+      </form>
+  </div>
+  <p>
+  <div class="container">
+    Download IN-USE config file from <strong>{{ hostname }}</strong>:
+    <p>
+    <a class="btn btn-primary" href="/download/config.json" role="button">config.json</a>
+    <a class="btn btn-primary" href="/download/values.json" role="button">values.json</a>
+    <a class="btn btn-primary" href="/download/rules.json" role="button">rules.json</a>
+  </div>
+  <p>
+  <div class="container">
+    Download DEFAULT config file from <strong>{{ hostname }}</strong>:
+    <p>
+    <a class="btn btn-warning" href="/download_default/config.json" role="button">config.json</a>
+    <a class="btn btn-warning" href="/download_default/values.json" role="button">values.json</a>
+    <a class="btn btn-warning" href="/download_default/rules.json" role="button">rules.json</a>
+  </div>
 </div>
-  
-  <!-- Modal -->
-  <div class="modal fade" id="uploadConfig" tabindex="-1" aria-labelledby="uploadConfigLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="uploadConfigLabel">Confirm config upload</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-            <p>You are about to upload a new config file to Signifier "{{ hostname }}". This may disrupt its activity shortly. Invalid JSON formatting can cause the Signifier to fail, which may require a hardware restart.</p>
-        </div>
-        <div class="modal-footer">
+
+<div class="spacer"></div>
+
+<div class="container">
+  <h3>{{ hostname }} Mangement</h3>
+  <div class="container">
+    <p>
+    <button class="btn btn-info" type="button" data-bs-toggle="modal" data-bs-target="#updateSignifier">Update App</button>
+    <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#restartSignifier">Restart App</button>
+    <button class="btn btn-warning" type="button" data-bs-toggle="modal" data-bs-target="#rebootSignifier">Reboot</button>
+    <button class="btn btn-danger" type="button" data-bs-toggle="modal" data-bs-target="#poweroffSignifier">Power Off</button>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+
+<!-- Modal -->
+<div class="modal fade" id="uploadConfig" tabindex="-1" aria-labelledby="uploadConfigLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="uploadConfigLabel">Confirm config upload</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+          <p>You are about to upload a new config file to "{{ hostname }}". This may disrupt its activity shortly. Invalid JSON formatting can cause the Signifier to fail, which may require a hardware restart.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <input class="btn btn-primary" type="submit" value="Upload">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="updateSignifier" tabindex="-1" aria-labelledby="updateSignifierLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="updateSignifierLabel">Update {{ hostname }} App?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+          <p>You are about to update the Signifier application, Arduino, and reset all defaults for "{{ hostname }}"...</p>
+      </div>
+      <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <input class="btn btn-primary" type="submit" value="Upload">
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-</div>
-
-<div class="spacer"></div>
-
-<div class="container">
-    Download IN-USE config file from {{ HOSTNAME }}:
-    <div class="row row-cols-3">
-        <div class="col"><a class="btn btn-primary" href="/download/config.json" role="button">config.json</a></div>
-        <div class="col"><a class="btn btn-primary" href="/download/values.json" role="button">values.json</a></div>
-        <div class="col"><a class="btn btn-primary" href="/download/rules.json" role="button">rules.json</a></div>
-    </div>
-</div>
-
-
-<div class="spacer"></div>
-
-<div class="container">
-    Download DEFAULT config file from {{ HOSTNAME }}:
-    <div class="row row-cols-3">
-        <div class="col"><a class="btn btn-warning" href="/download_default/config.json" role="button">config.json</a></div>
-        <div class="col"><a class="btn btn-warning" href="/download_default/values.json" role="button">values.json</a></div>
-        <div class="col"><a class="btn btn-warning" href="/download_default/rules.json" role="button">rules.json</a></div>
-    </div>
-</div>
-
-
-<div class="spacer"></div>
-<div class="spacer"></div>
-
-<div class="container">
-<button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#updateSignifier">Update Signifier App</button>
-
-  <!-- Modal -->
-  <div class="modal fade" id="updateSignifier" tabindex="-1" aria-labelledby="updateSignifierLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="updateSignifierLabel">Update Signifier App?</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-            <p>You are about to update the Signifier application, Arduino, and reset all defaults for "{{ hostname }}"...</p>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <a class="btn btn-danger" href="/update_signifier" role="button">Update</a></div>
-        </div>
+          <a class="btn btn-danger" href="/update_signifier" role="button">Update</a></div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="spacer"></div>
-
-<div class="container">
-<button class="btn btn-warning" type="button" data-bs-toggle="modal" data-bs-target="#restartSignifier">Restart Signifier App</button>
-
-  <!-- Modal -->
-  <div class="modal fade" id="restartSignifier" tabindex="-1" aria-labelledby="restartSignifierLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="restartSignifierLabel">Restart Signifier App?</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-            <p>You are about to restart the Signifier application "{{ hostname }}". Functionality should return within 30 seconds.</p>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <a class="btn btn-danger" href="/restart_signifier" role="button">Restart</a></div>
-        </div>
+<!-- Modal -->
+<div class="modal fade" id="restartSignifier" tabindex="-1" aria-labelledby="restartSignifierLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="restartSignifierLabel">Restart Signifier App?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+          <p>You are about to restart the Signifier application "{{ hostname }}". Functionality should return within 30 seconds.</p>
+      </div>
+      <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <a class="btn btn-danger" href="/restart_signifier" role="button">Restart</a></div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="spacer"></div>
-
-<div class="container">
-<button class="btn btn-danger" type="button" data-bs-toggle="modal" data-bs-target="#rebootSignifier">Reboot Signifier</button>
-
-  <!-- Modal -->
-  <div class="modal fade" id="rebootSignifier" tabindex="-1" aria-labelledby="rebootSignifierLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="rebootSignifierLabel">Reboot Signifier?</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-            <p>You are about to reboot the Rapsberry Pi "{{ hostname }}". Are you sure you want to continue?</p>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <a class="btn btn-danger" href="/reboot_signifier" role="button">Reboot</a></div>
-        </div>
+<!-- Modal -->
+<div class="modal fade" id="rebootSignifier" tabindex="-1" aria-labelledby="rebootSignifierLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rebootSignifierLabel">Reboot Signifier?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+          <p>You are about to reboot the Rapsberry Pi "{{ hostname }}". Are you sure you want to continue?</p>
+      </div>
+      <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <a class="btn btn-danger" href="/reboot_signifier" role="button">Reboot</a></div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="spacer"></div>
-
-<div class="container">
-<button class="btn btn-danger" type="button" data-bs-toggle="modal" data-bs-target="#poweroffSignifier">Power Off Signifier</button>
-
-  <!-- Modal -->
-  <div class="modal fade" id="poweroffSignifier" tabindex="-1" aria-labelledby="poweroffSignifierLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="poweroffSignifierLabel">Power Off Signifier?</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-            <p>You are about to power off the Rapsberry Pi "{{ hostname }}". It will not be accessable unless you physically power-cycle the Signifier after you do this!</p>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <a class="btn btn-danger" href="/poweroff_signifier" role="button">Power Off</a></div>
-        </div>
+<!-- Modal -->
+<div class="modal fade" id="poweroffSignifier" tabindex="-1" aria-labelledby="poweroffSignifierLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="poweroffSignifierLabel">Power Off Signifier?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+          <p>You are about to power off the Rapsberry Pi "{{ hostname }}". It will not be accessable unless you physically power-cycle the Signifier after you do this!</p>
+      </div>
+      <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <a class="btn btn-danger" href="/poweroff_signifier" role="button">Power Off</a></div>
       </div>
     </div>
   </div>
 </div>
-
-<div class="spacer"></div>
-
 
 
 {% endblock %}
