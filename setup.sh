@@ -98,9 +98,6 @@ else
     touch $FILE
 fi
 
-CUSTOM_ENV=$HOME/.signifier
-rm $CUSTOM_ENV
-
 LINE='# SIGNIFIER ENVIRONMENT VARIABLES'
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
@@ -108,6 +105,9 @@ LINE="export PATH=\"\$HOME/.local/bin:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 LINE="export PATH=\"\$HOME/Arduino:\$PATH\""
 grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
+
+CUSTOM_ENV=$HOME/.signifier
+rm $CUSTOM_ENV
 
 LINE=$"HOST=\"$HOSTNAME\""
 echo "$LINE" >> "$CUSTOM_ENV"
@@ -136,31 +136,20 @@ FILE=/etc/sudoers
 if [ -f "$FILE" ]; then
     sudo tail -c1 $FILE | read -r _ || echo >> $FILE
 fi
-LINE="$USER ALL=NOPASSWD: /sbin/reboot"
+
+LINE="$USER ALL=NOPASSWD: /sbin/reboot /sbin/poweroff"
 sudo grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 
 
 # Create Signifier config JSON files from defaults if they don't exist
 CONFIG_PATH=$SIG_PATH/cfg
 DEFAULTS_PATH=$SIG_PATH/sys/config_defaults
+
+echo "Creating/overwriting default files"
 if [ ! -d "$CONFIG_PATH" ]; then
     mkdir -p $CONFIG_PATH
 fi
-FILE="config.json"
-if [ ! -f "$CONFIG_PATH/$FILE" ]; then
-    echo "Creating default $FILE"
-    cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
-fi
-FILE="values.json"
-if [ ! -f "$CONFIG_PATH/$FILE" ]; then
-    echo "Creating default $FILE"
-    cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
-fi
-FILE="rules.json"
-if [ ! -f "$CONFIG_PATH/$FILE" ]; then
-    echo "Creating default $FILE"
-    cp $DEFAULTS_PATH/$FILE $CONFIG_PATH/$FILE
-fi
+cp sys/config_defaults/* cfg/
 
 echo
 echo Updating Signifier startup service...
@@ -186,40 +175,35 @@ sed -i "/EnvironmentFile=/c\\EnvironmentFile=$CUSTOM_ENV" $SERVICE_TEMP
 sudo cp $SERVICE_TEMP /etc/systemd/system/sig-config.service
 rm $SERVICE_TEMP
 
+echo
+sudo systemctl enable signifier
+sudo systemctl enable sig-config
 
-if [[ $OPTION_SIG_SERVICE != "false" ]]; then
-    sudo systemctl enable signifier
-fi
-if [[ $OPTION_WEB_SERVICE != "false" ]]; then
-    sudo systemctl enable signifier
-fi
-
-
+echo
 echo Updating system...
 sudo apt update
 sudo apt upgrade -y
-echo
 
+echo
 echo Installing system packages...
 sudo apt install -y ufw python3-pip alsa-utils libasound2-dev
-echo
 
+echo
 echo Configuring firewall...
 sudo ufw allow 22,80,443,9001,9090,9091,9092,9100,5000,3000/tcp
 sudo ufw --force enable
-echo
 
+echo
 echo Installing Python modules...
 python -m pip install -U --no-input -r requirements.txt
+
 echo
-
-
 echo Setting up audio environment...
 cp $SIG_PATH/sys/.asoundrc ~/
 sudo modprobe snd-aloop
 sudo dtc -I dts -O dtb -o /boot/overlays/disable_hdmi_audio.dtbo $SIG_PATH/sys/disable_hdmi_audio.dts
 
-
+echo
 FILE=/boot/config.txt
 if [ -f "$FILE" ]; then
     tail -c1 $FILE | read -r _ || sudo echo >> $FILE
@@ -253,6 +237,7 @@ else
     echo "OpenVPN already installed, skipping."
 fi
 
+echo
 VPN_PATH=/etc/openvpn
 if [ ! -d "$VPN_PATH" ]; then
     sudo mkdir -p $VPN_PATH
@@ -260,6 +245,7 @@ if [ ! -d "$VPN_PATH" ]; then
     sudo chmod 700 $VPN_PATH
 fi
 
+echo
 VPN_FILE=$(find $HOME -name "$HOSTNAME.ovpn" | sed -n 1p)
 if [ -f "$VPN_FILE" ]; then
     echo "Found VPN credentials: $VPN_FILE. Adding to OpenVPN..."
@@ -275,12 +261,14 @@ else
 fi
 echo
 
+echo
 echo "Enabling VPN service and attempting to establish connection..."
 if [[ $OPTION_VPN_SERVICE != "false" ]]; then
    sudo systemctl enable openvpn@client.service
    sudo systemctl start openvpn@client.service
 fi
 
+echo
 if [[ $OPTION_DL_AUDIO != "false" ]]; then
     echo "Sleeping for 5 seconds before attempting to download content via VPN..."
     sleep 5
@@ -289,7 +277,7 @@ if [[ $OPTION_DL_AUDIO != "false" ]]; then
     echo
 fi
 
-
+echo
 if ! command -v arduino-cli &> /dev/null
 then
     echo "Installing Arduino-CLI in ${ARDUINO_PATH}..."
@@ -304,12 +292,12 @@ arduino-cli core install arduino:megaavr
 arduino-cli lib install FastLED
 arduino-cli lib install SerialTransfer
 
-
+echo
 if [[ $OPTION_UPDATE_ARDUINO != "false" ]]; then
     source update-arduino.sh
 fi
 
-
+echo
 if ! command -v docker &> /dev/null
 then
     echo "Installing Docker..."
@@ -320,8 +308,8 @@ then
 else
     echo "Docker already installed, skipping."
 fi
-echo
 
+echo
 FILE=$HOME/.docker/cli-plugins/docker-compose
 if [ ! -f "$FILE" ]; then
     echo "Installing Docker Compose..."
@@ -333,15 +321,15 @@ else
 fi
 echo
 
-
+echo
 source update-monitoring.sh
-
 
 FILE=$SIG_PATH/get-docker.sh
 if [ -f "$FILE" ]; then
     rm $FILE
 fi
 
+echo
 if [ ! -d "$MEDIA_DIR" ]; then
     echo "Audio directory not found! Add audio assets into $MEDIA_DIR after installation."
     mkdir -p $MEDIA_DIR
@@ -363,18 +351,20 @@ else
         fi
     fi
 fi
-echo
 
+echo
 if [ -d "~/sig-content" ]; then
     sudo rm -fr ~/sig-content
 fi
 
+echo
 if [[ $OPTION_REBOOT != "false" ]]; then
     echo "Done! Rebooting in 5 seconds..."
     sleep 5
     sudo reboot
 fi
 
+echo
 echo -------------------------------------------------------
 echo Done! Please reboot to complete Signifier installation.
 echo -------------------------------------------------------
