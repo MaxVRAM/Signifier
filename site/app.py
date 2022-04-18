@@ -29,6 +29,10 @@ app = Flask(__name__)
 app.secret_key = b'_5#y2L"sdb/fae\n\xec]/'
 
 
+
+print(f'Started Sig-Config server with SIG_PATH="{SIG_PATH}".')
+
+
 app.config['UPLOAD_FOLDER'] = CONFIG_PATH
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -77,11 +81,37 @@ def download_default(filename):
     return render_template('index.html', hostname=HOSTNAME)
 
 
+@app.route('/update_signifier')
+def update_signifier():
+    print('Remote user requested an update of the Signifier application. Updating now...')
+    command = os.path.join(SIG_PATH, 'refresh.sh')
+    subprocess.Popen([command])
+    return redirect('/')
+    #return render_template('index.html', hostname=HOSTNAME)
+
 @app.route('/restart_signifier')
 def restart_signifier():
+    print('Remote user requested restart of the Signifier application. Restarting the service now.')
+    command = 'systemctl restart signifier'
+    subprocess.Popen(['sudo', command])
+    return redirect('/')
+    #return render_template('index.html', hostname=HOSTNAME)
+
+@app.route('/reboot_signifier')
+def reboot_signifier():
     print('Remote user requested reboot of this machine. Restarting in 5 seconds...')
-    time.sleep(5)
-    subprocess.call(['sudo', '/sbin/reboot'])
+    command = os.path.join(SIG_PATH, 'reboot.sh')
+    subprocess.Popen(['sudo', command])
     #os.system("reboot")
-    return render_template('index.html', hostname=HOSTNAME)
+    return redirect('/')
+    #return render_template('index.html', hostname=HOSTNAME)
+
+@app.route('/poweroff_signifier')
+def poweroff_signifier():
+    print('Remote user requested this machine to power off. Shutting down in 5 seconds...')
+    command = os.path.join(SIG_PATH, 'poweroff.sh')
+    subprocess.Popen(['sudo', command])
+    #os.system("reboot")
+    return redirect('/')
+    #return render_template('index.html', hostname=HOSTNAME)
 
