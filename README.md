@@ -3,11 +3,49 @@
 
 > "Signifier" is comprehensive platform to run the interactive sound & light sculpture on Raspberry Pi 4. Each of the 15 Signifiers allow user interactive through integrated Bluetooth scanning, and microphone input analysis, which shapes the interactive audio composition and LED reactivity. Created by Chris Vik in collaboration with [office.org.au](https://office.org.au) for Melbourne Music Week 2021/2022.
 
-![Signifier image](/doc/1280x640_signifier_test.jpg "Signifier image")
+<table>
+  <tr>
+    <td>
+      <img src="/doc/1280x640_signifier_test.jpg" width="700" height=auto>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <figcaption align = "center"><i>A demo setup of the physical Signifier units.</i></figcaption>
+    </td>
+  </tr>
+</table>
 
 Each of the 15 Signifiers use a **Raspberry Pi 4B (4GB)** fitted with several hardware devices to provide interaction with the physical world.
 
-This application manages a suite sensor input modules, **sources**, and output modules, **destinations**. A Signifier's behaviour is customisable via a scheduler and value mapping system, which allow total control over the automation and interaction between inputs and outputs, even during run-time.
+This application manages a suite sensor input modules, **sources**, and output modules, **destinations**. A Signifier's behaviour is customisable via a scheduler and value mapping system, which allow total control over the automation and interaction between inputs and outputs, even during run-time. The project includes a management web application running on each Signifier, and all the Signifier data is recorded on a local Prometheus database, which can be viewed in real-time using Grafana.
+
+<table>
+  <tr>
+    <td>
+      <img src="/doc/signifier_web_app.jpg" width="500" height=auto>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <figcaption align = "center"><i>The Signifier management web-app, "Sig-Config".</i></figcaption>
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td>
+      <img src="/doc/signifier_grafana_panel.jpg" width="500" height=auto>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <figcaption align = "center"><i>Visualising Signifier data in real-time with Grafana.</i></figcaption>
+    </td>
+  </tr>
+</table>
+
 
 ## Contents
 
@@ -29,7 +67,7 @@ This application manages a suite sensor input modules, **sources**, and output m
     - [Python modules](#python-modules)
     - [Docker & containers](#docker-containers)
 - [Networking](#networking)
-- [Media content](#media-content)
+- [Audio content](#audio-content)
   - [Location](#location)
   - [Format](#format)
   - [Replacing / adding audio collections](#replacing-adding-audio-collections)
@@ -89,20 +127,9 @@ This application manages a suite sensor input modules, **sources**, and output m
 - **Raspberry Pi 4B** (4GB) - [link](https://au.rs-online.com/web/p/raspberry-pi/1822096)
 - **Arduino Nano Every** - [link](https://au.rs-online.com/web/p/arduino/1927590)
 - 4m x **RGB LED strips** (WS2812B 60/m) - [link](https://www.jaycar.com.au/2m-rgb-led-strip-with-120-x-addressable-w2812b-rgb-leds-arduino-mcu-compatible-5v/p/XC4390)
-  - Why WS2812B LEDs are not a good choice for RPi - [link](https://tutorials-raspberrypi.com/connect-control-raspberry-pi-ws2812-rgb-led-strips/)
-  - Basic guide for controlling WS212B with Arduino - [link](https://randomnerdtutorials.com/guide-for-ws2812b-addressable-rgb-led-strip-with-arduino/)
 - **Audio amplifier** (50 watt Bluetooth) - [link](https://core-electronics.com.au/digital-bluetooth-power-amplifier-50w-2.html)
-  - Issues:
-    - Only has Bluetooth or USB connectivity! 3.5mm jack input would be recommended.
-    - Produces a loud vocal announcement when they are powered on! No good for a professional installation.
-    - Cannot disable Bluetooth, and cannot prevent anyone taking over the input. Terrible for public installations.
 - **Digital Temp Sensor** - [link](https://www.altronics.com.au/p/z6386-stainless-steel-housing-waterproof-ds18b20-temperature-probe/)
 - **Mini USB Microphone** - [link](https://core-electronics.com.au/mini-usb-microphone.html)
-- **NB-IoT Raspberry Pi HAT** - [link](https://core-electronics.com.au/nb-iot-emtc-edge-gprs-gnss-hat-for-raspberry-pi.html)
-  - The previous developers were unable to make this module work on the Pi with the other hardware connected.
-  - I will test these myself, but may not make it into the final build.
-  - Guide on the specific SIM chip - [link](https://support.hologram.io/hc/en-us/articles/360036559494-SIMCOM-SIM7000)
-  - Guide on different version, but might still be relavent - [link](https://www.switchdoc.com/2021/05/tutorial-using-cellular-modems-with-the-raspberry-pi-4b/)
 
 ## Software
 
@@ -135,7 +162,7 @@ This application manages a suite sensor input modules, **sources**, and output m
 
 # Networking
 
-Signifiers will look for the WiFi SSID `mmw_sig_net`, and use the password ~~`redacted`~~.
+By default, Signifiers will look for the WiFi SSID `mmw_sig_net`, and use the password ~~`redacted`~~.
 
 Once connected, they will automatically attempt connection via VPN. The VPN provides a secure network for the Signifiers to communicate with the Signifier Server, which records metrics, allows for remote SSH access to the Signifiers, and hosts several front-end web-apps for remote monitoring and configuration of the Signifiers.
 
@@ -147,7 +174,7 @@ See the Signifier Access section for more details.
 
 ## Location
 
-All media content for the Signifiers should go into the Signifier application's `/media` subdirectory (default `/home/pi/Signifier/media`). There is a subdirectory called `audio` which should contain the Signifier's audio clip collections.
+All media content for the Signifiers should go into the Signifier application's `/media` subdirectory (default `/home/pi/Signifier/media`). There is a subdirectory called `audio` which contains the Signifier's audio clip collections.
 
 The default path for audio resources supplied on delivery is here:
 
@@ -361,17 +388,22 @@ After which, you'll be connected to the Signifier OS CLI.
   ./setup.sh
   ```
 
-- Or just update the Signifier code (if it's been updated on GitHub):
+- Perform a full update and refresh, restoring default Signifier configurations:
+  ```bash
+  ./refresh.sh
+  ```
+
+- Update the Signifier code (if it's been updated on GitHub):
   ```bash
   ./update-app.sh
   ```
 
-- Or update a connected Arduino with the latest LED code:
+- Re-compile and upload the LED code to its connected Arduino:
   ```bash
   ./update-arduino.sh
   ```
 
-- Or bring up the Signifier monitoring Docker containers (Grafana and Prometheus):
+- Restart the Signifier monitoring Docker containers (Grafana and Prometheus):
   ```bash
   ./update-docker.sh
   ```
