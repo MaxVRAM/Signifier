@@ -11,5 +11,5 @@ git pull
 source restore-defaults.sh
 source update-arduino.sh
 
-echo All done. Please reboot the Signifier or run `sudo systemctl start signifier` to restart the application.
+echo "All done. Please reboot the Signifier or run `sudo systemctl start signifier` to restart the application."
 echo
