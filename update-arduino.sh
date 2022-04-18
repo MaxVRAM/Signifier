@@ -8,6 +8,7 @@ echo
 shopt -s expand_aliases
 source ~/.aliases
 SKETCH="$SIGNIFIER/src/sig_led"
+sudo systemctl stop signifier
 acompile $SKETCH
 aupload $SKETCH -v
 if [ $? -eq 0 ]

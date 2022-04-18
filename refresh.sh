@@ -10,6 +10,8 @@ sudo systemctl stop signifier
 git pull
 source restore-defaults.sh
 source update-arduino.sh
+source update-monitoring.sh
 
-echo "All done. Please reboot the Signifier or run `sudo systemctl start signifier` to restart the application."
+echo
+echo "All done. Please reboot the Signifier to restart the application."
 echo
