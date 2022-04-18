@@ -93,7 +93,7 @@ def update_signifier():
 def restart_signifier():
     print('Remote user requested restart of the Signifier application. Restarting the service now.')
     command = 'systemctl restart signifier'
-    subprocess.Popen(['sudo', command])
+    subprocess.Popen(['sudo', 'systemctl', 'restart', 'signifier'])
     return redirect('/')
     #return render_template('index.html', hostname=HOSTNAME)
 
