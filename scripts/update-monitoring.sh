@@ -16,7 +16,7 @@ then
   echo
   exit 0
 else 
-  echo "Could not bring up Docker containers. Please restart and run '$SIGNIFIER/update-monitoring.sh'."
+  echo "Could not bring up Docker containers. Please restart and run '$SIGNIFIER/scripts/update-monitoring.sh'."
   echo
   exit 1
 fi

@@ -1,8 +1,5 @@
 
 import os
-import sys
-import time
-
 import subprocess
 
 from flask import Flask
@@ -16,6 +13,7 @@ HOSTNAME = os.getenv('HOST')
 SIG_PATH = os.getenv('SIGNIFIER')
 SITE_PATH = os.path.join(SIG_PATH, 'site')
 CONFIG_PATH = os.path.join(SIG_PATH, 'cfg')
+SCRIPTS_PATH = os.path.join(SIG_PATH, 'scripts')
 DEFAULTS_PATH = os.path.join(SIG_PATH, 'sys', 'config_defaults')
 CONFIG_FILES = {'config':'config.json',
                 'values':'values.json',
@@ -23,7 +21,6 @@ CONFIG_FILES = {'config':'config.json',
 config = {}
 values = {}
 rules = {}
-
 
 app = Flask(__name__)
 app.secret_key = b'_5#y2L"sdb/fae\n\xec]/'
@@ -81,34 +78,28 @@ def download_default(filename):
 @app.route('/update_signifier')
 def update_signifier():
     print('Remote user requested an update of the Signifier application. Updating now...')
-    command = os.path.join(SIG_PATH, 'refresh.sh')
+    command = os.path.join(SCRIPTS_PATH, 'refresh.sh')
     subprocess.Popen([command])
     return redirect('/')
-    #return render_template('index.html', hostname=HOSTNAME)
 
 @app.route('/restart_signifier')
 def restart_signifier():
     print('Remote user requested restart of the Signifier application. Restarting the service now.')
-    command = 'systemctl restart signifier'
+    subprocess.Popen(['sudo', 'systemctl', 'enable', 'signifier'])
     subprocess.Popen(['sudo', 'systemctl', 'restart', 'signifier'])
     return redirect('/')
-    #return render_template('index.html', hostname=HOSTNAME)
 
 @app.route('/reboot_signifier')
 def reboot_signifier():
     print('Remote user requested reboot of this machine. Restarting in 5 seconds...')
-    command = os.path.join(SIG_PATH, 'reboot.sh')
+    command = os.path.join(SCRIPTS_PATH, 'reboot.sh')
     subprocess.Popen(['sudo', command])
-    #os.system("reboot")
     return redirect('/')
-    #return render_template('index.html', hostname=HOSTNAME)
 
 @app.route('/poweroff_signifier')
 def poweroff_signifier():
     print('Remote user requested this machine to power off. Shutting down in 5 seconds...')
-    command = os.path.join(SIG_PATH, 'poweroff.sh')
+    command = os.path.join(SCRIPTS_PATH, 'poweroff.sh')
     subprocess.Popen(['sudo', command])
-    #os.system("reboot")
     return redirect('/')
-    #return render_template('index.html', hostname=HOSTNAME)
 

@@ -27,7 +27,7 @@ from src.utils import plural
 
 # Allows PyGame to run without a screen
 os.environ["SDL_VIDEODRIVER"] = "dummy"
-# Silence PyGame greeting mesage
+# Silence PyGame greeting mesage -- currently not working
 stdout = sys.__stdout__
 stderr = sys.__stderr__
 sys.stdout = open(os.devnull, "w")
@@ -209,7 +209,7 @@ class CompositionProcess(ModuleProcess, Thread):
             if self.channels is not None:
                 for chan in self.channels:
                     chan.stop()
-            self.channels = self.get_channels(self.inactive_pool)
+            self.channels = self.assign_channels(self.inactive_pool, 'clear')
             clipUtils.init_sounds(self.inactive_pool, self.channels)
             self.metrics_pusher.update(f"{self.module_name}_collection", name)
             return self.current_collection
@@ -220,19 +220,23 @@ class CompositionProcess(ModuleProcess, Thread):
             )
             return None
 
-    def get_channels(self, clip_set: set) -> dict:
+    def assign_channels(self, clip_set: set, *args) -> dict:
         """
         Return dict of channels, where key=(index) and value=(channel object).
         Updates the mixer if there aren't enough channels
         """
         channels = {}
-        num_chans = pg.mixer.get_num_channels()
         num_wanted = len(clip_set)
+        if 'clear' in args:
+            self.logger.debug('Clearing mixer before building new clips...')
+            pg.mixer.set_num_channels(0)
+        num_chans = pg.mixer.get_num_channels()
         # Update the audio mixer channel count if required
         if num_chans != num_wanted:
+            self.logger.debug(f'Mixer has ({num_chans}) channel{plural(num_chans)}. ({num_wanted}) are needed.')            
             pg.mixer.set_num_channels(num_wanted)
             num_chans = pg.mixer.get_num_channels()
-            self.logger.debug(f"Mixer now has {num_chans} channels.")
+            self.logger.info(f"Mixer now assigned ({num_chans}) channel{plural(num_chans)}.")
         for i in range(num_chans):
             channels[i] = pg.mixer.Channel(i)
             channels[i].set_volume(self.mix_volume)
@@ -260,11 +264,11 @@ class CompositionProcess(ModuleProcess, Thread):
             self.poll_control(block_for = block_time, abort_event = lambda: (not pg.mixer.get_busy()))
             self.check_clip_events()
             if pg.mixer.get_busy():
-                self.logger.warning('Mixer not empty after waiting for silence. '
+                self.logger.warning('Mixer still busy after waiting for silence. '
                                     'Forcing playback to stop on all channels.')
                 self.stop_all_clips('now')
             else:
-                self.logger.debug("Mixer now empty.")
+                self.logger.debug("Mixer now silent.")
         else:
             self.logger.debug(f'Mixer not initialised or busy. Ignoring request '
                               f'to wait for silence.')

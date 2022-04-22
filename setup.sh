@@ -22,6 +22,7 @@ sudo systemctl stop signifier
 sudo systemctl stop sig-config
 export HOSTNAME
 SIG_PATH="$PWD"
+SCRIPT_PATH=$SIG_PATH/scripts
 MEDIA_DIR=$SIG_PATH/media/audio
 BOOT_DIR="/boot/sig-content"
 echo Installing Signifier from [$SIG_PATH] on [$HOSTNAME]...
@@ -108,6 +109,7 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 CUSTOM_ENV=$HOME/.signifier
 rm $CUSTOM_ENV
+touch $CUSTOM_ENV
 
 LINE=$"HOST=\"$HOSTNAME\""
 echo "$LINE" >> "$CUSTOM_ENV"
@@ -136,7 +138,6 @@ FILE=/etc/sudoers
 if [ -f "$FILE" ]; then
     sudo tail -c1 $FILE | read -r _ || echo >> $FILE
 fi
-
 LINE="$USER ALL=NOPASSWD: /sbin/reboot /sbin/poweroff"
 sudo grep -qF -- "$LINE" "$FILE" || echo "$LINE" | sudo tee -a "$FILE"
 
@@ -256,8 +257,6 @@ if [ -f "$VPN_FILE" ]; then
 else
     if [ ! -f $VPN_PATH/client.conf ]; then
         echo "VPN credentials not found! Add manually after installation and run setup script again."
-    # else
-        # sudo openvpn --config /etc/openvpn/client/client.ovpn --daemon
     fi
 fi
 echo
@@ -295,7 +294,7 @@ arduino-cli lib install SerialTransfer
 
 echo
 if [[ $OPTION_UPDATE_ARDUINO != "false" ]]; then
-    source update-arduino.sh
+    source $SCRIPT_PATH/update-arduino.sh
 fi
 
 echo
@@ -323,7 +322,7 @@ fi
 echo
 
 echo
-source update-monitoring.sh
+source $SCRIPT_PATH/update-monitoring.sh
 
 FILE=$SIG_PATH/get-docker.sh
 if [ -f "$FILE" ]; then
