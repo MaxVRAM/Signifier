@@ -196,7 +196,7 @@ sudo ufw --force enable
 
 echo
 echo Installing Python modules...
-python -m pip install -U --no-input -r requirements.txt
+python -m pip install -U --no-input -r sys/requirements.txt
 
 echo
 echo Setting up audio environment...
