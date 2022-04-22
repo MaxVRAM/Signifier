@@ -24,6 +24,7 @@ export HOSTNAME
 SIG_PATH="$PWD"
 SCRIPT_PATH=$SIG_PATH/scripts
 MEDIA_DIR=$SIG_PATH/media/audio
+ARDUINO_PATH=$HOME/Arduino
 BOOT_DIR="/boot/sig-content"
 echo Installing Signifier from [$SIG_PATH] on [$HOSTNAME]...
 echo
@@ -124,6 +125,10 @@ echo "$LINE" >> "$CUSTOM_ENV"
 grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
 
 LINE=$"FLASK_ENV=\"development\""
+echo "$LINE" >> "$CUSTOM_ENV"
+grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
+
+LINE=$"ARDUINO_PATH=\"$ARDUINO_PATH\""
 echo "$LINE" >> "$CUSTOM_ENV"
 grep -qF -- "export $LINE" "$FILE" || echo "export $LINE" >> "$FILE"
 
@@ -281,7 +286,6 @@ echo
 if ! command -v arduino-cli &> /dev/null
 then
     echo "Installing Arduino-CLI in ${ARDUINO_PATH}..."
-    ARDUINO_PATH="$HOME/Arduino"
     mkdir $ARDUINO_PATH
     curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=$ARDUINO_PATH sh
 else

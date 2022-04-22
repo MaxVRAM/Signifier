@@ -8,10 +8,11 @@ echo
 
 
 source ~/.profile
+source ~/.signifier
 SKETCH="$SIGNIFIER/src/sig_led"
 sudo systemctl stop signifier
-arduino-cli compile -b arduino:megaavr:nona4809 $SKETCH
-arduino-cli upload -p /dev/ttyACM0 -b arduino:megaavr:nona4809 -v $SKETCH
+$ARDUINO_PATH/arduino-cli compile -b arduino:megaavr:nona4809 $SKETCH
+$ARDUINO_PATH/arduino-cli upload -p /dev/ttyACM0 -b arduino:megaavr:nona4809 -v $SKETCH
 if [ $? -eq 0 ]
 then 
   echo "Arduino now up to date!"
