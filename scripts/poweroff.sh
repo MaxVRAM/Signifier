@@ -1,6 +1,10 @@
 #!/bin/bash
 
-echo "Powering off the Raspberry Pi in 5 seconds"
 echo
+echo "--------------------------------------------"
+echo " POWERING OFF THE SIGNIFIER/PI IN 5 SECONDS "
+echo "--------------------------------------------"
+echo
+
 sleep 5
 sudo /sbin/poweroff

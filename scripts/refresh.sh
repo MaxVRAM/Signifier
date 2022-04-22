@@ -1,19 +1,28 @@
 #!/bin/bash
 
 echo
-echo "--------------------------------------------------------"
-echo "UPDATING OS/SIGNIFIER, RESETTING DEFAULTS, AND REBOOTING"
-echo "--------------------------------------------------------"
+echo "----------------------------------------------------------"
+echo " UPDATING OS/SIGNIFIER, RESETTING DEFAULTS, AND REBOOTING "
+echo "----------------------------------------------------------"
 echo
 
+if [[ ! -z "${SIG_PATH}" ]]; then
+  SIG=$SIG_PATH
+else
+  if [[ ! -z "${SIGNIFIER}" ]]; then
+    SIG=$SIGNIFIER
+  else
+    SIG="$HOME/Signifier"
+  fi
+fi
+
 sudo systemctl stop signifier
-git pull
 sudo apt update -y
 sudo apt upgrade -y
-source ~/.profile
-source ~/.signifier
-source $SIGNIFIER/scripts/update-arduino.sh
-#source restore-defaults.sh
-#source update-arduino.sh
-#source update-monitoring.sh
-sudo /sbin/reboot
+echo
+echo "System up to date."
+echo
+echo
+source $SIG/scripts/update-app.sh
+source $SIG/scripts/update-arduino.sh
+source $SIG/scripts/scripts/reboot.sh

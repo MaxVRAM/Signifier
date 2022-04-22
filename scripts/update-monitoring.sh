@@ -1,13 +1,22 @@
 #!/bin/bash
 
 echo
-echo -------------------------------------------------------
-echo         Manually bringing Docker containers up
-echo -------------------------------------------------------
+echo "---------------------------------------"
+echo " MANUALLY BRINING UP DOCKER CONTAINERS "
+echo "---------------------------------------"
 echo
-shopt -s expand_aliases
-source ~/.aliases
-BASE_PATH="$SIGNIFIER/docker"
+
+if [[ ! -z "${SIG_PATH}" ]]; then
+  SIG=$SIG_PATH
+else
+  if [[ ! -z "${SIGNIFIER}" ]]; then
+    SIG=$SIGNIFIER
+  else
+    SIG="$HOME/Signifier"
+  fi
+fi
+
+BASE_PATH="$SIG/docker"
 docker compose -f "$BASE_PATH/portainer/docker-compose.yaml" up -d
 docker compose -f "$BASE_PATH/metrics/docker-compose.yaml" up -d
 if [ $? -eq 0 ]
@@ -16,7 +25,7 @@ then
   echo
   exit 0
 else 
-  echo "Could not bring up Docker containers. Please restart and run '$SIGNIFIER/scripts/update-monitoring.sh'."
+  echo "Could not bring up Docker containers. Please restart and run '$SIG/scripts/update-monitoring.sh'."
   echo
   exit 1
 fi

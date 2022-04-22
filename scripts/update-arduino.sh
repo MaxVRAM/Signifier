@@ -9,7 +9,19 @@ echo
 
 source ~/.profile
 source ~/.signifier
-SKETCH="$SIGNIFIER/src/sig_led"
+
+if [[ ! -z "${SIG_PATH}" ]]; then
+  SIG=$SIG_PATH
+else
+  if [[ ! -z "${SIGNIFIER}" ]]; then
+    SIG=$SIGNIFIER
+  else
+    SIG="$HOME/Signifier"
+  fi
+fi
+
+SKETCH="$SIG/src/sig_led"
+
 sudo systemctl stop signifier
 $HOME/Arduino/arduino-cli compile -b arduino:megaavr:nona4809 $SKETCH
 $HOME/Arduino/arduino-cli upload -p /dev/ttyACM0 -b arduino:megaavr:nona4809 -v $SKETCH
