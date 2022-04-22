@@ -203,7 +203,11 @@ class SmoothedValue:
 
 
 class SigLog:
-    file = "logs/signifier.log"
+    SIG_PATH = os.getenv('SIGNIFIER')
+    LOG_PATH = os.path.join(SIG_PATH, 'logs')
+    if not os.path.isdir(LOG_PATH):
+        os.mkdir(LOG_PATH)
+    file = os.path.join(LOG_PATH, 'signifier.log')
     level = logging.DEBUG
     format_dt = '%d-%m-%y %H:%M:%S'
     format_msg = '%(asctime)s %(name)18s - %(levelname)10s - %(message)s'
