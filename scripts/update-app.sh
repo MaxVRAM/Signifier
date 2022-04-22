@@ -16,9 +16,6 @@ else
   fi
 fi
 
-echo "Pulling latest Signifier code into $SIG"
-echo
 git -C $SIG pull
-echo
-echo "Signifier up to date!"
+
 echo
