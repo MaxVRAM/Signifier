@@ -1,9 +1,9 @@
 #!/bin/bash
 
 echo
-echo "-------------------------------------------------------"
-echo "COMPILING LATEST ARDUINO CODE AND PUSHING TO ARDUINO..."
-echo "-------------------------------------------------------"
+echo "---------------------------------------------------------"
+echo " COMPILING LATEST ARDUINO CODE AND PUSHING TO ARDUINO... "
+echo "---------------------------------------------------------"
 echo
 
 

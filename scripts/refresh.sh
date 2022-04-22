@@ -25,4 +25,5 @@ echo
 echo
 source $SIG/scripts/update-app.sh
 source $SIG/scripts/update-arduino.sh
+source $SIG/scripts/restore-defaults.sh
 source $SIG/scripts/reboot.sh
