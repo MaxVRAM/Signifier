@@ -203,7 +203,7 @@ class SmoothedValue:
 
 
 class SigLog:
-    file = "signifier.log"
+    file = "logs/signifier.log"
     level = logging.DEBUG
     format_dt = '%d-%m-%y %H:%M:%S'
     format_msg = '%(asctime)s %(name)18s - %(levelname)10s - %(message)s'
