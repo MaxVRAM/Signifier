@@ -17,6 +17,7 @@ else
 fi
 
 sudo systemctl stop signifier
+rm $SIG/*.log*
 cp $SIG/sys/config_defaults/* $SIG/cfg/
 sudo rm ~/.asoundrc
 cp $SIG/sys/.asoundrc ~/
