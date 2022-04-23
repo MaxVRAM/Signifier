@@ -39,20 +39,10 @@ def init_sounds(clips: set, channels: dict) -> dict:
         if clip.build_sound(channels.popitem()) is not None:
             done.add(clip)
     remaining = list(clips.difference(done))
-    logger.info(f"Initialised ({len(done)}) clip{plural(remaining)}: {get_contents(done, count=True)}.")
+    logger.debug(f"Initialised ({len(done)}) clip{plural(remaining)}: {get_contents(done, count=True)}.")
     if len(remaining) > 0:
         logger.warning(
-            f"Unable to build ({len(remaining)}) " f"Sound object{plural(remaining)}! "
-        )
-
-        print(f'Clips sent to init_sound function:')
-        for c in clips:
-            print(f'Clip: {c.name}    Channel index: {c.index}')
-
-        print(f'Clips assigned channels:')
-        for d in done:
-            print(f'Clip: {d.name}    Channel index: {d.index}')
-
+            f"Unable to build ({len(remaining)}) " f"Sound object{plural(remaining)}!")
         return {"channels": channels, "clips": remaining}
 
 

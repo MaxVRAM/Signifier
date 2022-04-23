@@ -190,21 +190,15 @@ class CompositionProcess(ModuleProcess, Thread):
         if name is None:
             name = random.choice(list(self.collections.keys()))
         path, names = (self.collections[name]["path"], self.collections[name]["names"])
-        self.logger.debug(f'New collection "{name}" with ({len(names)}) '
-                          f'clip{plural(names)} loaded.'
-        )
+        self.logger.debug(f'Collection "{name}" with ({len(names)}) '
+                          f'clip{plural(names)} loaded.')
         self.current_collection = {"title": name, "path": path, "names": names}
         # Build clips from collection to populate clip manager
         self.clips = set([Clip(path, name, self.config["categories"],
                                self.logger) for name in names])
         self.active_pool = set()
-        if (
-            pool := clipUtils.get_distributed(
-                self.clips,
-                num_clips,
-                strict=self.config.get("strict_distribution", False),
-            )
-        ) is not None:
+        if (pool := clipUtils.get_distributed(self.clips, num_clips,
+                strict=self.config.get("strict_distribution", False))) is not None:
             self.inactive_pool = pool
             if self.channels is not None:
                 for chan in self.channels:
@@ -212,12 +206,13 @@ class CompositionProcess(ModuleProcess, Thread):
             self.channels = self.assign_channels(self.inactive_pool, 'clear')
             clipUtils.init_sounds(self.inactive_pool, self.channels)
             self.metrics_pusher.update(f"{self.module_name}_collection", name)
+            self.logger.info(f'Now playing collection "{name}" with '
+                             f'({len(pool)}) clip{plural(pool)} selected.')
             return self.current_collection
         else:
             self.logger.error(
                 f'Failed to retrieve a collection "{name}"! '
-                f"Audio files might be corrupted."
-            )
+                f"Audio files might be corrupted.")
             return None
 
     def assign_channels(self, clip_set: set, *args) -> dict:
@@ -236,7 +231,7 @@ class CompositionProcess(ModuleProcess, Thread):
             self.logger.debug(f'Mixer has ({num_chans}) channel{plural(num_chans)}. ({num_wanted}) are needed.')            
             pg.mixer.set_num_channels(num_wanted)
             num_chans = pg.mixer.get_num_channels()
-            self.logger.info(f"Mixer now assigned ({num_chans}) channel{plural(num_chans)}.")
+            self.logger.debug(f"Mixer now assigned ({num_chans}) channel{plural(num_chans)}.")
         for i in range(num_chans):
             channels[i] = pg.mixer.Channel(i)
             channels[i].set_volume(self.mix_volume)
@@ -428,15 +423,13 @@ class CompositionProcess(ModuleProcess, Thread):
         if len(lingering := self.check_finished()) > 0:
             self.logger.info(f'Lingering clips cleared from active pool: {lingering}')
         self.channels
-        if (
-            self.select_collection(name=kwargs.get("collection"), pool_size=pool_size)
-            is None
-        ):
+        if (self.select_collection(
+                name=kwargs.get("collection"),
+                pool_size=pool_size) is None):
             self.logger.warning(
                 f"Selecting collection with [{kwargs}] "
                 f"returned no results. Attempting "
-                f"random selection..."
-            )
+                f"random selection...")
             if self.select_collection(pool_size=pool_size) is None:
                 self.failed(f"Could not source audio clip collection.")
                 return None
