@@ -53,7 +53,7 @@
         "dtype": "int16",
         "buffer": 1024,
         "gain": 2.0,
-        "underrun_timeout": 20
+        "underrun_detection_secs": 10
     },
     "composition": {
         "enabled": true,
