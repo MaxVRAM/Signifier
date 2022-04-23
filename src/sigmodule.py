@@ -203,8 +203,8 @@ class SigModule:
                 self.failed_count += 1
             try:
                 self.status = ModuleStatus[message]
-            except ValueError:
-                self.module_callback(message)
+            except (ValueError, KeyError):
+                self.module_callback(self.module_name, message)
 
 
         # Apply pending config

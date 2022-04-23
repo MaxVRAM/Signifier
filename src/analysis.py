@@ -109,10 +109,12 @@ class AnalysisProcess(ModuleProcess, mp.Process):
                     self.source_values[self.peak_name] = peak
                     self.metrics_pusher.update(self.peak_name, peak)
                 # Alert main thread if underrun detected  
-                elif peak == 0 and self.silence_start is not None:
+                elif peak < THRESHOLD and self.silence_start is not None:
                     if time.time() > self.silence_start + self.underrun_secs:
                         if self.parent_pipe.writable:
-                            self.parent_pipe.send(f'{time.time() - self.silence_start} seconds', message="underrun")
+                            print(f'Underrun!!')
+                            self.parent_pipe.send(f'underrun {round(time.time() - self.silence_start)} seconds')
+                            self.event.set()
                 self.metrics_pusher.update(f"{self.module_name}_buffer_size", length)
                 self.metrics_pusher.update(
                     f"{self.module_name}_buffer_ms",

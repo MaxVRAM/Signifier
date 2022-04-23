@@ -112,23 +112,21 @@ def check_config_update():
                 'config_update_secs', 2)
 
 
-def module_callback(*args, **kwargs):
+def module_callback(module, message):
     """
     Provided to all modules on initialisation, this module executes functions in the
     main thread based on the supplied `message=(string)` kwarg. Arguments are simply
     for logging purposes of callback details.
     """
-    module = kwargs.get('module')
-    message = kwargs.get('message')
-    logger.info(f'Message from [{module}]: "{message}", with value: "{args}"')
+    logger.info(f'Message from [{module}]: "{message}"')
     # The analysis module has detect silence for X seconds, indicating a critical
     # ASIO underrun, which silently crashes PyGame's audio engine and requires a restart.
-    if message == 'underrun':
+    if 'underrun' in message:
         if (module_objects.get('composition') is not None and
                 module_objects.get('analysis') is not None and
                 module_objects.get('composition').module_config.get('enabled', False) and
-                module_objects.get('composition').module_config.get('mix_volume', False)):
-            logger.critical(f'The "{message}" message has triggered a Signifier service restart.')
+                module_objects.get('composition').module_config.get('mix_volume', 0) > 0):
+            logger.critical(f'Message "{message}" triggered Signifier service restart.')
             command = os.path.join(SIG_SCRIPTS, 'restart.sh')
             subprocess.Popen([command])
 
