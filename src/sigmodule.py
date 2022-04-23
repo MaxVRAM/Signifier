@@ -11,6 +11,7 @@ A generic module class for creating independent Signifier modules.
 
 from __future__ import annotations
 
+import os
 import time
 from enum import Enum
 from queue import Full
@@ -20,7 +21,13 @@ from src.utils import SigLog
 from src.utils import FunctionHandler
 
 
-class ProcessStatus(Enum):
+# Critical alerts from modules that should restart the Signifier service
+SIG_RESTART_MESSAGES = ['underrun']
+SIG_PATH = os.getenv('SIGNIFIER')
+SIG_SCRIPTS = os.path.join(SIG_PATH, 'scripts')
+
+
+class ModuleStatus(Enum):
     disabled = 1
     empty = 2
     initialised = 3
@@ -47,7 +54,7 @@ class SigModule:
         self.config_latest = configs
         self.config_dirty = True
         self.apply_config()
-        self.status = ProcessStatus.empty if self.enabled else ProcessStatus.disabled
+        self.status = ModuleStatus.empty if self.enabled else ModuleStatus.disabled
         # Process management
         self.process = None
         self.metrics_q = kwargs.get("metrics", None)
@@ -56,12 +63,13 @@ class SigModule:
         self.module_start_time = time.time()
         self.module_end_time = time.time()
         # Remote function calls
+        self.module_callback = kwargs.get('callback')
         self.remote_functions = {
             "initialise": self.initialise,
             "update_config": self.update_config,
             "start": self.start,
             "stop": self.stop,
-            "monitor": self.monitor,
+            "monitor": self.monitor_process,
             "process": self.send_to_process
             }
         self.function_handler = FunctionHandler(
@@ -79,9 +87,9 @@ class SigModule:
         """
         (re)Creates the given Signifier module's Process.
         """
-        if (self.status in [ProcessStatus.empty,
-                            ProcessStatus.failed,
-                            ProcessStatus.closed]
+        if (self.status in [ModuleStatus.empty,
+                            ModuleStatus.failed,
+                            ModuleStatus.closed]
                             or 'force' in args):
             self.create_process()
             if self.process is None:
@@ -111,7 +119,7 @@ class SigModule:
                 self.config_dirty = False
             else:
                 self.logger.error(f"Module [{self.module_name}] has no config to apply!")
-                self.status = ProcessStatus.failed
+                self.status = ModuleStatus.failed
 
 
     def update_config(self, configs: dict, **kwargs):
@@ -121,7 +129,7 @@ class SigModule:
         self.logger.debug(f"Pushing config update to [{self.module_name}]...")
         self.config_latest = configs
         self.config_dirty = True
-        if self.status == ProcessStatus.running:
+        if self.status == ModuleStatus.running:
             self.stop()
 
 
@@ -129,11 +137,11 @@ class SigModule:
         """
         Start the module's Process run function.
         """
-        if self.status == ProcessStatus.initialised:
+        if self.status == ModuleStatus.initialised:
             if self.process is not None:
                 if not self.process.is_alive():
                     self.logger.debug(f"Process starting.")
-                    self.status = ProcessStatus.starting
+                    self.status = ModuleStatus.starting
                     self.module_start_time = time.time()
                     self.process.start()
                 else:
@@ -147,12 +155,12 @@ class SigModule:
         """
         Shutdown the module's Process object and deactivate module.
         """
-        if self.status not in [ProcessStatus.empty,
-                               ProcessStatus.disabled,
-                               ProcessStatus.closed,
-                               ProcessStatus.failed,
-                               ProcessStatus.closing]:
-            self.status = ProcessStatus.closing
+        if self.status not in [ModuleStatus.empty,
+                               ModuleStatus.disabled,
+                               ModuleStatus.closed,
+                               ModuleStatus.failed,
+                               ModuleStatus.closing]:
+            self.status = ModuleStatus.closing
             self.send_to_process('close')
 
 
@@ -169,9 +177,9 @@ class SigModule:
                 self.logger.warning(f'{exception}')
 
 
-    def monitor(self):
+    def monitor_process(self):
         """
-        Generic monitoring tick call for module to check process statues.
+        Generic monitoring tick call for module to check process statuses.
         """
         previous_status = self.status
         # Retrieve and parse any pending messages from the child process
@@ -193,39 +201,43 @@ class SigModule:
                         pass
             elif message == 'failed':
                 self.failed_count += 1
-            self.status = ProcessStatus[message]
+            try:
+                self.status = ModuleStatus[message]
+            except ValueError:
+                self.module_callback(message)
+
 
         # Apply pending config
         if (self.status not in [
-                ProcessStatus.running,
-                ProcessStatus.starting,
-                ProcessStatus.closing]
+                ModuleStatus.running,
+                ModuleStatus.starting,
+                ModuleStatus.closing]
                 and self.config_dirty):
             self.apply_config()
 
         # Update module status
         if self.enabled:
             if self.status in [
-                    ProcessStatus.running,
-                    ProcessStatus.starting,
-                    ProcessStatus.closing]:
+                    ModuleStatus.running,
+                    ModuleStatus.starting,
+                    ModuleStatus.closing]:
                 pass
-            elif self.status in [ProcessStatus.empty, ProcessStatus.closed]:
+            elif self.status in [ModuleStatus.empty, ModuleStatus.closed]:
                 self.initialise()
-            elif self.status == ProcessStatus.initialised:
+            elif self.status == ModuleStatus.initialised:
                 self.start()
-            elif self.status == ProcessStatus.failed:
+            elif self.status == ModuleStatus.failed:
                 if time.time() > self.last_failed_time + self.main_config.get(
                         'module_fail_restart_secs', 5):
                     self.last_failed_time = time.time()
                     self.initialise('force')
         else:
-            if self.status == ProcessStatus.disabled:
+            if self.status == ModuleStatus.disabled:
                 pass
-            elif self.status == ProcessStatus.running:
+            elif self.status == ModuleStatus.running:
                 self.stop()
-            elif self.status not in [ProcessStatus.starting, ProcessStatus.closing]:
-                self.status = ProcessStatus.disabled
+            elif self.status not in [ModuleStatus.starting, ModuleStatus.closing]:
+                self.status = ModuleStatus.disabled
 
         if previous_status != self.status:
             self.logger.info(f'Status changed to "{self.status.name}"')

@@ -23,6 +23,7 @@ import sys
 import json
 import time
 import signal
+import subprocess
 from dictdiffer import diff as dict_diff
 import multiprocessing as mp
 
@@ -48,6 +49,7 @@ HOSTNAME = os.getenv('HOST')
 SIG_PATH = os.getenv('SIGNIFIER')
 SITE_PATH = os.path.join(SIG_PATH, 'site')
 CONFIG_PATH = os.path.join(SIG_PATH, 'cfg')
+SIG_SCRIPTS = os.path.join(SIG_PATH, 'scripts')
 DEFAULTS_PATH = os.path.join(SIG_PATH, 'sys', 'default_configs')
 CONFIG_UPDATE_SECS = 2
 CONFIG_FILES = {'config':'config.json',
@@ -110,6 +112,28 @@ def check_config_update():
                 'config_update_secs', 2)
 
 
+def module_callback(*args, **kwargs):
+    """
+    Provided to all modules on initialisation, this module executes functions in the
+    main thread based on the supplied `message=(string)` kwarg. Arguments are simply
+    for logging purposes of callback details.
+    """
+    module = kwargs.get('module')
+    message = kwargs.get('message')
+    logger.info(f'Message from [{module}]: "{message}", with value: "{args}"')
+    # The analysis module has detect silence for X seconds, indicating a critical
+    # ASIO underrun, which silently crashes PyGame's audio engine and requires a restart.
+    if message == 'underrun':
+        if (module_objects.get('composition') is not None and
+                module_objects.get('analysis') is not None and
+                module_objects.get('composition').module_config.get('enabled', False) and
+                module_objects.get('composition').module_config.get('mix_volume', False)):
+            logger.critical(f'The "{message}" message has triggered a Signifier service restart.')
+            command = os.path.join(SIG_SCRIPTS, 'restart.sh')
+            subprocess.Popen([command])
+
+
+
 #    _________.__            __      .___
 #   /   _____/|  |__  __ ___/  |_  __| _/______  _  ______
 #   \_____  \ |  |  \|  |  \   __\/ __ |/  _ \ \/ \/ /    \
@@ -147,7 +171,7 @@ class ExitHandler:
                 # Ask each module to close gracefully
                 for m in module_objects.values():
                     if m.status.name not in ['closed', 'empty', 'disabled', 'failed']:
-                        logger.debug(f'[{m.module_name}] status is status "{m.status.name}"...')
+                        logger.debug(f'[{m.module_name}] status: "{m.status.name}". Asking to stop...')
                         m.stop()
                 timeout = Stopwatch()
                 still_waiting = True
@@ -180,8 +204,6 @@ if __name__ == '__main__':
     if configs == None:
         exit_handler.shutdown()
 
-
-
     config_data = configs['config']['modules']
     logger.setLevel(config_data['general'].get('log_level'))
     process_loop_sleep = config_data['general'].get('process_loop_sleep')
@@ -199,7 +221,7 @@ if __name__ == '__main__':
     # Define and load modules
     for name, settings in configs['config']['modules'].items():
         if (module_class := module_types.get(settings.get('module_type', ''))) is not None:
-            module_objects[name] = module_class(name, configs, metrics=metrics_q)
+            module_objects[name] = module_class(name, configs, metrics=metrics_q, callback=module_callback)
         elif name != 'general':
             logger.warning(f'[{name}] module has no module_type, so cannot be started. '
                            f'Check config.json!')
@@ -216,6 +238,6 @@ if __name__ == '__main__':
     # Main update loop
     while True:
         for m in module_objects.values():
-            m.monitor()
+            m.monitor_process()
         check_config_update()
         time.sleep(process_loop_sleep)

@@ -55,8 +55,11 @@ class AnalysisProcess(ModuleProcess, mp.Process):
         self.buffer_size = parent.module_config.get("buffer", 1024)
         self.output_volume = parent.main_config["composition"].get("volume", 1)
         self.gain = parent.module_config.get("gain", 2)
+        self.underrun_secs = parent.module_config.get("underrun_detection_secs", 20)
+        self.silence_start = None
         # Mapping and metrics
-        self.source_values = {f"{self.module_name}_peak": 0}
+        self.peak_name = f"{self.module_name}_peak"
+        self.source_values = {self.peak_name: 0}
         if self.parent_pipe.writable:
             self.parent_pipe.send("initialised")
 
@@ -96,28 +99,20 @@ class AnalysisProcess(ModuleProcess, mp.Process):
                 return None
 
             buffer = np.frombuffer(data, dtype="<i2")
-            # Dirty hack to only output 0 if its the second set of zeros detected.
-            # Some major issue going on with period size returns in the library.
-            # Hopefully this doesn't produce majorly incorrect readings...
-            # After the first set of 0 returns, will allow another 9 empty buffers
-            # before preventing outputs. Remains until non zero buffer is filled
-            # and restarts the counter.
-            # if np.sum(buffer) != 0:
-            #     self.prev_empty = 0
-            # elif self.prev_empty == 0:
-            #     self.prev_empty += 1
-            #     buffer = None
-            # elif self.prev_empty < 10:
-            #     self.prev_empty += 1
-            # else:
-            #     buffer = None
-
             if buffer is not None and len(buffer) != 0:
+                # Calculate peak amplitude
                 peak = np.amax(np.abs(buffer))
                 peak = max(0.0, min(1.0, (1 / self.output_volume) * (peak / 16400) * self.gain ))
-                if peak != self.source_values[f"{self.module_name}_peak"]:
-                    self.source_values[f"{self.module_name}_peak"] = peak
-                    self.metrics_pusher.update(f"{self.module_name}_peak", peak)
+                if peak != self.source_values[self.peak_name]:
+                    # Set silence start time to identifying unhandled ALSA underruns
+                    self.silence_start = time.time() if peak == 0 else None
+                    self.source_values[self.peak_name] = peak
+                    self.metrics_pusher.update(self.peak_name, peak)
+                # Alert main thread if underrun detected  
+                elif peak == 0 and self.silence_start is not None:
+                    if time.time() > self.silence_start + self.underrun_secs:
+                        if self.parent_pipe.writable:
+                            self.parent_pipe.send(f'{time.time() - self.silence_start} seconds', message="underrun")
                 self.metrics_pusher.update(f"{self.module_name}_buffer_size", length)
                 self.metrics_pusher.update(
                     f"{self.module_name}_buffer_ms",

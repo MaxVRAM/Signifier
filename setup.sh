@@ -92,7 +92,7 @@ grep -qF -- "$LINE" "$FILE" || echo "$LINE" >> "$FILE"
 
 
 # Apply environment variables to user's .profile for interactive sessions
-# Also apply the environment variables to a .signifier.env file for non-interactive sessions
+# Also apply the environment variables to a .signifier env file for non-interactive sessions
 FILE=$HOME/.profile
 if [ -f "$FILE" ]; then
     tail -c1 $FILE | read -r _ || echo >> $FILE
