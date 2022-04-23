@@ -6,7 +6,7 @@ echo            Starting Signifier installation
 echo -------------------------------------------------------
 echo
 echo "Before we start. Make sure you have:"
-echo " 1. Copied `/sig-content` folder to the SD card's boot drive."
+echo " 1. Copied **sig-content** folder to the SD card's boot drive."
 echo " 2. The Signifier Arduino is connected (if you want to update it)."
 echo " 3. This device has internet access."
 echo
