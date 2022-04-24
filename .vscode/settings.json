@@ -3,7 +3,9 @@
     "python.linting.enabled": false,
     "cwd": "${workspaceRoot}",
     "env": {"PYTHONPATH": "${workspaceRoot}"},
-    "cSpell.words": [],
+    "cSpell.words": [
+        "dancy"
+    ],
     "python.autoComplete.extraPaths": [
         "~/pyalsaaudio/*"
     ],

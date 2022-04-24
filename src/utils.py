@@ -240,7 +240,7 @@ class SigLog:
 
     def roll_over():        
         should_roll_over = os.path.isfile(SigLog.file)
-        handler = logging.handlers.RotatingFileHandler(SigLog.file, mode='w', backupCount=5)
+        handler = logging.handlers.RotatingFileHandler(SigLog.file, backupCount=5)
         if should_roll_over:
             handler.doRollover()
 
