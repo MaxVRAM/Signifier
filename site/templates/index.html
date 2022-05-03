@@ -23,15 +23,13 @@
   <h3>{{ hostname }} Config</h3>
   <div class="container">
     Upload and apply a new config file to <strong>{{ hostname }}</strong>:
-    <form class="row g-3">
-      <form action="" method=post enctype=multipart/form-data>
-        <div class="col-auto">
-          <input class="form-control form-control" id="configUpload" type="file" name=file>
-        </div>
-        <div class="col-auto">
-          <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#uploadConfig">Upload</button>
-        </div>
-      </form>
+    <form class="row g-3" action="" method=post enctype=multipart/form-data>
+    <div class="col-auto">
+      <input class="form-control form-control" id="configUpload" type="file" name=file>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#uploadConfig">Upload</button>
+    </div>
   </div>
   <p>
   <div class="container">

@@ -32,21 +32,14 @@ app.config['UPLOAD_FOLDER'] = CONFIG_PATH
 def index():
     if request.method == 'POST':
         print(f'User posted: {request}')
-
-        print(request.files)
-        
         if 'file' not in request.files:
             print('No file part in POST')
             return redirect(request.url)
         file = request.files['file']
-        print(file)
-        print(file.filename)
-        print(file.filename in CONFIG_FILES.values())
         if file.filename == '':
             print('No file selected')
             return redirect(request.url)
         if file is not None and file.filename in CONFIG_FILES.values():
-            print('hello?')
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             print(f'Config file has been updated: {file.filename}')
