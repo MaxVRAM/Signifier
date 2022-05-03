@@ -57,6 +57,7 @@
     <p>
     <button class="btn btn-info" type="button" data-bs-toggle="modal" data-bs-target="#updateSignifier">Update App</button>
     <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#restartSignifier">Restart App</button>
+    <button class="btn btn-warning" type="button" data-bs-toggle="modal" data-bs-target="#refreshDatabase">Refresh Database</button>
     <button class="btn btn-warning" type="button" data-bs-toggle="modal" data-bs-target="#rebootSignifier">Reboot</button>
     <button class="btn btn-danger" type="button" data-bs-toggle="modal" data-bs-target="#poweroffSignifier">Power Off</button>
   </div>
@@ -117,6 +118,25 @@
       <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           <a class="btn btn-danger" href="/restart_signifier" role="button">Okay</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="refreshDatabase" tabindex="-1" aria-labelledby="refreshDatabaseLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="refreshDatabaseLabel">Refresh Signifier Database?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+          <p>You are about to flush and re-deploy Signifier "{{ hostname }}"'s local database'.</p>
+      </div>
+      <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <a class="btn btn-danger" href="/refresh_database" role="button">Okay</a></div>
       </div>
     </div>
   </div>

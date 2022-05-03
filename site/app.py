@@ -82,6 +82,13 @@ def restart_signifier():
     subprocess.Popen(['sudo', 'systemctl', 'restart', 'signifier'])
     return redirect('/')
 
+@app.route('/refresh_database')
+def restart_database():
+    print('Remote user requested refresh of the Signifier Prometheus database.')
+    command = os.path.join(SCRIPTS_PATH, 'refresh-database.sh')
+    subprocess.Popen([command])
+    return redirect('/')
+
 @app.route('/reboot_signifier')
 def reboot_signifier():
     print('Remote user requested reboot of this machine. Restarting in 5 seconds...')
