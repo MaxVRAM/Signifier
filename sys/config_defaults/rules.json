@@ -9,9 +9,9 @@
             "destination": {
                 "module": "leds",
                 "name": "leds_solid_bright",
-                "range": [0.2, 0.8],
+                "range": [0.2, 1],
                 "smoothing": [0.5, 0.5],
-                "duration": 200
+                "duration": [50,600]
             }
         },
         {
@@ -52,8 +52,8 @@
                 "module": "leds",
                 "name": "leds_mirror_bar",
                 "range": [0, 1],
-                "smoothing": [0.1, 0.1],
-                "duration": 100
+                "smoothing": [0.2, 0.2],
+                "duration": [100,400]
             }
         },
         {
