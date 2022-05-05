@@ -26,7 +26,7 @@
             "leds_main_bright": {
                 "type": "gauge",
                 "command": "Z",
-                "min": 0,
+                "min": 30,
                 "max": 255,
                 "default": 255,
                 "description": "Brightness scaling of entire LED strip."
@@ -36,7 +36,7 @@
                 "command": "B",
                 "min": 3,
                 "max": 255,
-                "default": 0,
+                "default": 50,
                 "description": "Brightness of solid colour effect."
             },
             "leds_solid_sat": {
@@ -68,7 +68,7 @@
                 "command": "O",
                 "min": 0,
                 "max": 255,
-                "default": 50,
+                "default": 120,
                 "description": "Speed of LED noise effect."
             },
             "leds_noise_sat": {
@@ -224,7 +224,7 @@
                 "type": "gauge",
                 "min": 0.1,
                 "max": 1.0,
-                "default": 0.7,
+                "default": 0.9,
                 "description": "Overall volume of the audio output."
             },
             "composition_volume_speed": {
